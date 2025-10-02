@@ -233,7 +233,7 @@ class ConversationDemo:
         self.say("Hello, I am your companion robot")
 
 class MiniDialog:
-    def __init__(self, dialog_id, dialog_type, moves, attributes=None, dependencies=None):
+    def __init__(self, dialog_id, dialog_type, moves, attributes=None, dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         dialog_type: str, one of 'narrative', 'chitchat', 'functional'
@@ -259,31 +259,39 @@ class MiniDialog:
     #             print(f"User answered: {answer}")
 
 
-    def run(self, conversation_demo, session_history=None):
+    def run(self, conversation_demo, session_history=None, user_model=None): 
         idx = 0
         branch = None
         if session_history is None:
             session_history = []
+        if user_model is None:
+            user_model = {}
         while idx < len(self.moves):
             move = self.moves[idx]
             move_type = move.get('type')
             move_branch = move.get('branch')  # <-- NEW: get the branch for this move
-            #If we're in a branch, only process moves with the same branch or None (wrap-up) ---
+            #If we're in a branch, only process moves with the same branch or None, wrap-up
             if branch is not None:
                 if move_branch == branch:
                     pass  
                 elif move_branch is None:
                     if move_type == 'say':
-                        conversation_demo.say(move['text'])
-                        session_history.append({"role": "robot", "type": "say", "text": move['text']})
+                        text = move['text']
+                        for var, value in user_model.items():   
+                            text = text.replace(f"%{var}%", str(value))
+                        conversation_demo.say(text)
+                        session_history.append({"role": "robot", "type": "say", "text": text})
                     idx += 1
                     break  
                 else:
                     idx += 1
                     continue # NEW UNTIL HERE
             if move_type == 'say':
-                conversation_demo.say(move['text'])
-                session_history.append({"role": "robot", "type": "say", "text": move['text']})
+                text = move['text']
+                for var, value in user_model.items():
+                    text = text.replace(f"%{var}%", str(value))
+                conversation_demo.say(text)
+                session_history.append({"role": "robot", "type": "say", "text": text})
                 idx += 1
             elif move_type == 'ask_yesno':
                 answer = conversation_demo.ask_yesno(move['text'])
@@ -296,6 +304,9 @@ class MiniDialog:
                 session_history.append({"role": "robot", "type": "ask_open", "text": move['text']})
                 session_history.append({"role": "user", "type": "answer_open", "text": answer})
                 print(f"User answered: {answer}")
+                if "set_variable" in move and answer:
+                    var_name = move["set_variable"]
+                    user_model[var_name] = answer
                 idx += 1
             elif move_type == 'ask_options':
                 answer = conversation_demo.ask_options(move['text'], move.get('options', []))
@@ -444,7 +455,7 @@ mini_dialogs = [
     dialog_id="favorite_animal_fact",
     dialog_type="chitchat",
     moves=[
-        {"type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%? He was so big and strong!"}
+        {"type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%? It was so big and strong!"}
     ],
     dependencies=["greeting"],
     variable_dependencies=[{"variable": "favorite_animal", "required": True}]
@@ -515,14 +526,14 @@ if __name__ == '__main__':
         # "place_in_nature",
         # "robot_want_to_be",
         # "robot_favorite_feature",
-        "favorite_animal_fact",
         "ask_favorite_animal",
+        "favorite_animal_fact",
         "goodbye"
     ]
     for dialog_id in dialog_order:
         dialog = next((d for d in mini_dialogs if d.dialog_id == dialog_id), None)
         if dialog and can_run(dialog, completed_dialogs, user_model):
-            dialog.run(demo, session_history)
+            dialog.run(demo, session_history, user_model)
             completed_dialogs.add(dialog.dialog_id)
 
 

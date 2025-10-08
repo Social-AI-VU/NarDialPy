@@ -285,7 +285,7 @@ from mini_dialogs import mini_dialogs
 # ALL_HISTORY_FILE = "all_sessions_history.json"
 # # Load previous sessions history if file exists
 # if os.path.exists(ALL_HISTORY_FILE):
-#     with open(ALL_HISTORY_FILE, "r") as f:
+#     with open(ALL_HISTORY_FILE, "r", encoding="utf-8") as f:
 #         all_sessions_history = json.load(f)
 # else:
 #     all_sessions_history = []
@@ -305,9 +305,50 @@ if __name__ == '__main__':
     demo = ConversationDemo(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
                             openai_key_path=abspath(join("conf", "openai", ".openai_env")))
     session_history = []    
-
-   
     demo.run()
+    completed_dialogs = set()
+    user_model = {}
+
+
+    # dialog = next((d for d in mini_dialogs if d.dialog_id == "hero_can_dream_1"), None)
+    # if dialog and can_run(dialog, completed_dialogs, user_model):
+    #     dialog.run(demo, session_history, user_model)
+    #     completed_dialogs.add(dialog.dialog_id)
+
+
+# UNCOMMENT TO RUN A PREDEFINED SESSION BLOCK
+# UNCOMMENT TO RUN A PREDEFINED SESSION BLOCK
+    session_block = select_session_block(mini_dialogs, thread="dreams", theme="nature")
+
+    for dialog in session_block:
+        if can_run(dialog, completed_dialogs, user_model):
+            dialog.run(demo, session_history, user_model)
+            completed_dialogs.add(dialog.dialog_id)
+
+
+    print(json.dumps(session_history, indent=2))
+
+    # all_sessions_history.append(session_history)
+    # # Save all sessions history to file
+    # with open(ALL_HISTORY_FILE, "w", encoding="utf-8") as f:
+    #     json.dump(all_sessions_history, f, indent=2)
+    # print(f"All sessions history saved to {ALL_HISTORY_FILE}")
+
+    sys.exit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+# different runs of mini_dialogs for testing
 
     # result = demo.ask_yesno("Do you like robots?")
     # print("User answered:", result)
@@ -327,14 +368,10 @@ if __name__ == '__main__':
     # else:
     #     demo.say("I didn't catch that. Let's try again another time.")
 
-
-    # mini_dialogs[0].run(demo)  # greeting
+    
+    # mini_dialogs["hero_can_dream_1"].run(demo)  # greeting
     # mini_dialogs[3].run(demo)  # place_in_nature
 
-
-    # # Run only selected dialogs, respecting dependencies
-    completed_dialogs = set()
-    user_model = {}
 
     # dialog_order = [
     #     "greeting",
@@ -351,28 +388,9 @@ if __name__ == '__main__':
     #     if dialog and can_run(dialog, completed_dialogs, user_model):
     #         dialog.run(demo, session_history, user_model)
     #         completed_dialogs.add(dialog.dialog_id)
-    session_block = select_session_block(mini_dialogs, thread="dreams", theme="nature")
-
-    for dialog in session_block:
-        if can_run(dialog, completed_dialogs, user_model):
-            dialog.run(demo, session_history, user_model)
-            completed_dialogs.add(dialog.dialog_id)
-
-
 
 
     # mini_dialogs[0].run(demo, session_history)  # greeting
     # mini_dialogs[3].run(demo, session_history)  # place_in_nature
     # mini_dialogs[4].run(demo, session_history)  # robot_want_to_be
     # mini_dialogs[-1].run(demo, session_history)  # goodbye
-    print(json.dumps(session_history, indent=2))
-
-
-
-    # all_sessions_history.append(session_history)
-    # # Save all sessions history to file
-    # with open(ALL_HISTORY_FILE, "w") as f:
-    #     json.dump(all_sessions_history, f, indent=2)
-    # print(f"All sessions history saved to {ALL_HISTORY_FILE}")
-
-    sys.exit()

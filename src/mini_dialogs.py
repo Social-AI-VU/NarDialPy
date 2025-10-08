@@ -36,22 +36,16 @@ class MiniDialog:
             move = self.moves[idx]
             move_type = move.get('type')
             move_branch = move.get('branch')  # <-- NEW: get the branch for this move
-            #If we're in a branch, only process moves with the same branch or None, wrap-up
             if branch is not None:
                 if move_branch == branch:
                     pass  
                 elif move_branch is None:
-                    if move_type == 'say':
-                        text = move['text']
-                        for var, value in user_model.items():   
-                            text = text.replace(f"%{var}%", str(value))
-                        conversation_demo.say(text)
-                        session_history.append({"role": "robot", "type": "say", "text": text})
-                    idx += 1
-                    break  
+                    branch = None
                 else:
                     idx += 1
-                    continue # NEW UNTIL HERE
+                    continue 
+            #If we're in a branch, only process moves with the same branch or None, wrap-up
+
             if move_type == 'say':
                 text = move['text']
                 for var, value in user_model.items():
@@ -83,24 +77,32 @@ class MiniDialog:
                     var_name = move["set_variable"]
                     user_model[var_name] = answer
                 next_map = move.get('next', {})
-                if answer:
-                    branch = next_map.get("success", None)
+                if next_map:  # Only change branch if next mapping is specified
+                    if answer:
+                        branch = next_map.get("success", None)
+                    else:
+                        branch = next_map.get("fail", None)
+                    if branch:
+                        idx = self._find_branch_start(branch)
+                    else:
+                        idx += 1
                 else:
-                    branch = next_map.get("fail", None)
-                if branch:
-                    idx = self._find_branch_start(branch)
-                else:
+                    # No next mapping - just continue to next move (preserve current branch)
                     idx += 1
             elif move_type == 'ask_options':
                 answer = conversation_demo.ask_options(move['text'], move.get('options', []))
                 session_history.append({"role": "robot", "type": "ask_options", "text": move['text'], "options": move.get('options', [])})
                 session_history.append({"role": "user", "type": "answer_options", "text": answer})
                 print(f"User answered: {answer}")
-                if answer:
-                    branch = answer
+                next_map = move.get('next', {})
+                if answer and answer in next_map:
+                    branch = next_map[answer]
                 else:
-                    branch = "fail_place"
-                idx = self._find_branch_start(branch)
+                    branch = next_map.get('fail', None)
+                if branch:
+                    idx = self._find_branch_start(branch)
+                else:
+                    idx += 1
             elif move_type == 'play':
                 conversation_demo.play_audio(move['audio'])
                 idx += 1
@@ -114,6 +116,7 @@ class MiniDialog:
         return len(self.moves)  # End if not found
 
 
+
 mini_dialogs = [
     MiniDialog(
         dialog_id="greeting",
@@ -125,6 +128,7 @@ mini_dialogs = [
             # {"type": "say", "text": "That's a wonderful name! I'm glad to meet you."}
         ]
     ),
+
     MiniDialog(
         dialog_id="pineapple_on_pizza",
         dialog_type="chitchat",
@@ -134,6 +138,65 @@ mini_dialogs = [
         ],
         attributes={"theme": "food"}
     ),
+
+    MiniDialog(
+        dialog_id="hero_can_dream_1",
+        dialog_type="narrative",
+        moves=[
+            {"type": "say", "text": "By the way, now that you are here. Shall I tell you something?"},
+            {"type": "say", "text": "I can sleep. Did you know that?"},
+            {"type": "say", "text": "I turn off to recharge my battery."},
+            {"type": "say", "text": "If I am not turned off in time to recharge, I sometimes get so tired that I just shut down."},
+            {"type": "ask_open", "text": "Have you ever suddenly shut down? Sorry. You call it falling asleep."},
+
+            {"type": "ask_yesno", "text": "Have you ever just fallen asleep in the middle of the day?",
+            "set_variable": "fell_asleep_midday", "next": {"yes": "yes","no": "no","dontknow": "yesno","fail": "yesno"}},
+            {"type": "say", "text": "Bizarre. That happens to me a lot too!", "branch": "yes"},
+            {"type": "say", "text": "That's a relief.", "branch": "no"},
+            {"type": "say", "text": "I really can't recommend it.", "branch": "yesno"},
+
+
+            {"type": "say", "text": "Shall I tell you something else that I find bizarre?"},
+            {"type": "say", "text": "Sometimes I make up entire stories when I'm turned off."},
+            {"type": "say", "text": "It feels like it just happens by itself."},
+            {"type": "say", "text": "And then suddenly I'm turned on again."},
+            {"type": "say", "text": "Then I wake up and it turns out it all happened in my head."},
+            {"type": "say", "text": "Maybe you know what I'm talking about."},
+            {"type": "ask_options",
+                "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+                "options": ["dreaming", "sleeping", "resting"],
+                "set_variable": "what_is_dreaming",
+                "next": {
+                    "dreaming": "correct",
+                    "sleeping": "incorrect",
+                    "resting": "incorrect",
+                    "fail": "incorrect"
+                }
+            },
+            {"type": "say", "text": "This is called dreaming!", "branch": "incorrect"},
+            {"type": "say", "text": "Indeed, dreaming. Bizarre.", "branch": "correct"},
+            {"type": "say", "text": "A dream."},
+            {"type": "say", "text": "I sometimes dream of being a robot dog with four legs."},
+            {"type": "say", "text": "I can fetch and deliver letters."},
+            {"type": "say", "text": "What do you dream about?"},
+            {"type": "ask_yesno",
+                "text": "Do you remember any of your dreams?",
+                "set_variable": "remembered_dream",
+                "next": {
+                    "yes": "dream_mem_yes",
+                    "no": "dream_mem_no",
+                    "dontknow": "dream_mem_no",
+                    "fail": "dream_mem_no"
+                }
+            },
+            {"type": "ask_open", "text": "What was it about?", "branch": "dream_mem_yes"},
+            {"type": "say", "text": "That's something!", "branch": "dream_mem_yes"},
+            {"type": "say", "text": "I have that sometimes too!", "branch": "dream_mem_no"},
+            {"type": "say", "text": "Then you dream something and afterwards it's gone!", "branch": "dream_mem_no"},
+        ],
+        attributes={"thread": "dreams"} 
+),
+
     MiniDialog(
         dialog_id="dreams_about_clouds_1",
         dialog_type="narrative",
@@ -142,7 +205,6 @@ mini_dialogs = [
             {"type": "ask_open", "text": "Have you ever dreamed about clouds?"}
         ], 
         attributes={"thread": "dreams"}
-
     ),
 MiniDialog(
     dialog_id="hero_can_dream_1",
@@ -197,7 +259,14 @@ MiniDialog(
             {"type": "say", "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."},
             {"type": "ask_options", 
             "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
-            "options": ["sea", "forest", "mountains", "beach"]
+            "options": ["sea", "forest", "mountains", "beach"],
+            "next": {   
+                "sea": "sea",
+                "forest": "forest",
+                "mountains": "mountains",
+                "beach": "beach",
+                "fail_place": "fail_place"
+                }
             },
             # Branches
             {"type": "say", "text": "I also really love the sea!", "branch": "sea"},

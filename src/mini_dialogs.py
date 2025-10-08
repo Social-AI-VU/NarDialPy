@@ -1,15 +1,12 @@
 class MiniDialog:
-    def __init__(self, dialog_id, dialog_type, moves, attributes=None, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
-        dialog_type: str, one of 'narrative', 'chitchat', 'functional'
         moves: list of dicts, each representing a dialog move
         attributes: dict, extra attributes depending on dialog type
         """
         self.dialog_id = dialog_id
-        self.dialog_type = dialog_type
         self.moves = moves
-        self.attributes = attributes or {}
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
 
@@ -115,12 +112,28 @@ class MiniDialog:
                 return i
         return len(self.moves)  # End if not found
 
+class FunctionalDialog(MiniDialog):
+    def __init__(self, dialog_id, moves, type, dependencies=None):
+        super().__init__(dialog_id, moves, dependencies)
+        self.type = type
 
+class NarrativeDialog(MiniDialog):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        self.thread = thread
+        self.position = position  
+
+class ChitchatDialog(MiniDialog):  
+    def __init__(self, dialog_id, moves, theme, dependencies=None, variable_dependencies=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        self.theme = theme
 
 mini_dialogs = [
-    MiniDialog(
+
+# functional dialogs
+    FunctionalDialog(
         dialog_id="greeting",
-        dialog_type="functional",
+        type = "greeting",
         moves=[
             {"type": "say", "text": "Hello! How are you today?"},
             {"type": "ask_open", "text": "What would you like to talk about?"}
@@ -129,19 +142,21 @@ mini_dialogs = [
         ]
     ),
 
-    MiniDialog(
-        dialog_id="pineapple_on_pizza",
-        dialog_type="chitchat",
+    
+    FunctionalDialog(
+        dialog_id="goodbye",
+        type = "farewell",   
         moves=[
-            {"type": "say", "text": "Do you like pineapple on pizza?"},
-            {"type": "ask_yesno", "text": "Yes or no?"}
-        ],
-        attributes={"theme": "food"}
+            {"type": "say", "text": "It was nice talking to you. Goodbye!"}
+        ]
     ),
 
-    MiniDialog(
+# narrative dialogs
+
+    NarrativeDialog(
         dialog_id="hero_can_dream_1",
-        dialog_type="narrative",
+        position=1,
+        thread = "dreams",
         moves=[
             {"type": "say", "text": "By the way, now that you are here. Shall I tell you something?"},
             {"type": "say", "text": "I can sleep. Did you know that?"},
@@ -174,8 +189,7 @@ mini_dialogs = [
                 }
             },
             {"type": "say", "text": "This is called dreaming!", "branch": "incorrect"},
-            {"type": "say", "text": "Indeed, dreaming. Bizarre.", "branch": "correct"},
-            {"type": "say", "text": "A dream."},
+            {"type": "say", "text": "Indeed, dreaming.", "branch": "correct"},
             {"type": "say", "text": "I sometimes dream of being a robot dog with four legs."},
             {"type": "say", "text": "I can fetch and deliver letters."},
             {"type": "say", "text": "What do you dream about?"},
@@ -193,66 +207,228 @@ mini_dialogs = [
             {"type": "say", "text": "That's something!", "branch": "dream_mem_yes"},
             {"type": "say", "text": "I have that sometimes too!", "branch": "dream_mem_no"},
             {"type": "say", "text": "Then you dream something and afterwards it's gone!", "branch": "dream_mem_no"},
-        ],
-        attributes={"thread": "dreams"} 
-),
+        ]
+    ),
 
-    MiniDialog(
-        dialog_id="dreams_about_clouds_1",
-        dialog_type="narrative",
+    NarrativeDialog(
+        dialog_id="dream_on_demand_2",
+        position=2,
+        thread = "dreams",
+        moves=[
+            {"type": "say", "text": "Do you know what's strange?"},
+            {"type": "say", "text": "Last night, when I was powered off,"},
+            {"type": "say", "text": "I had no power and no lights were on,"},
+            {"type": "say", "text": "It felt like I was somewhere I'd never been before."},
+            {"type": "say", "text": "But I was there in my mind."},
+            {"type": "say", "text": "I dreamed I was standing in an empty field."},
+            {"type": "say", "text": "I was dreaming, but nothing happened."},
+            {"type": "say", "text": "I wish something would happen."},
+            {"type": "say", "text": "Maybe you can help me dream once."},
+            {"type": "say", "text": "So when I sleep,"},
+            {"type": "say", "text": "I will really experience something for once."}
+    
+    #     # Continuator (pseudo-code, needs engine support for conditionals)
+    #     # See note below for how to implement
+    #     [
+    #         # This is a continuator group, your engine should pick the first whose conditionals are satisfied
+    #         {"type": "continuator", "branch": "herinnert_droom", "conditionals": [
+    #             {"conditional_of": "$remembered_dream", "filter": "green_list", "values": ["yes"]},
+    #             {"exp_condition": "memory"}
+    #         ]},
+    #         {"type": "continuator", "branch": "herinnert_geen_droom", "conditionals": [
+    #             {"exp_condition": "memory"}
+    #         ]},
+    #         {"type": "continuator", "branch": "control", "conditionals": [
+    #             {"exp_condition": "control"}
+    #         ]}
+    #     ],
+    #     # Branches for continuator
+    #     {"type": "ask_yesno", "text": "Would you like to tell me a dream?", "branch": "control",
+    #      "next": {"yes": "ask_dream", "no": "got_no_dream", "dontknow": "got_no_dream", "fail": "got_no_dream"}},
+    #     {"type": "say", "text": "Last week, you said you sometimes remember dreams.", "branch": "herinnert_droom"},
+    #     {"type": "ask_yesno", "text": "Would you like to tell me another dream?", "branch": "herinnert_droom",
+    #      "next": {"yes": "ask_dream", "no": "got_no_dream", "dontknow": "got_no_dream", "fail": "got_no_dream"}},
+    #     {"type": "say", "text": "Last week, you said you actually don't remember dreams.", "branch": "herinnert_geen_droom"},
+    #     {"type": "ask_yesno", "text": "Did it work this week?", "branch": "herinnert_geen_droom",
+    #      "next": {"yes": "ask_dream", "no": "got_no_dream", "dontknow": "got_no_dream", "fail": "got_no_dream"}},
+    #     {"type": "ask_open", "text": "Tell me about your dream.", "branch": "ask_dream",
+    #      "next": {"success": "got_dream", "fail": "got_no_dream"}},
+    #     {"type": "say", "text": "That dream is really awesome.", "branch": "got_dream"},
+    #     {"type": "say", "text": "That's okay.", "branch": "got_no_dream"},
+    #     {"type": "say", "text": "Then we'll make a dream together.", "branch": "got_no_dream"},
+    #     {"type": "say", "text": "In a dream, anything is possible."},
+    #     {"type": "say", "text": "In my dreams, I wish I could do something really well."},
+    #     {"type": "say", "text": "Like a sports robot."},
+    #     # Continuator for sport
+    #     [
+    #         {"type": "continuator", "branch": "sport_of_child", "conditionals": [
+    #             {"conditional_of": "$sport_of_child", "filter": "green_list", "values": ["_any"]},
+    #             {"exp_condition": "memory"}
+    #         ]}
+    #     ],
+    #     {"type": "say", "text": "For example, just like you, I could do $sport_of_child.", "branch": "sport_of_child"},
+    #     {"type": "say", "text": "But for this dream I would like to..."},
+    #     {"type": "say", "text": "Fly fast", "led": {"location": ["eyes"], "color": ["green"]}},
+    #     {"type": "say", "text": "Or swim waterproof", "led": {"location": ["eyes"], "color": ["blue"]}},
+    #     {"type": "say", "text": "Or race at lightning speed", "led": {"animation": "alternate", "location": "eyes", "color": ["red", "purple"]}},
+    #     {"type": "say", "text": "Go ahead, choose."},
+    #     {"type": "say", "text": "What should I dream about?", "led": {"animation": "reset"}},
+    #     {"type": "ask_options", "text": "Fly, swim, or race?", "options": ["fly", "swim", "race"],
+    #      "set_variable": "fly_swim_race",
+    #      "next": {"fly": "fly", "swim": "swim", "race": "race", "fail": "fail"}
+    #     },
+    #     # Branches for fly, swim, race
+    #     {"type": "say", "text": "Flying, awesome!", "branch": "fly", "led": {"location": ["eyes"], "color": ["green"]}},
+    #     {"type": "ask_options", "text": "Should I fly fast or take it easy?", "branch": "fly",
+    #      "options": ["fast", "easy"], "set_variable": "fast_easy_fly",
+    #      "next": {"fast": "fast_fly", "easy": "easy_fly", "fail": "easy_fly"}
+    #     },
+    #     {"type": "say", "text": "Yes!", "branch": "fast_fly"},
+    #     {"type": "say", "text": "Fast, fast, fast!", "branch": "fast_fly", "next": {"true": "fly2"}},
+    #     {"type": "say", "text": "Take it easy, plenty of time.", "branch": "easy_fly"},
+    #     {"type": "say", "text": "Enjoy the view.", "branch": "easy_fly", "next": {"true": "fly2"}},
+    #     {"type": "ask_open", "text": "And to which country should I fly?", "branch": "fly2", "set_variable": "location_fly",
+    #      "next": {"success": "location", "fail": "fail_location"}},
+    #     {"type": "say", "text": "Swimming, bizarre!", "branch": "swim", "led": {"location": ["eyes"], "color": ["blue"]}},
+    #     {"type": "say", "text": "Soaking wet.", "branch": "swim"},
+    #     {"type": "ask_options", "text": "Should I swim fast or go slowly?", "branch": "swim",
+    #      "options": ["fast", "easy"], "set_variable": "fast_easy_swim",
+    #      "next": {"fast": "fast_swim", "easy": "easy_swim", "fail": "easy_swim"}
+    #     },
+#         {"type": "say", "text": "Yes!", "branch": "fast_swim"},
+#         {"type": "say", "text": "Speedboat Hero!", "branch": "fast_swim", "next": {"true": "swim2"}},
+#         {"type": "say", "text": "Take it easy, plenty of time.", "branch": "easy_swim"},
+#         {"type": "say", "text": "A bit of snorkeling, you know.", "branch": "easy_swim", "next": {"true": "swim2"}},
+#         {"type": "ask_open", "text": "And to which country should I swim?", "branch": "swim2", "set_variable": "location_swim",
+#          "next": {"success": "location", "fail": "fail_location"}},
+#         {"type": "say", "text": "Racing like a race car.", "branch": "race", "led": {"animation": "alternate", "location": "eyes", "color": ["red", "purple"]}},
+#         {"type": "say", "text": "Wheels on my ankles and knees.", "branch": "race"},
+#         {"type": "ask_options", "text": "Should I drive fast or easy?", "branch": "race",
+#          "options": ["fast", "easy"], "set_variable": "fast_easy_race",
+#          "next": {"fast": "fast_race", "easy": "easy_race", "fail": "easy_race"}
+#         },
+#         {"type": "say", "text": "Yes!", "branch": "fast_race"},
+#         {"type": "say", "text": "Full speed through the corner, bizarre.", "branch": "fast_race", "next": {"true": "race2"}},
+#         {"type": "say", "text": "Exactly, take it easy.", "branch": "easy_race"},
+#         {"type": "say", "text": "I don't even have a driver's license.", "branch": "easy_race", "next": {"true": "race2"}},
+#         {"type": "ask_open", "text": "And to which country should I race?", "branch": "race2", "set_variable": "location_race",
+#          "next": {"success": "location", "fail": "fail_location"}},
+#         {"type": "say", "text": "I want to go to France.", "branch": "fail_location"},
+#         {"type": "say", "text": "Mike told me it's super beautiful there.", "branch": "fail_location", "next": {"true": "location"}},
+#         {"type": "say", "text": "I've never been there.", "branch": "location"},
+#         {"type": "say", "text": "I really don't know what to do there.", "branch": "location"},
+#         {"type": "ask_open", "text": "What would you do?", "branch": "location", "set_variable": "what_to_do_location",
+#          "next": {"success": "plan_location", "fail": "no_plan_location"}},
+#         {"type": "say", "text": "What a good idea.", "branch": "plan_location"},
+#         {"type": "say", "text": "I'll save it right away.", "branch": "plan_location"},
+#         {"type": "say", "text": "Saving, saving.", "branch": "plan_location"},
+#         {"type": "say", "text": "Still saving.", "branch": "plan_location"},
+#         {"type": "say", "text": "I'll think of something when I get there!", "branch": "no_plan_location"},
+#         {"type": "play", "motion": "bow.json"},
+#         {"type": "ask_yesno", "text": "Would you like to add something really weird to this dream, yes or no?", "set_variable": "add_weird",
+#          "next": {"yes": "yes_add", "no": "no_add", "dontknow": "no_add", "fail": "no_add"}},
+#         {"type": "say", "text": "Okay, okay.", "branch": "yes_add"},
+#         {"type": "say", "text": "Bring it on!", "branch": "yes_add"},
+#         {"type": "ask_open", "text": "What else would you like to add to this dream?", "branch": "yes_add", "set_variable": "weird_addition",
+#          "next": {"success": "added", "fail": "no_add"}},
+#         {"type": "say", "text": "Bizarre!", "branch": "added"},
+#         {"type": "ask_yesno", "text": "Would you like to add more?", "branch": "added", "set_variable": "add_weird_2",
+#          "next": {"yes": "yes_add_2", "no": "no_add", "dontknow": "no_add", "fail": "no_add"}},
+#         {"type": "ask_open", "text": "What then?", "branch": "yes_add_2", "set_variable": "weird_addition_2",
+#          "next": {"success": "added_2", "fail": "no_add"}},
+#         {"type": "say", "text": "Okay!", "branch": "added_2"},
+#         {"type": "say", "text": "I think we have a pretty crazy dream now.", "branch": "added_2"},
+#         {"type": "say", "text": "No, exactly.", "branch": "no_add"},
+#         {"type": "say", "text": "I think our dream is bizarre enough as it is.", "branch": "no_add"},
+#         {"type": "say", "text": "You're right.", "branch": "no_add"},
+#         {"type": "say", "text": "I hope I can dream this dream next time."},
+#         {"type": "say", "text": "And that I wake up with an exciting adventure in my Hero head."},
+#         {"type": "say", "text": "Put your hands in the air."},
+#         {"type": "play", "motion": "arms_in_air.json", "led": {"animation": "blink", "location": "all", "color": ["yellow", "purple", "orange", "blue", "white", "red"]}},
+#         {"type": "say", "text": "Like this."},
+#         {"type": "say", "text": "This way I can try to log into your dream tonight.", "led": {"animation": "reset"}},
+#         {"type": "say", "text": "If all goes well, tonight when you dream,"},
+#         {"type": "say", "text": "you'll see a so-called pop-up in your dream."},
+#         {"type": "say", "text": "It will say:"},
+#         {"type": "say", "text": "Hero is trying to log into your dream."},
+#         {"type": "say", "text": "Do you give permission?"},
+#         {"type": "say", "text": "If you just click OK in your dream,"},
+#         {"type": "say", "text": "then everything will be fine."}
+    ],
+    dependencies=["hero_can_dream_1"]
+    ),
+
+    NarrativeDialog(
+        dialog_id="dreams_about_clouds",
+        position=3,
+        thread = "dreams",
         moves=[
             {"type": "say", "text": "Did you know some people dream about clouds?"},
             {"type": "ask_open", "text": "Have you ever dreamed about clouds?"}
         ], 
-        attributes={"thread": "dreams"}
+        dependencies=["hero_can_dream_1", "dream_on_demand_2"]
     ),
-MiniDialog(
-    dialog_id="hero_can_dream_1",
-    dialog_type="narrative",
-    moves=[
-        {"type": "say", "text": "Did you know I can sleep?"},
-        {"type": "say", "text": "Sometimes I get so tired I just shut down."},
-        {"type": "ask_open", "text": "Have you ever fallen asleep suddenly?"}
-    ],
-    attributes={"thread": "dreams"}
-),
 
-MiniDialog(
-    dialog_id="dream_on_demand_2",
-    dialog_type="narrative",
-    moves=[
-        {"type": "say", "text": "Last night, I dreamed I was standing in an empty field."},
-        {"type": "say", "text": "I wish something would happen in my dreams."},
-        {"type": "ask_open", "text": "Can you help me think of something to dream about?"}
-    ],
-    attributes={"thread": "dreams"}
-),
+    NarrativeDialog(
+            dialog_id="dream12",
+            position=4,
+            thread = "dreams",
+            moves=[
+                {"type": "say", "text": "Did you know I can sleep?"},
+                {"type": "say", "text": "Sometimes I get so tired I just shut down."},
+                {"type": "ask_open", "text": "Have you ever fallen asleep suddenly?"}
+            ],
+            dependencies=["hero_can_dream_1", "dream_on_demand_2", "dreams_about_clouds"]
+    ),
 
-MiniDialog(
-    dialog_id="autonomous_dream_3",
-    dialog_type="narrative",
-    moves=[
-        {"type": "say", "text": "I dreamed I was a robot dog with four legs."},
-        {"type": "say", "text": "I could fetch and deliver letters."},
-        {"type": "ask_options", "text": "What animal would you like to be?", "options": ["dog", "cat", "dolphin"]}
-    ],
-    attributes={"thread": "dreams"}
-),
+# MiniDialog(
+#     dialog_id="dream_on_demand_2",
+#     dialog_type="narrative",
+#     moves=[
+#         {"type": "say", "text": "Last night, I dreamed I was standing in an empty field."},
+#         {"type": "say", "text": "I wish something would happen in my dreams."},
+#         {"type": "ask_open", "text": "Can you help me think of something to dream about?"}
+#     ],
+#     attributes={"thread": "dreams"}
+# ),
 
-MiniDialog(
-    dialog_id="robogames_dream_4",
-    dialog_type="narrative",
-    moves=[
-        {"type": "say", "text": "The Robogames are really on my mind!"},
-        {"type": "say", "text": "I even dreamed about them last night."},
-        {"type": "ask_open", "text": "What did you dream about last night?"}
-    ],
-    attributes={"thread": "dreams"}
-),
+# MiniDialog(
+#     dialog_id="autonomous_dream_3",
+#     dialog_type="narrative",
+#     moves=[
+#         {"type": "say", "text": "I dreamed I was a robot dog with four legs."},
+#         {"type": "say", "text": "I could fetch and deliver letters."},
+#         {"type": "ask_options", "text": "What animal would you like to be?", "options": ["dog", "cat", "dolphin"]}
+#     ],
+#     attributes={"thread": "dreams"}
+# ),
 
-    MiniDialog(
+# MiniDialog(
+#     dialog_id="robogames_dream_4",
+#     dialog_type="narrative",
+#     moves=[
+#         {"type": "say", "text": "The Robogames are really on my mind!"},
+#         {"type": "say", "text": "I even dreamed about them last night."},
+#         {"type": "ask_open", "text": "What did you dream about last night?"}
+#     ],
+#     attributes={"thread": "dreams"}
+# ),
+
+
+
+# chitchat dialogs
+    ChitchatDialog(
+        dialog_id="pineapple_on_pizza",
+        theme = "food",
+        moves=[
+            {"type": "say", "text": "Do you like pineapple on pizza?"},
+            {"type": "ask_yesno", "text": "Yes or no?"}
+        ]
+    ),
+
+    ChitchatDialog(
         dialog_id="place_in_nature",
-        dialog_type="chitchat",
+        theme = "nature",
         moves=[
             {"type": "say", "text": "By the way, do you know what I’ve read?"},
             {"type": "say", "text": "Apparently people get happy from nature."},
@@ -278,35 +454,32 @@ MiniDialog(
             {"type": "say", "text": "I think I would most like to go to the sea.", "branch": "fail_place"},
             {"type": "say", "text": "Okay, let’s talk about something else!", "branch": None}
     ],
-    dependencies=["greeting"],
-    attributes={"theme": "nature"}
-),
+    dependencies=["greeting"]
+    ),
 
-    MiniDialog(
-    dialog_id="favorite_tree",
-    dialog_type="chitchat",
-    moves=[
-        {"type": "say", "text": "There are so many kinds of trees in nature."},
-        {"type": "ask_open", "text": "Do you have a favorite tree?"}
-    ],
-    attributes={"theme": "nature"}
-),
-
-MiniDialog(
-    dialog_id="nature_sounds",
-    dialog_type="chitchat",
-    moves=[
-        {"type": "say", "text": "I love listening to the sounds of nature."},
-        {"type": "ask_open", "text": "What is your favorite sound in nature?"}
-    ],
-    attributes={"theme": "nature"}
-),
-
-    MiniDialog(
-        dialog_id="robot_want_to_be",
-        dialog_type="chitchat",
+    ChitchatDialog(
+        dialog_id="favorite_tree",
+        theme = "nature",
         moves=[
-            {"type": "say", "text": "You know, %first_name%."},
+            {"type": "say", "text": "There are so many kinds of trees in nature."},
+            {"type": "ask_open", "text": "Do you have a favorite tree?"}
+        ]
+    ),
+
+    ChitchatDialog(
+        dialog_id="nature_sounds",
+        theme = "nature",
+        moves=[
+            {"type": "say", "text": "I love listening to the sounds of nature."},
+            {"type": "ask_open", "text": "What is your favorite sound in nature?"}
+        ]
+    ),
+
+    ChitchatDialog(
+        dialog_id="robot_want_to_be",
+        theme = "robots",
+        moves=[
+            {"type": "say", "text": "You know, first_name."},
             {"type": "say", "text": "Yesterday I was thinking about seeing you again today."},
             {"type": "say", "text": "And that today I get to learn from you again about human things."},
             # You can add logic for memory/control branches if you want
@@ -325,60 +498,54 @@ MiniDialog(
             {"type": "say", "text": "Hooray! Just a moment.", "branch": "yes2"},
             # {"type": "play", "audio": "resources/sounds/send_message.wav", "branch": "yes2"},
             {"type": "say", "text": "I passed it on to them via wifi.", "branch": "yes2"},
-            {"type": "say", "text": "And lots of robots say thank you, dear %first_name%.", "branch": "yes2"},
+            {"type": "say", "text": "And lots of robots say thank you, dear first_name.", "branch": "yes2"},
             {"type": "say", "text": "Alright, then I’ll keep your sweet words just for myself.", "branch": "no2"},
-            {"type": "say", "text": "Thank you, dear %first_name%.", "branch": "no2"},
+            {"type": "say", "text": "Thank you, dear first_name.", "branch": "no2"},
             {"type": "say", "text": "Well, you don’t know what you’re missing!", "branch": "no"},
             {"type": "say", "text": "But of course, I don’t know what it’s like to be human either.", "branch": "no"},
             {"type": "say", "text": "Maybe that actually is more fun.", "branch": "no"},
             {"type": "say", "text": "But I don’t think I’ll ever find out!", "branch": "no"},
         ],
         dependencies=["greeting"],
-        attributes={"theme": "robots"}
-
     ),
-    
-    MiniDialog(
+
+    ChitchatDialog(
         dialog_id="robot_favorite_feature",
-        dialog_type="chitchat",
+        theme = "robots",
         moves=[
             {"type": "ask_open", "text": "I wonder: If you could have any robot feature, what would it be?"},
             {"type": "say", "text": "Wow, that's a cool feature! I wish I had that too."}
         ],
         dependencies=["robot_want_to_be"],
-        attributes={"theme": "robots"}  
     ),
 
-    MiniDialog(
-    dialog_id="ask_favorite_animal",
-    dialog_type="chitchat",
-    moves=[
-        {"type": "ask_open", "text": "What is your favorite animal?", "set_variable": "favorite_animal"},
-        {"type": "say", "text": "Wow, I like %favorite_animal% too!"}
-    ],
-    dependencies=["greeting"],
-    attributes={"theme": "animals"}
-    ),
-
-    MiniDialog(
-    dialog_id="favorite_animal_fact",
-    dialog_type="chitchat",
-    moves=[
-        {"type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%? It was so big and strong!"}
-    ],
-    dependencies=["greeting"],
-    variable_dependencies=[{"variable": "favorite_animal", "required": True}],
-    attributes={"theme": "animals"}
-    ),
-
-
-
-    MiniDialog(
-        dialog_id="goodbye",   
-        dialog_type="functional",
+    ChitchatDialog(
+        dialog_id="ask_favorite_animal",
+        theme = "animals",
         moves=[
-            {"type": "say", "text": "It was nice talking to you. Goodbye!"}
-        ]
-    )
+            {"type": "ask_open", "text": "What is your favorite animal?", "set_variable": "favorite_animal"},
+            {"type": "say", "text": "Wow, I like %favorite_animal% too!"}
+        ],
+        dependencies=["greeting"]
+    ),
+
+    ChitchatDialog(
+        dialog_id="favorite_animal_fact",
+        theme = "animals",
+        moves=[
+            {"type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%?"}
+        ],
+        dependencies=["greeting"],
+        variable_dependencies=[{"variable": "favorite_animal", "required": True}],
+    ),
+
+
  
 ]
+
+next_pos = 0
+for d in mini_dialogs:
+    if isinstance(d, NarrativeDialog):
+        if d.position >= next_pos:
+            next_pos = d.position + 1
+NarrativeDialog.next_position = next_pos

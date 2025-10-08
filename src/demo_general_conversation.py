@@ -6,6 +6,8 @@ from os.path import abspath, join
 import os
 
 import random
+from mini_dialogs import mini_dialogs, NarrativeDialog, ChitchatDialog, FunctionalDialog
+
 
 import numpy as np
 from sic_framework.core.message_python2 import AudioMessage, AudioRequest
@@ -200,6 +202,7 @@ class ConversationDemo:
             attempts += 1
         return None
 
+# ADD LISTEN DEFINITION
 
     def ask_options(self, question, options, max_attempts=2):
         """
@@ -232,54 +235,106 @@ class ConversationDemo:
         self.say("Hello, I am your companion robot")
 
 
+# NEW LOGIC FOR NARRATIVE AND CHITCHAT DIALOGS
 
-# def can_run(mini_dialog, completed_dialogs):
-#     # only run a mini-dialog if all its required previous dialogs have already been completed
-#     return all(dep in completed_dialogs for dep in mini_dialog.dependencies)
-
-def can_run(mini_dialog, completed_dialogs, user_model):
-    # dialog dependencies
-    if not all(dep in completed_dialogs for dep in mini_dialog.dependencies):
+def can_run(dialog, completed_ids, user_model, all_dialogs=None):
+    if dialog.dialog_id in completed_ids:
         return False
-    # variable dependencies
-    for var_dep in getattr(mini_dialog, "variable_dependencies", []):
+    for dep in getattr(dialog, "dependencies", []):
+        if dep not in completed_ids:
+            return False
+    for var_dep in getattr(dialog, "variable_dependencies", []):
         var = var_dep["variable"]
         required = var_dep.get("required", True)
         if required and not user_model.get(var):
             return False
+    if isinstance(dialog, NarrativeDialog):
+        if all_dialogs is None:
+            all_dialogs = mini_dialogs
+        for d in all_dialogs:
+            if (isinstance(d, NarrativeDialog) and
+                d.thread == dialog.thread and
+                d.position < dialog.position and
+                d.dialog_id not in completed_ids):
+                return False
     return True
 
-def select_session_block(mini_dialogs, thread="narrative", theme="chitchat"):
-    session_block = []
-    available_dialogs = mini_dialogs.copy()
-    greetings = next((d for d in available_dialogs if d.dialog_type=="functional" and d.dialog_id == "greeting"), None)
-    if greetings:
-        session_block.append(greetings)
-        available_dialogs.remove(greetings)
-        
-    narratives = [d for d in available_dialogs if d.dialog_type=="narrative" and d.attributes.get("thread")==thread]
-    narratives = sorted(narratives, key=lambda d: mini_dialogs.index(d))  # preserve original order
-    chitchats = [d for d in available_dialogs if d.dialog_type=="chitchat" and d.attributes.get("theme")==theme]
-    farewells = next((d for d in available_dialogs if d.dialog_type=="functional" and d.dialog_id == "goodbye"), None)
+def select_session_block(mini_dialogs, thread=None, theme=None):
+    session = []
+    pool = list(mini_dialogs)
+
+    greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "greeting"), None)
+    if greeting:
+        session.append(greeting)
+        pool.remove(greeting)
+
+    narratives = [d for d in pool if isinstance(d, NarrativeDialog) and d.thread == thread]
+    narratives.sort(key=lambda d: d.position)
+
+    chitchats = [d for d in pool if isinstance(d, ChitchatDialog) and d.theme == theme]
+
     if narratives:
-        session_block.append(narratives[0])
-        available_dialogs.remove(narratives[0]) 
+        n1 = narratives.pop(0); session.append(n1); pool.remove(n1)
     if chitchats:
-        session_block.append(random.choice(chitchats))
-        available_dialogs.remove(session_block[-1])
-    if len(narratives) > 1:
-        session_block.append(narratives[1])
-        available_dialogs.remove(narratives[1])
-    chitchats = [d for d in available_dialogs if d.dialog_type=="chitchat" and d.attributes.get("theme")==theme]
-    if chitchats:
-        session_block.append(random.choice(chitchats))
-        available_dialogs.remove(session_block[-1])
-    if farewells:
-        session_block.append(farewells)
-    return session_block
+        c1 = random.choice(chitchats); session.append(c1); pool.remove(c1); chitchats.remove(c1)
+    if narratives:
+        n2 = narratives.pop(0); session.append(n2); pool.remove(n2)
+    chitchats2 = [d for d in pool if isinstance(d, ChitchatDialog) and d.theme == theme]
+    if chitchats2:
+        c2 = random.choice(chitchats2); session.append(c2); pool.remove(c2)
+
+    goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "farewell"), None)
+    if goodbye:
+        session.append(goodbye)
+    return session
+
+# NEW LOGIC FOR NARRATIVE AND CHITCHAT DIALOGS UNTIL HERE
 
 
-from mini_dialogs import mini_dialogs
+
+
+# OLD LOGIC 
+# def can_run(mini_dialog, completed_dialogs, user_model):
+#     # dialog dependencies
+#     if not all(dep in completed_dialogs for dep in mini_dialog.dependencies):
+#         return False
+#     # variable dependencies
+#     for var_dep in getattr(mini_dialog, "variable_dependencies", []):
+#         var = var_dep["variable"]
+#         required = var_dep.get("required", True)
+#         if required and not user_model.get(var):
+#             return False
+#     return True
+# def select_session_block(mini_dialogs, thread, theme):
+#     session_block = []
+#     available_dialogs = mini_dialogs.copy()
+#     greetings = next((d for d in available_dialogs if d.type=="greeting"), None)
+#     if greetings:
+#         session_block.append(greetings)
+#         available_dialogs.remove(greetings)
+
+#     narratives = [d for d in available_dialogs if isinstance(d, NarrativeDialog) and d.thread==thread]
+#     narratives = sorted(narratives, key=lambda d: d.position)  # preserve original order
+#     chitchats = [d for d in available_dialogs if isinstance(d, ChitchatDialog) and d.theme==theme]
+#     farewells = next((d for d in available_dialogs if d.type=="farewell"), None)
+#     if narratives:
+#         session_block.append(narratives[0])
+#         available_dialogs.remove(narratives[0]) 
+#     if chitchats:
+#         session_block.append(random.choice(chitchats))
+#         available_dialogs.remove(session_block[-1])
+#     if len(narratives) > 1:
+#         session_block.append(narratives[1])
+#         available_dialogs.remove(narratives[1])
+#     chitchats = [d for d in available_dialogs if isinstance(d, ChitchatDialog) and d.theme==theme]
+#     if chitchats:
+#         session_block.append(random.choice(chitchats))
+#         available_dialogs.remove(session_block[-1])
+#     if farewells:
+#         session_block.append(farewells)
+#     return session_block
+
+
 
 
 # ALL_HISTORY_FILE = "all_sessions_history.json"
@@ -318,12 +373,26 @@ if __name__ == '__main__':
 
 # UNCOMMENT TO RUN A PREDEFINED SESSION BLOCK
 # UNCOMMENT TO RUN A PREDEFINED SESSION BLOCK
+    # session_block = select_session_block(mini_dialogs, thread="dreams", theme="nature")
+
+    # for dialog in session_block:
+    #     if can_run(dialog, completed_dialogs, user_model):
+    #         dialog.run(demo, session_history, user_model)
+    #         completed_dialogs.add(dialog.dialog_id)
+
+
+
+
+# NEW
     session_block = select_session_block(mini_dialogs, thread="dreams", theme="nature")
 
     for dialog in session_block:
-        if can_run(dialog, completed_dialogs, user_model):
+        if can_run(dialog, completed_dialogs, user_model, all_dialogs=mini_dialogs):
             dialog.run(demo, session_history, user_model)
             completed_dialogs.add(dialog.dialog_id)
+        else:
+            print(f"Skipped {dialog.dialog_id} (cannot run now)")
+# NEW
 
 
     print(json.dumps(session_history, indent=2))

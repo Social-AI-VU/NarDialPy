@@ -1,0 +1,228 @@
+[
+  [
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "if you need anything if you can give you what you want while I'm there"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no no no no no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I think I would most like to go to the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no no no o"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I love listening to the sounds of nature."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What is your favorite sound in nature?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I don't I don't know no no no no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    }
+  ],
+  [
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "like like like like like like"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yeah yeah yeah yeah yeah"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "There are so many kinds of trees in nature."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Do you have a favorite tree?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "retrieve a sweet sweet sweet sweet sweet mess mess mess mess mess Fest"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no no no no no no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I think I would most like to go to the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    }
+  ]
+]

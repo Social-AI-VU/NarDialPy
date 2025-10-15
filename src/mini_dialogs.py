@@ -10,19 +10,9 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
 
-    # def run(self, conversation_demo): # WEEK 1
-    #     for move in self.moves:
-    #         if move['type'] == 'say':
-    #             conversation_demo.say(move['text'])
-    #         elif move['type'] == 'ask_yesno':
-    #             answer = conversation_demo.ask_yesno(move['text'])
-    #             print(f"User answered: {answer}")
-    #         elif move['type'] == 'ask_open':
-    #             answer = conversation_demo.ask_open(move['text'])
-    #             print(f"User answered: {answer}")
-
 
     def run(self, conversation_demo, session_history=None, user_model=None): 
+        # Execute mini dialogs, sending speech/asks to the device and logging events.
         idx = 0
         branch = None
         if session_history is None:
@@ -48,24 +38,13 @@ class MiniDialog:
                 for var, value in user_model.items():
                     text = text.replace(f"%{var}%", str(value))
                 conversation_demo.say(text)
-                # Support both list-based history and ConversationHistory
-                if hasattr(session_history, 'add_robot_say'):
-                    session_history.add_robot_say(text)
-                else:
-                    session_history.append({"role": "robot", "type": "say", "text": text})
+                session_history.append({"role": "robot", "type": "say", "text": text})
                 idx += 1
             elif move_type == 'ask_yesno':
                 answer = conversation_demo.ask_yesno(move['text'])
-                if hasattr(session_history, 'add_robot_ask'):
-                    session_history.add_robot_ask('ask_yesno', move['text'])
-                    session_history.add_user_answer('answer_yesno', answer)
-                else:
-                    session_history.append({"role": "robot", "type": "ask_yesno", "text": move['text']})
-                    session_history.append({"role": "user", "type": "answer_yesno", "text": answer})
+                session_history.append({"role": "robot", "type": "ask_yesno", "text": move['text']})
+                session_history.append({"role": "user", "type": "answer_yesno", "text": answer})
                 print(f"User answered: {answer}")
-                # store boolean/string answer if requested
-                if "set_variable" in move and answer is not None:
-                    user_model[move["set_variable"]] = answer
                 # new for branching logic
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
@@ -78,12 +57,8 @@ class MiniDialog:
                     idx += 1
             elif move_type == 'ask_open':
                 answer = conversation_demo.ask_open(move['text'])
-                if hasattr(session_history, 'add_robot_ask'):
-                    session_history.add_robot_ask('ask_open', move['text'])
-                    session_history.add_user_answer('answer_open', answer)
-                else:
-                    session_history.append({"role": "robot", "type": "ask_open", "text": move['text']})
-                    session_history.append({"role": "user", "type": "answer_open", "text": answer})
+                session_history.append({"role": "robot", "type": "ask_open", "text": move['text']})
+                session_history.append({"role": "user", "type": "answer_open", "text": answer})
                 print(f"User answered: {answer}")
                 if "set_variable" in move and answer:
                     var_name = move["set_variable"]
@@ -103,12 +78,8 @@ class MiniDialog:
                     idx += 1
             elif move_type == 'ask_options':
                 answer = conversation_demo.ask_options(move['text'], move.get('options', []))
-                if hasattr(session_history, 'add_robot_ask'):
-                    session_history.add_robot_ask('ask_options', move['text'], move.get('options', []))
-                    session_history.add_user_answer('answer_options', answer)
-                else:
-                    session_history.append({"role": "robot", "type": "ask_options", "text": move['text'], "options": move.get('options', [])})
-                    session_history.append({"role": "user", "type": "answer_options", "text": answer})
+                session_history.append({"role": "robot", "type": "ask_options", "text": move['text'], "options": move.get('options', [])})
+                session_history.append({"role": "user", "type": "answer_options", "text": answer})
                 print(f"User answered: {answer}")
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
@@ -126,6 +97,7 @@ class MiniDialog:
                 idx += 1
 
     def _find_branch_start(self, branch):
+        # Find the jump target for a branch; if it doesn’t exist, end the dialog.
         for i, move in enumerate(self.moves):
             if move.get('branch') == branch:
                 return i
@@ -133,26 +105,29 @@ class MiniDialog:
 
 class FunctionalDialog(MiniDialog):
     def __init__(self, dialog_id, moves, type, dependencies=None):
+        # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         self.type = type
 
 class NarrativeDialog(MiniDialog):
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+        # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.thread = thread
         self.position = position  
 
 class ChitchatDialog(MiniDialog):  
     def __init__(self, dialog_id, moves, theme,  topics=None, dependencies=None, variable_dependencies=None):
+        # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
         self.topics = topics or []
 
-        # self.topics = [str(t).lower() for t in (topics or [])]
+
 
 mini_dialogs = [
 
-# functional dialogs
+# functional dialogs; HOW THE ROBOT STARTS AND ENDS A SESSION
     FunctionalDialog(
         dialog_id="greeting",
         type = "greeting",
@@ -173,7 +148,7 @@ mini_dialogs = [
         ]
     ),
 
-# narrative dialogs
+# narrative dialogs; these are longer dialogs with multiple moves and branching
 
     NarrativeDialog(
         dialog_id="hero_can_dream_1",
@@ -438,7 +413,7 @@ mini_dialogs = [
 
 
 
-# chitchat dialogs
+# chitchat dialogs 
     ChitchatDialog(
         dialog_id="pineapple_on_pizza",
         theme = "food",

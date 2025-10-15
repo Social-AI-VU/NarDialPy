@@ -238,6 +238,8 @@ class ConversationDemo:
 # NEW LOGIC FOR NARRATIVE AND CHITCHAT DIALOGS
 
 def can_run(dialog, completed_ids, user_model, all_dialogs=None):
+    # check if dialog can be run based on dependencies and user model variables
+    # if narrative dialog, check position in thread and if previous narratives in thread have been completed  
     if dialog.dialog_id in completed_ids:
         return False
     for dep in getattr(dialog, "dependencies", []):
@@ -260,6 +262,8 @@ def can_run(dialog, completed_ids, user_model, all_dialogs=None):
     return True
 
 def topic_match(dialog, topics_of_interest):
+    # choose a dialog that matches the user's topics of interest list and it is prioritized for selection.
+    # work in progress ; it needs testing 
     if not topics_of_interest:
         return True
     interests = [str(t).lower() for t in topics_of_interest]
@@ -268,6 +272,17 @@ def topic_match(dialog, topics_of_interest):
 
 
 def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_interest=None):
+        """
+        Construct a simple session plan from the available dialogs.
+        Sequence:
+        1) Greeting (FunctionalDialog with type == "greeting")
+        2) First narrative in the requested thread (lowest position)
+        3) One themed chitchat, optionally filtered by topics_of_interest
+        4) Next narrative in the same thread (next position), if available
+        5) Another themed chitchat, optionally interest-biased
+        6) Goodbye (FunctionalDialog with type == "farewell") if present
+        Once run, dialogs are deleted from pool to avoid repetition
+        """
     session = []
     pool = list(mini_dialogs)
 
@@ -347,15 +362,7 @@ if __name__ == '__main__':
     user_model = {}
 
     topics_of_interest = []  # separate interest list
-    # session_block = select_session_block(
-    #     mini_dialogs, thread="dreams", theme="nature",     # or None for any thread
-    #     topics_of_interest=topics_of_interest,
-    #     completed_ids=completed_dialogs,
-    #     max_narratives=2,
-    #     max_chitchats=2,
-    #     exploration_rate=0.25
-    # )
-
+   
 
 # NEW
     session_block = select_session_block(mini_dialogs, thread="dreams", theme="nature", topics_of_interest="animals")

@@ -342,55 +342,6 @@ def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_intere
         session.append(goodbye)
     return session
 
-# def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_interest=None):
-#     """
-#     Construct a simple session plan from the available dialogs.
-#     Sequence:
-#     1) Greeting (FunctionalDialog with type == "greeting")
-#     2) First narrative in the requested thread (lowest position)
-#     3) One themed chitchat, optionally filtered by topics_of_interest
-#     4) Next narrative in the same thread (next position), if available
-#     5) Another themed chitchat, optionally interest-biased
-#     6) Goodbye (FunctionalDialog with type == "farewell") if present
-#     Once selected, dialogs are removed from the pool to avoid repetition.
-#     """
-#     session = []
-#     pool = list(mini_dialogs)
-
-#     greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "greeting"), None)
-#     if greeting:
-#         session.append(greeting)
-#         pool.remove(greeting)
-
-#     narratives = [d for d in pool if isinstance(d, NarrativeDialog) and d.thread == thread]
-#     narratives.sort(key=lambda d: d.position)
-#     if narratives:
-#         n1 = narratives.pop(0); session.append(n1); pool.remove(n1)
-
-#     chitchats = [d for d in pool if isinstance(d, ChitchatDialog) and d.theme == theme]
-#     if topics_of_interest:
-#         t_matched = [d for d in chitchats if topic_match(d, topics_of_interest)]
-#         if t_matched:
-#             chitchats = t_matched
-#     if chitchats:
-#         c1 = random.choice(chitchats); session.append(c1); pool.remove(c1); chitchats.remove(c1)
-    
-    
-#     if narratives:
-#         n2 = narratives.pop(0); session.append(n2); pool.remove(n2)
-
-#     chitchats2 = [d for d in pool if isinstance(d, ChitchatDialog) and d.theme == theme]
-#     if topics_of_interest:
-#         t_matched2 = [d for d in chitchats2 if topic_match(d, topics_of_interest)]
-#         if t_matched2:
-#             chitchats2 = t_matched2
-#     if chitchats2:
-#         c2 = random.choice(chitchats2); session.append(c2); pool.remove(c2)
-
-#     goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "farewell"), None)
-#     if goodbye:
-#         session.append(goodbye)
-#     return session
 
 # ALL_HISTORY_FILE = "all_sessions_history.json"
 # # Load previous sessions history if file exists

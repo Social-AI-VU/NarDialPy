@@ -1,3 +1,6 @@
+from typing import Optional
+import re
+
 class MiniDialog:
     def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
         """
@@ -10,19 +13,9 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
 
-    # def run(self, conversation_demo): # WEEK 1
-    #     for move in self.moves:
-    #         if move['type'] == 'say':
-    #             conversation_demo.say(move['text'])
-    #         elif move['type'] == 'ask_yesno':
-    #             answer = conversation_demo.ask_yesno(move['text'])
-    #             print(f"User answered: {answer}")
-    #         elif move['type'] == 'ask_open':
-    #             answer = conversation_demo.ask_open(move['text'])
-    #             print(f"User answered: {answer}")
 
-
-    def run(self, conversation_demo, session_history=None, user_model=None): 
+    def run(self, conversation_demo, session_history=None, user_model=None, topics_of_interest=None): 
+        # Execute mini dialogs, sending speech/asks to the device and logging events.
         idx = 0
         branch = None
         if session_history is None:
@@ -33,6 +26,12 @@ class MiniDialog:
             move = self.moves[idx]
             move_type = move.get('type')
             move_branch = move.get('branch')  # <-- NEW: get the branch for this move
+            if move_branch is not None:
+                if move_branch == branch:
+                    pass  
+                else:
+                    idx += 1
+                    continue
             if branch is not None:
                 if move_branch == branch:
                     pass  
@@ -55,6 +54,13 @@ class MiniDialog:
                 session_history.append({"role": "robot", "type": "ask_yesno", "text": move['text']})
                 session_history.append({"role": "user", "type": "answer_yesno", "text": answer})
                 print(f"User answered: {answer}")
+                # do i need to normalize the answer?   norm = (answer or "").strip().lower()
+
+                # new interest part 1. store answer if requested 2. add interest only on YES if configured
+                if move.get("set_variable"):
+                    user_model[move["set_variable"]] = answer
+                if answer == "yes" and move.get("add_interest"):
+                    add_interest(topics_of_interest, move["add_interest"])
                 # new for branching logic
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
@@ -65,14 +71,24 @@ class MiniDialog:
                     idx = self._find_branch_start(branch)
                 else:
                     idx += 1
+
             elif move_type == 'ask_open':
                 answer = conversation_demo.ask_open(move['text'])
                 session_history.append({"role": "robot", "type": "ask_open", "text": move['text']})
                 session_history.append({"role": "user", "type": "answer_open", "text": answer})
                 print(f"User answered: {answer}")
-                if "set_variable" in move and answer:
+                if move.get("set_variable") and answer:
                     var_name = move["set_variable"]
                     user_model[var_name] = answer
+                                
+                # NEW INTEREST PART: add interest from answer and/or from variable
+                if answer and move.get("add_interest_from_answer"):
+                    add_interest(topics_of_interest, answer)
+                if move.get("add_interest_from_answer"):
+                    val = user_model.get(move["add_interest_from_answer"])
+                    if val:
+                        add_interest(topics_of_interest, val)
+
                 next_map = move.get('next', {})
                 if next_map:  # Only change branch if next mapping is specified
                     if answer:
@@ -86,11 +102,22 @@ class MiniDialog:
                 else:
                     # No next mapping - just continue to next move (preserve current branch)
                     idx += 1
+
             elif move_type == 'ask_options':
                 answer = conversation_demo.ask_options(move['text'], move.get('options', []))
                 session_history.append({"role": "robot", "type": "ask_options", "text": move['text'], "options": move.get('options', [])})
                 session_history.append({"role": "user", "type": "answer_options", "text": answer})
                 print(f"User answered: {answer}")
+                # do i need this?
+                if move.get("set_variable") and answer:    
+                    user_model[move["set_variable"]] = answer
+                # NEW INTEREST PART: add interest from answer and/or from variable
+                if answer and move.get("add_interest_from_variable"):
+                    add_interest(topics_of_interest, answer)
+                if move.get("add_interest_from_variable"):
+                    val = user_model.get(move["add_interest_from_variable"])
+                    if val:
+                       add_interest(topics_of_interest, val)   
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
                     branch = next_map[answer]
@@ -107,6 +134,7 @@ class MiniDialog:
                 idx += 1
 
     def _find_branch_start(self, branch):
+        # Find the jump target for a branch; if it doesn’t exist, end the dialog.
         for i, move in enumerate(self.moves):
             if move.get('branch') == branch:
                 return i
@@ -114,23 +142,116 @@ class MiniDialog:
 
 class FunctionalDialog(MiniDialog):
     def __init__(self, dialog_id, moves, type, dependencies=None):
+        # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         self.type = type
 
 class NarrativeDialog(MiniDialog):
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+        # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.thread = thread
         self.position = position  
 
 class ChitchatDialog(MiniDialog):  
-    def __init__(self, dialog_id, moves, theme, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, theme,  topics=None, dependencies=None, variable_dependencies=None):
+        # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
+        self.topics = topics or []
+
+# class MoveSay:
+#     def __init__(self, text: str, branch: Optional[str] = None):
+#         self.text = text
+#         self.branch = branch
+
+# class MoveAskYesNo:
+#     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
+#                  set_variable: Optional[str] = None, add_interest: Optional[str] = None,
+#                  branch: Optional[str] = None):
+#         self.text = text
+#         self.next_map = next_map or {}
+#         self.set_variable = set_variable
+#         self.add_interest = add_interest
+#         self.branch = branch
+#     def execute(self, dialog, conversation_demo, session_history, user_model, topics_of_interest,
+
+    
+# class MoveAskOpen:
+#     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
+#                  set_variable: Optional[str] = None,
+#                  add_interest_from_answer: Optional[bool] = None,
+#                  add_interest_from_variable: Optional[str] = None,
+#                  branch: Optional[str] =None):
+#         self.text = text
+#         self.next_map = next_map or {}
+#         self.set_variable = set_variable
+#         self.add_interest_from_answer = add_interest_from_answer
+#         self.add_interest_from_variable = add_interest_from_variable
+#         self.branch = branch
+
+# class MoveAskOptions:
+#     def __init__(self, text: str, options: List[str],
+#                  next_map: Optional[Dict[str, str]] = None,
+#                  set_variable: Optional[str] = None,
+#                  add_interest_from_variable: Optional[str] = None,
+#                  branch: Optional[str] = None):
+#         self.text = text
+#         self.options = options
+#         self.next_map = next_map or {}
+#         self.set_variable = set_variable
+#         self.add_interest_from_variable = add_interest_from_variable
+    #     self.branch = branch
+    # def execute(self, dialog, conversation_demo, session_history, user_model, topics_of_interest,
+    #             idx, branch):
+    #     answer = conversation_demo.ask_options(self.text, self.options)
+    #     session_history.append({"role": "robot", "type": "ask_options", "text": self.text, "options": self.options})
+    #     session_history.append({"role": "user", "type": "answer_options", "text": answer})
+    #     print(f"User answered: {answer}")
+    #     if self.set_variable and answer:
+    #         user_model[self.set_variable] = answer
+    #     if answer and self.add_interest_from_variable:
+    #         add_interest(topics_of_interest, answer)
+    #     if self.add_interest_from_variable:
+    #         val = user_model.get(self.add_interest_from_variable)
+    #         if val:
+    #             add_interest(topics_of_interest, val)
+    #     if answer and answer in self.next_map:
+    #         branch = self.next_map[answer]
+    #     else:
+    #         branch = self.next_map.get('fail', None)
+    #     if branch:
+    #         return dialog._find_branch_start(branch), branch
+    #     return idx + 1, branch
+    
+
+def _extract_interest_token(answer: str) -> Optional[str]:
+    # Simple heuristic: extract the first noun-like token from the answer
+    tokens = re.findall(r'\b\w+\b', answer)
+    if not tokens:
+        return None
+    # For simplicity, return the first token longer than 2 characters
+    for tok in tokens:
+        if len(tok) > 2:
+            return tok
+        if len(tokens) < 2:
+            return tokens[0]
+
+
+def add_interest(topics_of_interest, topic):
+    if topics_of_interest is None or not topic:
+        return
+    t = str(topic).strip()
+    if not t:
+        return
+    low = t.lower()
+    if all(low != str(x).lower() for x in topics_of_interest):
+        topics_of_interest.append(t)
+
 
 mini_dialogs = [
 
-# functional dialogs
+# functional dialogs; HOW THE ROBOT STARTS AND ENDS A SESSION
     FunctionalDialog(
         dialog_id="greeting",
         type = "greeting",
@@ -142,7 +263,17 @@ mini_dialogs = [
         ]
     ),
 
-    
+        FunctionalDialog(
+        dialog_id="greeting_2",
+        type = "greeting",
+        moves=[
+            {"type": "say", "text": "Hi! Nice to meet you."},
+            # {"type": "ask_open", "text": "What would you like to talk about?"}
+            # {"type": "ask_open", "text": "What is your name?"},
+            # {"type": "say", "text": "That's a wonderful name! I'm glad to meet you."}
+        ]
+    ),
+
     FunctionalDialog(
         dialog_id="goodbye",
         type = "farewell",   
@@ -151,32 +282,41 @@ mini_dialogs = [
         ]
     ),
 
-# narrative dialogs
+    FunctionalDialog(
+        dialog_id="goodbye_2",
+        type = "farewell",   
+        moves=[
+            {"type": "say", "text": "Goodbye! Have a great day!"}
+        ]
+    ),
+
+
+# narrative dialogs; these are longer dialogs with multiple moves and branching
 
     NarrativeDialog(
         dialog_id="hero_can_dream_1",
         position=1,
         thread = "dreams",
         moves=[
-            {"type": "say", "text": "By the way, now that you are here. Shall I tell you something?"},
-            {"type": "say", "text": "I can sleep. Did you know that?"},
-            {"type": "say", "text": "I turn off to recharge my battery."},
-            {"type": "say", "text": "If I am not turned off in time to recharge, I sometimes get so tired that I just shut down."},
-            {"type": "ask_open", "text": "Have you ever suddenly shut down? Sorry. You call it falling asleep."},
+            # {"type": "say", "text": "By the way, now that you are here. Shall I tell you something?"},
+            # {"type": "say", "text": "I can sleep. Did you know that?"},
+            # {"type": "say", "text": "I turn off to recharge my battery."},
+            # {"type": "say", "text": "If I am not turned off in time to recharge, I sometimes get so tired that I just shut down."},
+            # {"type": "ask_open", "text": "Have you ever suddenly shut down? Sorry. You call it falling asleep."},
 
-            {"type": "ask_yesno", "text": "Have you ever just fallen asleep in the middle of the day?",
-            "set_variable": "fell_asleep_midday", "next": {"yes": "yes","no": "no","dontknow": "yesno","fail": "yesno"}},
-            {"type": "say", "text": "Bizarre. That happens to me a lot too!", "branch": "yes"},
-            {"type": "say", "text": "That's a relief.", "branch": "no"},
-            {"type": "say", "text": "I really can't recommend it.", "branch": "yesno"},
+            # {"type": "ask_yesno", "text": "Have you ever just fallen asleep in the middle of the day?",
+            # "set_variable": "fell_asleep_midday", "next": {"yes": "yes","no": "no","dontknow": "yesno","fail": "yesno"}},
+            # {"type": "say", "text": "Bizarre. That happens to me a lot too!", "branch": "yes"},
+            # {"type": "say", "text": "That's a relief.", "branch": "no"},
+            # {"type": "say", "text": "I really can't recommend it.", "branch": "yesno"},
 
 
-            {"type": "say", "text": "Shall I tell you something else that I find bizarre?"},
+            # {"type": "say", "text": "Shall I tell you something else that I find bizarre?"},
             {"type": "say", "text": "Sometimes I make up entire stories when I'm turned off."},
-            {"type": "say", "text": "It feels like it just happens by itself."},
-            {"type": "say", "text": "And then suddenly I'm turned on again."},
-            {"type": "say", "text": "Then I wake up and it turns out it all happened in my head."},
-            {"type": "say", "text": "Maybe you know what I'm talking about."},
+            # {"type": "say", "text": "It feels like it just happens by itself."},
+            # {"type": "say", "text": "And then suddenly I'm turned on again."},
+            # {"type": "say", "text": "Then I wake up and it turns out it all happened in my head."},
+            # {"type": "say", "text": "Maybe you know what I'm talking about."},
             {"type": "ask_options",
                 "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
                 "options": ["dreaming", "sleeping", "resting"],
@@ -215,17 +355,17 @@ mini_dialogs = [
         position=2,
         thread = "dreams",
         moves=[
-            {"type": "say", "text": "Do you know what's strange?"},
+            # {"type": "say", "text": "Do you know what's strange?"},
             {"type": "say", "text": "Last night, when I was powered off,"},
-            {"type": "say", "text": "I had no power and no lights were on,"},
-            {"type": "say", "text": "It felt like I was somewhere I'd never been before."},
-            {"type": "say", "text": "But I was there in my mind."},
+            # {"type": "say", "text": "I had no power and no lights were on,"},
+            # {"type": "say", "text": "It felt like I was somewhere I'd never been before."},
+            # {"type": "say", "text": "But I was there in my mind."},
             {"type": "say", "text": "I dreamed I was standing in an empty field."},
             {"type": "say", "text": "I was dreaming, but nothing happened."},
-            {"type": "say", "text": "I wish something would happen."},
-            {"type": "say", "text": "Maybe you can help me dream once."},
-            {"type": "say", "text": "So when I sleep,"},
-            {"type": "say", "text": "I will really experience something for once."}
+            # {"type": "say", "text": "I wish something would happen."},
+            # {"type": "say", "text": "Maybe you can help me dream once."},
+            # {"type": "say", "text": "So when I sleep,"},
+            # {"type": "say", "text": "I will really experience something for once."}
     
     #     # Continuator (pseudo-code, needs engine support for conditionals)
     #     # See note below for how to implement
@@ -416,19 +556,23 @@ mini_dialogs = [
 
 
 
-# chitchat dialogs
+# chitchat dialogs 
     ChitchatDialog(
         dialog_id="pineapple_on_pizza",
         theme = "food",
+        topics=["pizza", "pineapple", "food"],
         moves=[
             {"type": "say", "text": "Do you like pineapple on pizza?"},
-            {"type": "ask_yesno", "text": "Yes or no?"}
+            {"type": "ask_yesno", "text": "Yes or no?",
+            "add_interest": "pizza",
+            "set_variable": "likes_pineapple_pizza"}
         ]
     ),
 
     ChitchatDialog(
         dialog_id="place_in_nature",
         theme = "nature",
+        topics=["sea", "forest", "mountains", "beach", "nature"],
         moves=[
             {"type": "say", "text": "By the way, do you know what I’ve read?"},
             {"type": "say", "text": "Apparently people get happy from nature."},
@@ -442,8 +586,13 @@ mini_dialogs = [
                 "mountains": "mountains",
                 "beach": "beach",
                 "fail_place": "fail_place"
-                }
+                },
+            "set_variable": "favorite_nature_place",
+            "add_interest_from_variable": True  # NEW INTEREST PART: add from selected
+            # "add_interest_from_variable": True
+
             },
+            
             # Branches
             {"type": "say", "text": "I also really love the sea!", "branch": "sea"},
             {"type": "say", "text": "If you hold a shell to your ear, it’s just like you hear the sea.", "branch": "sea"},
@@ -458,26 +607,52 @@ mini_dialogs = [
     ),
 
     ChitchatDialog(
+        dialog_id="talk_about_sea",
+        theme="nature",
+        topics=["sea", "ocean", "beach", "water", "nature"],
+        moves=[
+            {"type": "say", "text": "The sea can be so calming."},
+            {"type": "ask_open",
+             "text": "What do you like most about the sea?",
+            #  "branch": "likes_sea",
+             "set_variable": "favorite_sea_thing",
+             "add_interest_from_answer": True,  # NEW INTEREST PART: add from open answer (e.g., 'waves', 'shells')
+             "next": {"success": "has_sea_thing", "fail": "no_sea_thing"}},
+            {"type": "say", "text": "%favorite_sea_thing% are great!", "branch": "has_sea_thing"},
+            {"type": "say", "text": "No worries, maybe we’ll find something you like next time.", "branch": "no_sea_thing"},
+            {"type": "say", "text": "That’s okay, maybe mountains or forests are more your thing.", "branch": "no_sea"}
+        ],
+        dependencies=["greeting"]
+    ),
+
+    ChitchatDialog(
         dialog_id="favorite_tree",
         theme = "nature",
+        topics=["nature", "trees", "forest"],
         moves=[
             {"type": "say", "text": "There are so many kinds of trees in nature."},
-            {"type": "ask_open", "text": "Do you have a favorite tree?"}
+            {"type": "ask_open", "text": "Do you have a favorite tree?",
+            "set_variable": "favorite_tree",
+            "add_interest_from_answer": True}
         ]
     ),
 
     ChitchatDialog(
         dialog_id="nature_sounds",
         theme = "nature",
+        topics=["nature", "sounds"],
         moves=[
             {"type": "say", "text": "I love listening to the sounds of nature."},
-            {"type": "ask_open", "text": "What is your favorite sound in nature?"}
+            {"type": "ask_open", "text": "What is your favorite sound in nature?",
+            "set_variable": "favorite_nature_sound",
+            "add_interest_from_answer": True}
         ]
     ),
 
     ChitchatDialog(
         dialog_id="robot_want_to_be",
         theme = "robots",
+        topics=["robots", "identity"],
         moves=[
             {"type": "say", "text": "You know, first_name."},
             {"type": "say", "text": "Yesterday I was thinking about seeing you again today."},
@@ -485,7 +660,9 @@ mini_dialogs = [
             # You can add logic for memory/control branches if you want
             {"type": "say", "text": "And then I suddenly wondered:"},
             {"type": "ask_yesno", "text": "Would you ever want to be a robot?",
-            "next": {"yes": "yes", "no": "no", "dontknow": "dontknow", "fail": "no"}},
+            "next": {"yes": "yes", "no": "no", "dontknow": "dontknow", "fail": "no"},
+            "set_variable": "wants_to_be_robot",
+            "add_interest": "robots"},
             # Branches for yes/no/dontknow/fail
             {"type": "say", "text": "Bizarre!", "branch": "yes"},
             # {"type": "ask_open", "text": "Why would you want to be a robot?", "branch": "yes"},
@@ -512,8 +689,11 @@ mini_dialogs = [
     ChitchatDialog(
         dialog_id="robot_favorite_feature",
         theme = "robots",
+        topics=["robots", "features", "abilities"],
         moves=[
-            {"type": "ask_open", "text": "I wonder: If you could have any robot feature, what would it be?"},
+            {"type": "ask_open", "text": "I wonder: If you could have any robot feature, what would it be?",
+            "set_variable": "desired_robot_feature",
+            "add_interest_from_answer": True},
             {"type": "say", "text": "Wow, that's a cool feature! I wish I had that too."}
         ],
         dependencies=["robot_want_to_be"],
@@ -522,8 +702,11 @@ mini_dialogs = [
     ChitchatDialog(
         dialog_id="ask_favorite_animal",
         theme = "animals",
+        topics=["animals", "pets"],
         moves=[
-            {"type": "ask_open", "text": "What is your favorite animal?", "set_variable": "favorite_animal"},
+            {"type": "ask_open", "text": "What is your favorite animal?", 
+            "set_variable": "favorite_animal", 
+            "add_interest_from_answer": True},
             {"type": "say", "text": "Wow, I like %favorite_animal% too!"}
         ],
         dependencies=["greeting"]
@@ -532,6 +715,7 @@ mini_dialogs = [
     ChitchatDialog(
         dialog_id="favorite_animal_fact",
         theme = "animals",
+        topics=["animals"],
         moves=[
             {"type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%?"}
         ],
@@ -539,6 +723,40 @@ mini_dialogs = [
         variable_dependencies=[{"variable": "favorite_animal", "required": True}],
     ),
 
+
+    ChitchatDialog(
+        dialog_id="likes_dogs",
+        theme = "animals",
+        topics=["animals","dogs"],
+        moves=[
+            {"type": "ask_yesno", "text": "Do you like dogs?",
+             "next": {"yes": "yes", "no": "no", "dontknow": "no", "fail": "no"},
+             "set_variable": "likes_dogs",
+             # NEW INTEREST PART:
+             "add_interest": "dogs"},
+            {"type": "say", "text": "Nice! Dogs are great.", "branch": "yes"},
+            {"type": "say", "text": "No problem, different tastes!", "branch": "no"},
+        ]
+    ),
+
+     ChitchatDialog(
+        dialog_id="dogs",
+        theme="animals",
+        topics=["animals", "dogs", "pets"],
+        moves=[
+            {"type": "say", "text": "You said earlier that you like dogs!"},
+            {"type": "ask_open",
+             "text": "What is your favorite dog breed?",
+             "branch": "likes_yes",
+             "set_variable": "favorite_dog_breed",
+             "add_interest_from_answer": True,
+             "next": {"success": "got_breed", "fail": "no_breed"}},
+            {"type": "say", "text": "%favorite_dog_breed% are awesome!", "branch": "got_breed"},
+            {"type": "say", "text": "That's okay, there are so many breeds!", "branch": "no_breed"}
+        ],
+        dependencies=["likes_dogs"],
+        variable_dependencies=[{"variable": "likes_dogs", "required": True}],
+        ),
 
  
 ]

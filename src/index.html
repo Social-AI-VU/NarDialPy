@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NarDialPy Dialog Editor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>NarDialPy Dialog Editor</h1>
+    <div class="toolbar">
+      <label class="btn">Load JSON <input type="file" id="fileInput" accept="application/json" hidden /></label>
+      <button id="saveBtn" class="btn">Save JSON</button>
+      <button id="newFunctionalBtn" class="btn">New Functional</button>
+      <button id="newNarrativeBtn" class="btn">New Narrative</button>
+      <button id="newChitchatBtn" class="btn">New Chitchat</button>
+      <button id="deleteDialogBtn" class="btn danger" disabled>Delete Dialog</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <div class="search">
+        <input id="searchBox" placeholder="Search id/type/theme/thread..." />
+      </div>
+      <ul id="dialogList"></ul>
+    </aside>
+
+    <section id="editor">
+      <div id="emptyState">No dialog selected. Choose one from the list or create a new dialog.</div>
+      <form id="dialogForm" class="hidden">
+        <div class="grid">
+          <label>ID <input id="dlg_id" /></label>
+          <label>Type
+            <select id="dlg_type">
+              <option value="functional">functional</option>
+              <option value="narrative">narrative</option>
+              <option value="chitchat">chitchat</option>
+            </select>
+          </label>
+          <label class="type-functional">functional_type <input id="dlg_functional_type" /></label>
+          <label class="type-narrative">thread <input id="dlg_thread" /></label>
+          <label class="type-narrative">position <input id="dlg_position" type="number" min="0" step="1" /></label>
+          <label class="type-chitchat">theme <input id="dlg_theme" /></label>
+          <label class="type-chitchat">topics (comma) <input id="dlg_topics" placeholder="sea, forest, beach"/></label>
+        </div>
+
+        <div class="grid">
+          <label>dependencies (comma) <input id="dlg_deps" placeholder="greeting, likes_dogs"/></label>
+          <label>variable_dependencies (comma names) <input id="dlg_vdeps" placeholder="favorite_animal, likes_dogs"/></label>
+        </div>
+
+        <h3>Moves</h3>
+        <div id="moves"></div>
+        <button type="button" id="addMoveBtn" class="btn">+ Add move</button>
+
+        <div class="actions">
+          <button type="button" id="applyBtn" class="btn primary">Apply changes</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <template id="moveRowTmpl">
+    <div class="move-row">
+      <div class="move-head">
+        <select class="mv-type">
+          <option value="say">say</option>
+          <option value="ask_yesno">ask_yesno</option>
+          <option value="ask_open">ask_open</option>
+          <option value="ask_options">ask_options</option>
+          <option value="play">play</option>
+        </select>
+        <button type="button" class="btn btn-sm move-up">↑</button>
+        <button type="button" class="btn btn-sm move-down">↓</button>
+        <button type="button" class="btn btn-sm danger move-del">🗑</button>
+      </div>
+      <div class="move-fields">
+        <label>text <input class="mv-text" /></label>
+        <label>branch <input class="mv-branch" placeholder="optional"/></label>
+        <label class="for-ask_options">options (comma) <input class="mv-options" placeholder="sea, forest"/></label>
+        <label>set_variable <input class="mv-setvar" placeholder="favorite_animal"/></label>
+        <label class="for-ask_yesno">add_interest <input class="mv-addinterest" placeholder="dogs"/></label>
+        <label class="for-ask_open">add_interest_from_answer <input type="checkbox" class="mv-add-from-answer"/></label>
+        <label class="for-ask_options">add_interest_from_variable <input type="checkbox" class="mv-add-from-var"/></label>
+        <label>next (JSON) <textarea class="mv-next" rows="2" placeholder='{"yes":"y","no":"n","fail":"n"}'></textarea></label>
+        <label class="for-play">audio <input class="mv-audio" placeholder="resources/sounds/file.wav"/></label>
+      </div>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

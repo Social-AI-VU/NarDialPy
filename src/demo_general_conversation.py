@@ -7,7 +7,8 @@ import os
 
 import random
 import re
-from mini_dialogs import mini_dialogs, NarrativeDialog, ChitchatDialog, FunctionalDialog
+from mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
+from authoring.loader import load_dialogs
 from historyclass import ConversationState
 
 
@@ -306,7 +307,7 @@ def can_run(dialog, completed_ids, user_model, all_dialogs=None):
             return False
     if isinstance(dialog, NarrativeDialog):
         if all_dialogs is None:
-            all_dialogs = mini_dialogs
+            all_dialogs = []
         for d in all_dialogs:
             if (isinstance(d, NarrativeDialog) and
                 d.thread == dialog.thread and
@@ -393,7 +394,7 @@ def schedule_chitchat(session, pool, theme=None, topics_of_interest=None, all_di
     - Consider continuity (completed_ids) so chitchats can run even if greeting
       isn't scheduled in this session because it was done in a previous run.
     """
-    all_dialogs = all_dialogs or mini_dialogs
+    all_dialogs = all_dialogs or []
     cands = prioritized_chitchat(pool, theme=theme, topics_of_interest=topics_of_interest)
     if not cands:
         return False
@@ -535,15 +536,33 @@ if __name__ == '__main__':
             pass
     session_id = history.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id)
 
+    # Load dialogs from JSON if available, otherwise fall back to builtin Python list
+    dialogs_json_path = abspath(join("conf", "dialogs", "dialogs.json"))
+    try:
+        all_dialogs_loaded, load_errs = load_dialogs(dialogs_json_path)
+        if load_errs:
+            print("[WARN] Issues while loading dialogs.json:")
+            for e in load_errs:
+                print(" -", e)
+        if all_dialogs_loaded:
+            all_dialogs = all_dialogs_loaded
+            print(f"[INFO] Loaded {len(all_dialogs)} dialogs from {dialogs_json_path}")
+        else:
+            all_dialogs = []
+            print("[WARN] No JSON dialogs loaded and builtin dialogs are unavailable. Proceeding with 0 dialogs.")
+    except Exception as e:
+        all_dialogs = []
+        print(f"[WARN] Falling back to empty dialogs due to error: {e}")
+
     # Build a session plan (greeting → narrative → chitchat → narrative → chitchat → farewell)
     # Auto-pick a thread if the preferred one has no pending narratives
     preferred_thread = "dreams"
-    chosen_thread = auto_select_thread(mini_dialogs, preferred_thread, completed_ids=completed_dialogs, user_model=user_model)
+    chosen_thread = auto_select_thread(all_dialogs, preferred_thread, completed_ids=completed_dialogs, user_model=user_model)
     try:
         print(f"[DEBUG] Narrative thread chosen: {chosen_thread}")
     except Exception:
         pass
-    session_block = select_session_block(mini_dialogs, thread=chosen_thread, theme="nature", topics_of_interest=topics_of_interest, completed_ids=completed_dialogs)
+    session_block = select_session_block(all_dialogs, thread=chosen_thread, theme="nature", topics_of_interest=topics_of_interest, completed_ids=completed_dialogs)
     # Debug: show planned dialogs
     try:
         print("[DEBUG] Planned session block:", [d.dialog_id for d in session_block])
@@ -551,7 +570,7 @@ if __name__ == '__main__':
         pass
 
     for dialog in session_block:
-        if can_run(dialog, completed_dialogs, user_model, all_dialogs=mini_dialogs):
+        if can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):
             # record which dialog runs
             history.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history

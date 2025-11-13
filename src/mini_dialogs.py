@@ -13,6 +13,51 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
 
+    @staticmethod  # this is a new change
+    def _extract_interest_token(answer: str) -> Optional[str]:  # this is a new change
+        # Simple heuristic: extract the first noun-like token from the answer  # this is a new change
+        tokens = re.findall(r'\b\w+\b', answer)  # this is a new change
+        if not tokens:  # this is a new change
+            return None  # this is a new change
+        for tok in tokens:  # this is a new change
+            if len(tok) > 2:  # this is a new change
+                return tok  # this is a new change
+        if len(tokens) < 2:  # this is a new change
+            return tokens[0]  # this is a new change
+
+    @staticmethod  # this is a new change
+    def add_interest(topics_of_interest, topic):  # this is a new change
+        if topics_of_interest is None or not topic:  # this is a new change
+            return  # this is a new change
+        t = str(topic).strip()  # this is a new change
+        if not t:  # this is a new change
+            return  # this is a new change
+        low = t.lower()  # this is a new change
+        if all(low != str(x).lower() for x in topics_of_interest):  # this is a new change
+            topics_of_interest.append(t)  # this is a new change
+
+    @staticmethod
+    def extract_open_value(answer: str) -> str:
+        """
+        General-purpose cleaner for open answers used with set_variable.
+        Heuristics (language-agnostic):
+        - If quoted text is present, return the first quoted segment.
+        - Otherwise, return the last alphabetic token (e.g., 'zebra' from 'my favorite animal is a zebra').
+        - Fallback to trimmed original answer if nothing matches.
+        """
+        if not answer:
+            return ""
+        text = str(answer).strip()
+        # Prefer explicitly quoted content
+        m = re.search(r'["\']([^"\']+)["\']', text)
+        if m:
+            return m.group(1).strip()
+        # Fallback: pick the last alphabetic-ish token
+        tokens = re.findall(r"[A-Za-z][A-Za-z\-']+", text)
+        if tokens:
+            return tokens[-1]
+        return text
+
 
     def run(self, conversation_demo, session_history=None, user_model=None, topics_of_interest=None): 
         # Execute mini dialogs, sending speech/asks to the device and logging events.
@@ -59,8 +104,8 @@ class MiniDialog:
                 # new interest part 1. store answer if requested 2. add interest only on YES if configured
                 if move.get("set_variable"):
                     user_model[move["set_variable"]] = answer
-                if answer == "yes" and move.get("add_interest"):
-                    add_interest(topics_of_interest, move["add_interest"])
+                if answer == "yes" and move.get("add_interest"):  # this is a new change
+                    self.add_interest(topics_of_interest, move["add_interest"])  # this is a new change
                 # new for branching logic
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
@@ -79,15 +124,26 @@ class MiniDialog:
                 print(f"User answered: {answer}")
                 if move.get("set_variable") and answer:
                     var_name = move["set_variable"]
-                    user_model[var_name] = answer
+                    user_model[var_name] = self.extract_open_value(answer)
+                # Optional automatic personalized follow-up
+                if move.get("personalize_followup"):
+                    try:
+                        age_val = user_model.get('user_age', user_model.get('age', 9))
+                        follow = conversation_demo.personalize(robot_input=move['text'], user_age=age_val, user_input=(answer or ""), language="en")
+                        if follow:
+                            conversation_demo.say(follow)
+                            session_history.append({"role": "robot", "type": "personalize", "text": follow, "source_question": move['text']})
+                    except Exception as e:
+                        # Log but do not break dialog flow
+                        session_history.append({"role": "system", "type": "error", "stage": "personalize_followup", "error": str(e)})
                                 
                 # NEW INTEREST PART: add interest from answer and/or from variable
-                if answer and move.get("add_interest_from_answer"):
-                    add_interest(topics_of_interest, answer)
-                if move.get("add_interest_from_answer"):
-                    val = user_model.get(move["add_interest_from_answer"])
-                    if val:
-                        add_interest(topics_of_interest, val)
+                if answer and move.get("add_interest_from_answer"):  # this is a new change
+                    self.add_interest(topics_of_interest, answer)  # this is a new change
+                if move.get("add_interest_from_answer"):  # this is a new change
+                    val = user_model.get(move["add_interest_from_answer"])  # this is a new change
+                    if val:  # this is a new change
+                        self.add_interest(topics_of_interest, val)  # this is a new change
 
                 next_map = move.get('next', {})
                 if next_map:  # Only change branch if next mapping is specified
@@ -112,12 +168,12 @@ class MiniDialog:
                 if move.get("set_variable") and answer:    
                     user_model[move["set_variable"]] = answer
                 # NEW INTEREST PART: add interest from answer and/or from variable
-                if answer and move.get("add_interest_from_variable"):
-                    add_interest(topics_of_interest, answer)
-                if move.get("add_interest_from_variable"):
-                    val = user_model.get(move["add_interest_from_variable"])
-                    if val:
-                       add_interest(topics_of_interest, val)   
+                if answer and move.get("add_interest_from_variable"):  # this is a new change
+                    self.add_interest(topics_of_interest, answer)  # this is a new change
+                if move.get("add_interest_from_variable"):  # this is a new change
+                    val = user_model.get(move["add_interest_from_variable"])  # this is a new change
+                    if val:  # this is a new change
+                       self.add_interest(topics_of_interest, val)  # this is a new change
                 next_map = move.get('next', {})
                 if answer and answer in next_map:
                     branch = next_map[answer]
@@ -165,6 +221,22 @@ class ChitchatDialog(MiniDialog):
 #     def __init__(self, text: str, branch: Optional[str] = None):
 #         self.text = text
 #         self.branch = branch
+#     def as_dict(self) -> Dict[str, Any]:
+#         d = {"type": "say", "text": self.text"}
+#         if self.branch is not None:
+#             d["branch"] = self.branch
+#         return d
+#     def __repr__(self) -> str:
+#         return f"MoveSay(text={self.text!r}, branch={self.branch!r})"
+#     def __str__(self) -> str:
+#         return self.text    
+#     def __eq__(self, other: object) -> bool:
+#         if not isinstance(other, MoveSay):
+#             return False
+#         return self.text == other.text and self.branch == other.branch
+#     def __ne__(self, other: object) -> bool:
+#         return not self.__eq__(other)
+
 
 # class MoveAskYesNo:
 #     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
@@ -204,29 +276,25 @@ class ChitchatDialog(MiniDialog):
     #     self.branch = branch
     
     
+# Automatically determine the next position for NarrativeDialogs
+next_pos = 0
+_mini = globals().get("mini_dialogs")
+if isinstance(_mini, (list, tuple)):
+    for d in _mini:
+        if isinstance(d, NarrativeDialog):
+            try:
+                if d.position >= next_pos:
+                    next_pos = d.position + 1
+            except Exception:
+                pass
+NarrativeDialog.next_position = next_pos
 
-def _extract_interest_token(answer: str) -> Optional[str]:
-    # Simple heuristic: extract the first noun-like token from the answer
-    tokens = re.findall(r'\b\w+\b', answer)
-    if not tokens:
-        return None
-    # For simplicity, return the first token longer than 2 characters
-    for tok in tokens:
-        if len(tok) > 2:
-            return tok
-        if len(tokens) < 2:
-            return tokens[0]
 
 
-def add_interest(topics_of_interest, topic):
-    if topics_of_interest is None or not topic:
-        return
-    t = str(topic).strip()
-    if not t:
-        return
-    low = t.lower()
-    if all(low != str(x).lower() for x in topics_of_interest):
-        topics_of_interest.append(t)
+
+
+
+
 
 
 # mini_dialogs = [
@@ -778,15 +846,3 @@ def add_interest(topics_of_interest, topic):
 
  
 # ]
-
-next_pos = 0
-_mini = globals().get("mini_dialogs")
-if isinstance(_mini, (list, tuple)):
-    for d in _mini:
-        if isinstance(d, NarrativeDialog):
-            try:
-                if d.position >= next_pos:
-                    next_pos = d.position + 1
-            except Exception:
-                pass
-NarrativeDialog.next_position = next_pos

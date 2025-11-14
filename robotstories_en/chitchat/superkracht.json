@@ -1,0 +1,220 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "theme": "personalia",
+    "topic": "superkracht",
+    "id": "superkracht",
+    "speech_acts": [
+      "I recently discovered that many people would like to be a superhero.",
+      "If you could choose, what would you most like:",
+      {
+        "act": "ask",
+        "question": "Be super strong, talk to animals, read minds, or be invisible?",
+        "type": "options",
+        "user_model_id": "$superkracht",
+        "next": [
+          {
+            "value": [
+              "sterk"
+            ],
+            "target": "sterk"
+          },
+          {
+            "value": [
+              "dieren"
+            ],
+            "target": "dier"
+          },
+          {
+            "value": [
+              "gedachten"
+            ],
+            "target": "gedachten"
+          },
+          {
+            "value": [
+              "onzichtbaar"
+            ],
+            "target": "onzichtbaar"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "superkrachten"
+          },
+          "touch": [
+            "sterk",
+            "dieren",
+            "gedachten",
+            "onzichtbaar"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "I find it hard too, but I'd most like to be invisible.",
+          "branch": "fail"
+        },
+        {
+          "act": "say",
+          "text": "If you were invisible, what would you most want to do?",
+          "branch": "fail",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "onzichtbaar"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Cool!",
+          "branch": "sterk"
+        },
+        {
+          "act": "say",
+          "text": "Be careful tying your shoelaces, you might accidentally snap them!",
+          "branch": "sterk"
+        },
+        {
+          "act": "say",
+          "text": "Handy! You could eavesdrop on birds chirping.",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "Birds go everywhere, so they know everything.",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "Or quickly negotiate with a tiger before it eats you.",
+          "branch": "dier"
+        },
+        {
+          "act": "continuator",
+          "conditionals": [
+            {
+              "target": "huisdier",
+              "conditionals": [
+                {
+                  "conditional_of": "$heeft_kind_hond",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                },
+                {
+                  "conditional_of": "$heeft_kind_dier",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Or of course you could ask whether your pet loves you just as much",
+          "branch": "huisdier"
+        },
+        {
+          "act": "say",
+          "text": "I'd pick that one too!",
+          "branch": "gedachten"
+        },
+        {
+          "act": "say",
+          "text": "Although I'd be a bit sad that nothing would be a surprise anymore.",
+          "branch": "gedachten"
+        },
+        {
+          "act": "say",
+          "text": "Like presents—you'd already know what's inside.",
+          "branch": "gedachten"
+        },
+        {
+          "act": "say",
+          "text": "But it is super handy to understand everything and everyone right away.",
+          "branch": "gedachten"
+        },
+        {
+          "act": "ask",
+          "question": "Would you also want to be invisible to me?",
+          "type": "yesno",
+          "user_model_id": "$onzichtbaar_voor_hero",
+          "branch": "onzichtbaar",
+          "next": [
+            {
+              "value": [
+                "fail",
+                "dontknow"
+              ],
+              "target": "fail_mensen_of_robotogen"
+            },
+            {
+              "value": [
+                "no"
+              ],
+              "target": "mensen"
+            },
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "robots"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Okay!",
+          "branch": "mensen"
+        },
+        {
+          "act": "say",
+          "text": "With my robot eyes I could still see you, but otherwise you could be completely invisible!",
+          "branch": "mensen"
+        },
+        {
+          "act": "say",
+          "text": "Okay, cool!",
+          "branch": "robots"
+        },
+        {
+          "act": "say",
+          "text": "But I think you shouldn't use your powers to make me jump!",
+          "branch": "robots"
+        },
+        {
+          "act": "say",
+          "text": "Yeah, that is hard.",
+          "branch": "fail_mensen_of_robotogen"
+        },
+        {
+          "act": "say",
+          "text": "I think it'd be fun if we were invisible together.",
+          "branch": "fail_mensen_of_robotogen"
+        },
+        {
+          "act": "say",
+          "text": "So we could still see each other, but the rest couldn't!",
+          "branch": "fail_mensen_of_robotogen"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "superpower"
+  }
+]

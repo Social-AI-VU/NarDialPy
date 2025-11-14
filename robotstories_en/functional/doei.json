@@ -1,0 +1,399 @@
+[
+  {
+    "mini-dialog": "functional",
+    "id": "doei_1",
+    "function": "goodbye",
+    "dependencies": null,
+    "speech_acts": [
+      "I enjoyed meeting you, $naam",
+      {"act": "ask", "question": "Did you enjoy it too?", "type": "yesno", "next": [
+        {"value": ["yes"], "target": "ja"},
+        {"value": ["no", "dontknow"], "target": "nee"},
+        {"value": ["fail"], "target": "fail"}
+      ]},
+      [
+        {"act": "say", "branch": "ja", "text": "Good to hear!"},
+        {"act": "say", "branch": "nee", "text": "Oh, then I'll try a bit harder next time."},
+        {"act": "say", "branch": "fail", "text": "Okay"}
+      ],
+      {"act": "say", "text": "", "video_probe": "start"},
+      {"act": "continuator", "conditionals": [
+        {"target": "memory", "conditionals": [{"exp_condition": "memory"}]},
+        {"target": "control", "conditionals": [{"exp_condition": "control"}]}
+      ]},
+      [
+        {"act": "say", "branch": "memory", "text": "Maybe next time you can tell me about a dream."},
+        {"act": "say", "branch": "memory", "text": "If you manage to remember one."},
+        {"act": "say", "branch": "memory", "text": "And if I dare, I'll sign up for the robo games"},
+        {"act": "say", "branch": "control", "text": "I'm curious what we'll talk about next time."}
+      ],
+      "Now it's really time to say goodbye.",
+      "Bye $naam, see you soon!",
+      {"act": "say", "text": "", "video_probe": "stop"},
+      {"act": "play", "audio": "$handshake_sound", "motion": "$handshake_motion"}
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_2",
+    "function": "goodbye",
+    "dependencies": null,
+    "speech_acts": [
+      { "act": "say", "video_probe": "start" },
+      { "act": "continuator", "conditionals": [
+        { "target": "memory", "conditionals": [ { "exp_condition": "memory" } ] },
+        { "target": "control", "conditionals": [ { "exp_condition": "control" } ] }
+      ]},
+      [
+        { "act": "say", "branch": "memory", "text": "We're almost out of time for today again, $naam" },
+        { "act": "say", "branch": "memory", "text": "Nice that we could chat again today." },
+        { "act": "say", "branch": "memory", "text": "Next time we'll practice well for the robo games" },
+        { "act": "say", "branch": "memory", "text": "And if it works out, I'll tell you all about my dream." },
+        { "act": "say", "branch": "control", "text": "We're almost out of time." },
+        { "act": "say", "branch": "control", "text": "It was nice chatting with you." }
+      ],
+      { "act": "say", "text": "But first, about today.", "video_probe": "stop" },
+      { "act": "ask", "type": "open", "question": "What did you like most about our chat today?" },
+      "That was fun too!",
+      "Now it's really time to say goodbye.",
+      "Bye $naam, see you soon!"
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_3",
+    "function": "goodbye",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "We're almost out of time for today again, $naam"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "So happy I found out that you like $lievelingseten_met_p"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "And that $lievelingskleur is your favorite color."
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Next time we're going to make a chant for the robo games, excited!"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "We're almost out of time."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "It was nice chatting with you."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Great that I got to learn so much about you again."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "We'll continue next time."
+        }
+      ],
+      "But first, about today.",
+      {
+        "act": "ask",
+        "type": "open",
+        "question": "What did you like most about our chat today?"
+      },
+      "That was fun too!",
+      "Now it's really time to say goodbye.",
+      "Bye $naam, see you soon!",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "play",
+          "branch": "control",
+          "motion": "wave1.json"
+        },
+        {
+          "act": "play",
+          "branch": "memory",
+          "audio": "$handshake_sound",
+          "motion": "$handshake_motion"
+        }
+      ],
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_4",
+    "function": "goodbye",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "We're almost out of time for today again, $naam"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "So nice that we could still talk about your favorite food $lievelingseten_met_p"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Tonight I'm going to watch the YouTube video about the $onderwerp_youtubevideo, I'll get back to it next time."
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "I'll also tell you all about how the robo games turned out."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "We're almost out of time."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "It was nice chatting with you."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "We'll continue next time."
+        }
+      ],
+      "But first, about today.",
+      {
+        "act": "ask",
+        "type": "open",
+        "question": "What did you like most about our chat today?"
+      },
+      "That was fun too!",
+      "Now it's really time to say goodbye.",
+      "Bye $naam, see you soon!",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "play",
+          "branch": "control",
+          "motion": "wave1.json"
+        },
+        {
+          "act": "play",
+          "branch": "memory",
+          "audio": "$handshake_sound",
+          "motion": "$handshake_motion"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_was_het_leuk",
+    "function": "goodbye",
+    "dependencies": [
+      {
+        "dependent_on": "eerste_begroeting_secret_handshake",
+        "type": "follow-up",
+        "session_break": 0
+      }
+    ],
+    "speech_acts": [
+      "It's already time!",
+      "I really enjoyed chatting with you",
+      {
+        "act": "ask",
+        "question": "Did you also enjoy chatting with me?",
+        "type": "yesno",
+        "user_model_id": "$was_kletsen_leuk",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "How nice to hear!",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Let's continue chatting next time.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Oh that's a pity, better luck next time.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Then I'll make sure we do extra fun things next time.",
+          "branch": "nee"
+        }
+      ],
+      "Let's do our secret handshake one more time!",
+      {
+        "act": "play",
+        "motion": "Hero doet de secret handshake met het kind"
+      },
+      "See you next time, $naam!"
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_secret_handshake_1",
+    "function": "goodbye",
+    "dependencies": [
+      {
+        "dependent_on": "eerste_begroeting_secret_handshake",
+        "type": "follow-up",
+        "session_break": 0
+      }
+    ],
+    "speech_acts": [
+  "I have to go again soon!",
+  "Let's do our secret handshake one more time.",
+      {
+        "act": "play",
+        "motion": "Hero doet de secret handshake met het kind"
+      },
+      "Cool.",
+  "Bye dear $naam!",
+  "See you next time!"
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "doei_slaaphouding",
+    "function": "goodbye",
+    "dependencies": [
+      {
+        "dependent_on": "slaaphouding",
+        "type": "user-model",
+        "session_break": 0
+      }
+    ],
+    "speech_acts": [
+  "I have to go again!",
+  "Bye dear $naam, until next time!",
+  "Sleep well on your $slaaphouding_kind"
+    ]
+  }
+]

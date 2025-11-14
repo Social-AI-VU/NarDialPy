@@ -1,0 +1,636 @@
+
+    <!doctype html>
+    <html lang="en">
+<meta charset="utf-8">
+<title>Dialogs Report</title>
+    
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#0b0f14;color:#e7eefb;margin:0;padding:24px}
+      h1,h2,h3,h4{margin:0 0 8px 0}
+      h2{margin-top:24px;border-bottom:1px solid #233046;padding-bottom:6px}
+      section{margin-bottom:24px}
+      .dialog{border:1px solid #233046;border-radius:8px;margin:12px 0;padding:12px;background:#121821}
+      .dtype{color:#89a1bd;font-weight:normal}
+      .meta{color:#89a1bd;font-size:12px;margin-bottom:8px}
+      .moves{display:flex;flex-direction:column;gap:8px}
+      .move{border:1px solid #233046;border-radius:6px}
+      .mv-head{background:#0f1623;padding:6px 8px}
+      .mv-type{background:#4ea1ff;color:#001229;padding:1px 6px;border-radius:999px;font-size:12px}
+      .branch{color:#89a1bd}
+      .mv-body{padding:8px 10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+      code{background:#0f1623;border:1px solid #233046;border-radius:4px;padding:0 4px}
+      .thread,.theme{margin:8px 0}
+    </style>
+    
+    <h1>Dialogs Report</h1>
+    <section><h2>Functional</h2>
+    <article class="dialog">
+      <h4><code>goodbye</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>farewell</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>It was nice talking to you. Goodbye!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>goodbye_2</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>farewell</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Goodbye! Have a great day!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>goodbye_3</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>farewell</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Goodbye! Have a great day!GOODBYE 3</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>goodbye_4</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>farewell</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Goodbye! Have a great day!GOODBYE 4</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>greeting</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Hello! How are you today?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>What would you like to talk about?</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>greeting_2</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Hi! Nice to meet you.</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>greeting_3</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Hello, this is greeting 3.</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>greeting_4</code> <span class="dtype">[functional]</span></h4>
+      <div class="meta">functional_type: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Hi! This is greeting 4.</div></div>
+            </div>
+            </div>
+    </article>
+    </section>
+    <section><h2>Narrative</h2><div class=thread><h3>Thread: <code>dreams</code></h3>
+    <article class="dialog">
+      <h4><code>hero_can_dream_1</code> <span class="dtype">[narrative]</span></h4>
+      <div class="meta">thread: <code>dreams</code> • position: <code>1</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Sometimes I make up entire stories when I&#x27;m turned off.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_options</span> </div>
+              <div class="mv-body"><div class=mv-text>What is it called when you sleep and experience all sorts of things and then suddenly wake up?</div><div class=mv-options>options: <code>dreaming</code>, <code>sleeping</code>, <code>resting</code></div><div class=mv-set>set_variable: <code>what_is_dreaming</code></div><div class=mv-next>next: <code>{&quot;dreaming&quot;: &quot;correct&quot;, &quot;sleeping&quot;: &quot;incorrect&quot;, &quot;resting&quot;: &quot;incorrect&quot;, &quot;fail&quot;: &quot;incorrect&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>incorrect</code></div>
+              <div class="mv-body"><div class=mv-text>This is called dreaming!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>correct</code></div>
+              <div class="mv-body"><div class=mv-text>Indeed, dreaming.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>I sometimes dream of being a robot dog with four legs.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>I can fetch and deliver letters.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>What do you dream about?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_yesno</span> </div>
+              <div class="mv-body"><div class=mv-text>Do you remember any of your dreams?</div><div class=mv-set>set_variable: <code>remembered_dream</code></div><div class=mv-next>next: <code>{&quot;yes&quot;: &quot;dream_mem_yes&quot;, &quot;no&quot;: &quot;dream_mem_no&quot;, &quot;dontknow&quot;: &quot;dream_mem_no&quot;, &quot;fail&quot;: &quot;dream_mem_no&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> <code class=branch>dream_mem_yes</code></div>
+              <div class="mv-body"><div class=mv-text>What was it about?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>dream_mem_yes</code></div>
+              <div class="mv-body"><div class=mv-text>That&#x27;s something!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>dream_mem_no</code></div>
+              <div class="mv-body"><div class=mv-text>I have that sometimes too!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>dream_mem_no</code></div>
+              <div class="mv-body"><div class=mv-text>Then you dream something and afterwards it&#x27;s gone!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>dream_on_demand_2</code> <span class="dtype">[narrative]</span></h4>
+      <div class="meta">thread: <code>dreams</code> • position: <code>2</code> • dependencies: <code>hero_can_dream_1</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Last night, when I was powered off,</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>I dreamed I was standing in an empty field.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>I was dreaming, but nothing happened.</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>dreams_about_clouds</code> <span class="dtype">[narrative]</span></h4>
+      <div class="meta">thread: <code>dreams</code> • position: <code>3</code> • dependencies: <code>hero_can_dream_1</code>, <code>dream_on_demand_2</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Did you know some people dream about clouds?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>Have you ever dreamed about clouds?</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>dream12</code> <span class="dtype">[narrative]</span></h4>
+      <div class="meta">thread: <code>dreams</code> • position: <code>4</code> • dependencies: <code>hero_can_dream_1</code>, <code>dream_on_demand_2</code>, <code>dreams_about_clouds</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Did you know I can sleep?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Sometimes I get so tired I just shut down.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>Have you ever fallen asleep suddenly?</div></div>
+            </div>
+            </div>
+    </article>
+    </div></section>
+    <section><h2>Chitchat</h2><div class=theme><h3>Theme: <code>animals</code></h3>
+    <article class="dialog">
+      <h4><code>ask_favorite_animal</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>animals</code> • topics: <code>animals</code>, <code>pets</code> • dependencies: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>What is your favorite animal?</div><div class=mv-set>set_variable: <code>favorite_animal</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Wow, I like %favorite_animal% too!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>dogs</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>animals</code> • topics: <code>animals</code>, <code>dogs</code>, <code>pets</code> • dependencies: <code>likes_dogs</code> • variable_dependencies: <code>likes_dogs (required)</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>You said earlier that you like dogs!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> <code class=branch>likes_yes</code></div>
+              <div class="mv-body"><div class=mv-text>What is your favorite dog breed?</div><div class=mv-set>set_variable: <code>favorite_dog_breed</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div><div class=mv-next>next: <code>{&quot;success&quot;: &quot;got_breed&quot;, &quot;fail&quot;: &quot;no_breed&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>got_breed</code></div>
+              <div class="mv-body"><div class=mv-text>%favorite_dog_breed% are awesome!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no_breed</code></div>
+              <div class="mv-body"><div class=mv-text>That&#x27;s okay, there are so many breeds!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>favorite_animal_fact</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>animals</code> • topics: <code>animals</code> • dependencies: <code>greeting</code> • variable_dependencies: <code>favorite_animal (required)</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Did you know that i once saw at the zoo a %favorite_animal%?</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>likes_dogs</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>animals</code> • topics: <code>animals</code>, <code>dogs</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_yesno</span> </div>
+              <div class="mv-body"><div class=mv-text>Do you like dogs?</div><div class=mv-set>set_variable: <code>likes_dogs</code></div><div class=mv-add>add_interest: <code>dogs</code></div><div class=mv-next>next: <code>{&quot;yes&quot;: &quot;yes&quot;, &quot;no&quot;: &quot;no&quot;, &quot;dontknow&quot;: &quot;no&quot;, &quot;fail&quot;: &quot;no&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>yes</code></div>
+              <div class="mv-body"><div class=mv-text>Nice! Dogs are great.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no</code></div>
+              <div class="mv-body"><div class=mv-text>No problem, different tastes!</div></div>
+            </div>
+            </div>
+    </article>
+    </div><div class=theme><h3>Theme: <code>food</code></h3>
+    <article class="dialog">
+      <h4><code>pineapple_on_pizza</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>food</code> • topics: <code>pizza</code>, <code>pineapple</code>, <code>food</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Do you like pineapple on pizza?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_yesno</span> </div>
+              <div class="mv-body"><div class=mv-text>Yes or no?</div><div class=mv-set>set_variable: <code>likes_pineapple_pizza</code></div><div class=mv-add>add_interest: <code>pizza</code></div></div>
+            </div>
+            </div>
+    </article>
+    </div><div class=theme><h3>Theme: <code>nature</code></h3>
+    <article class="dialog">
+      <h4><code>favorite_tree</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>nature</code> • topics: <code>nature</code>, <code>trees</code>, <code>forest</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>There are so many kinds of trees in nature.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>Do you have a favorite tree?</div><div class=mv-set>set_variable: <code>favorite_tree</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>nature_sounds</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>nature</code> • topics: <code>nature</code>, <code>sounds</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>I love listening to the sounds of nature.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>What is your favorite sound in nature?</div><div class=mv-set>set_variable: <code>favorite_nature_sound</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>place_in_nature</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>nature</code> • topics: <code>sea</code>, <code>forest</code>, <code>mountains</code>, <code>beach</code>, <code>nature</code> • dependencies: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>By the way, do you know what I’ve read?</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Apparently people get happy from nature.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_options</span> </div>
+              <div class="mv-body"><div class=mv-text>Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?</div><div class=mv-options>options: <code>sea</code>, <code>forest</code>, <code>mountains</code>, <code>beach</code></div><div class=mv-set>set_variable: <code>favorite_nature_place</code></div><div class=mv-add>add_interest_from_variable: <code>true</code></div><div class=mv-next>next: <code>{&quot;sea&quot;: &quot;sea&quot;, &quot;forest&quot;: &quot;forest&quot;, &quot;mountains&quot;: &quot;mountains&quot;, &quot;beach&quot;: &quot;beach&quot;, &quot;fail&quot;: &quot;fail_place&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>sea</code></div>
+              <div class="mv-body"><div class=mv-text>I also really love the sea!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>sea</code></div>
+              <div class="mv-body"><div class=mv-text>If you hold a shell to your ear, it’s just like you hear the sea.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>forest</code></div>
+              <div class="mv-body"><div class=mv-text>I also really like going to the forest!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>mountains</code></div>
+              <div class="mv-body"><div class=mv-text>How exciting! From the top of a mountain you have the most beautiful view over the world.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>beach</code></div>
+              <div class="mv-body"><div class=mv-text>I’d really like to go there for real sometime!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>fail_place</code></div>
+              <div class="mv-body"><div class=mv-text>I think I would most like to go to the sea.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Okay, let’s talk about something else!</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>talk_about_sea</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>nature</code> • topics: <code>sea</code>, <code>ocean</code>, <code>beach</code>, <code>water</code>, <code>nature</code> • dependencies: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>The sea can be so calming.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>What do you like most about the sea?</div><div class=mv-set>set_variable: <code>favorite_sea_thing</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div><div class=mv-next>next: <code>{&quot;success&quot;: &quot;has_sea_thing&quot;, &quot;fail&quot;: &quot;no_sea_thing&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>has_sea_thing</code></div>
+              <div class="mv-body"><div class=mv-text>%favorite_sea_thing% are great!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no_sea_thing</code></div>
+              <div class="mv-body"><div class=mv-text>No worries, maybe we’ll find something you like next time.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no_sea</code></div>
+              <div class="mv-body"><div class=mv-text>That’s okay, maybe mountains or forests are more your thing.</div></div>
+            </div>
+            </div>
+    </article>
+    </div><div class=theme><h3>Theme: <code>robots</code></h3>
+    <article class="dialog">
+      <h4><code>robot_favorite_feature</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>robots</code> • topics: <code>robots</code>, <code>features</code>, <code>abilities</code> • dependencies: <code>robot_want_to_be</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> </div>
+              <div class="mv-body"><div class=mv-text>I wonder: If you could have any robot feature, what would it be?</div><div class=mv-set>set_variable: <code>desired_robot_feature</code></div><div class=mv-add>add_interest_from_answer: <code>true</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Wow, that&#x27;s a cool feature! I wish I had that too.</div></div>
+            </div>
+            </div>
+    </article>
+    
+    <article class="dialog">
+      <h4><code>robot_want_to_be</code> <span class="dtype">[chitchat]</span></h4>
+      <div class="meta">theme: <code>robots</code> • topics: <code>robots</code>, <code>identity</code> • dependencies: <code>greeting</code></div>
+      <div class="moves">
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>You know, first_name.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>Yesterday I was thinking about seeing you again today.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>And that today I get to learn from you again about human things.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> </div>
+              <div class="mv-body"><div class=mv-text>And then I suddenly wondered:</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_yesno</span> </div>
+              <div class="mv-body"><div class=mv-text>Would you ever want to be a robot?</div><div class=mv-set>set_variable: <code>wants_to_be_robot</code></div><div class=mv-add>add_interest: <code>robots</code></div><div class=mv-next>next: <code>{&quot;yes&quot;: &quot;yes&quot;, &quot;no&quot;: &quot;no&quot;, &quot;dontknow&quot;: &quot;dontknow&quot;, &quot;fail&quot;: &quot;no&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>yes</code></div>
+              <div class="mv-body"><div class=mv-text>Bizarre!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_open</span> <code class=branch>yes</code></div>
+              <div class="mv-body"><div class=mv-text>Why would you want to be a robot?</div><div class=mv-next>next: <code>{&quot;success&quot;: &quot;open_answer&quot;, &quot;fail&quot;: &quot;dontknow&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>dontknow</code></div>
+              <div class="mv-body"><div class=mv-text>That’s okay, sometimes I don’t know either.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>open_answer</code></div>
+              <div class="mv-body"><div class=mv-text>I really like hearing that!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">ask_yesno</span> <code class=branch>open_answer</code></div>
+              <div class="mv-body"><div class=mv-text>May I also tell other robots about that?</div><div class=mv-next>next: <code>{&quot;yes&quot;: &quot;yes2&quot;, &quot;no&quot;: &quot;no2&quot;, &quot;dontknow&quot;: &quot;no2&quot;, &quot;fail&quot;: &quot;no2&quot;}</code></div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>yes2</code></div>
+              <div class="mv-body"><div class=mv-text>Hooray! Just a moment.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>yes2</code></div>
+              <div class="mv-body"><div class=mv-text>I passed it on to them via wifi.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>yes2</code></div>
+              <div class="mv-body"><div class=mv-text>And lots of robots say thank you, dear first_name.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no2</code></div>
+              <div class="mv-body"><div class=mv-text>Alright, then I’ll keep your sweet words just for myself.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no2</code></div>
+              <div class="mv-body"><div class=mv-text>Thank you, dear first_name.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no</code></div>
+              <div class="mv-body"><div class=mv-text>Well, you don’t know what you’re missing!</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no</code></div>
+              <div class="mv-body"><div class=mv-text>But of course, I don’t know what it’s like to be human either.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no</code></div>
+              <div class="mv-body"><div class=mv-text>Maybe that actually is more fun.</div></div>
+            </div>
+            
+
+            <div class="move">
+              <div class="mv-head"><span class="mv-type">say</span> <code class=branch>no</code></div>
+              <div class="mv-body"><div class=mv-text>But I don’t think I’ll ever find out!</div></div>
+            </div>
+            </div>
+    </article>
+    </div></section>
+    

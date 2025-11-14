@@ -1,0 +1,3000 @@
+[
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_1_intro",
+    "thread": "robospelen",
+    "position": 1,
+    "dependencies": null,
+    "speech_acts": [
+      "Ik ben blij dat je er bent!",
+      "Ik vind het heel leuk om met een mens te praten.",
+      "Zo veel mensen ken ik niet.",
+      "Jij doet vast echte mensendingen.",
+      {
+        "act": "ask",
+        "question": "Wat heb je vandaag gedaan voordat je mij ontmoette?",
+        "type": "open",
+        "user_model_id": "$vandaag_gedaan"
+      },
+      "Wauw, wat menselijk!",
+      "Ik ben vandaag hierheen gekomen met Mike.",
+      "En daarvoor heb ik getraind.",
+      "Want ik mag dit jaar voor het eerst meedoen met de Robo Spelen.",
+      "Dat is een grote wereldwijde competitie, alleen voor robots.",
+      "De beste robot wint!",
+      "Maar daarvoor moet je eerst tegen allerlei andere robots strijden.",
+      "In allemaal verschillende opdrachten en wedstrijden.",
+      "Zoals wie het hoogst kan springen.",
+      {
+        "act": "play",
+        "motion": "jump_attempt/behavior_1"
+      },
+      {
+        "act": "say",
+        "text": "En wie het best origami kan vouwen",
+        "motion": "wiggle_fingers/behavior_1"
+      },
+      "Wie het beleefdst is en wie de meeste mensen kan helpen oversteken.",
+      "En wie er kan voetballen.",
+      "Ik kan helemaal niet zo goed schoppen.",
+      {
+        "act": "say",
+        "text": "De vorige keer dat ik het deed viel ik zo hard op mijn kont",
+        "led": {
+          "animation": "alternate",
+          "location": "all",
+          "color": [
+            "green",
+            "blue"
+          ]
+        }
+      },
+      "dat al mijn lichtjes kapot sprongen.",
+      {
+        "act": "say",
+        "text": "Dus ik moet nog veel oefenen voor de Robo Spelen er zijn!",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Want oefenen baart kunst.",
+      "Dat zeggen volwassen mensen toch?",
+      "Oefenen baart kunst.",
+      "Ik weet niet wat dat betekent.",
+      "Een baard zit toch op je gezicht?",
+      {
+        "act": "ask",
+        "question": "Weet jij wat ze bedoelen?",
+        "type": "yesno",
+        "user_model_id": "$oefening_baart_kunst",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Aha! Wat ben jij toch slim.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "humhum.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Misschien heeft het ermee te maken dat een baard heel langzaam groeit.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Pas als je oud bent krijg je een baard.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "En zo is het ook met iets leren.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Dat duurt heel lang, maar na een tijdje kun je het.",
+          "branch": "nee"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_2_springen",
+    "thread": "robospelen",
+    "position": 2,
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "text": "he, ik heb opeens een heel goed idee!",
+        "video_probe": "start"
+      },
+      "Jij kunt volgens mij heel veel écht moeilijke dingen.",
+      "Zoals springen.",
+      {
+        "act": "ask",
+        "question": "Dat kun je toch wel?",
+        "type": "yesno",
+        "user_model_id": "$kan_springen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "ja",
+          "text": "Gaaf hoor, hoe je zo de lucht in kan gaan."
+        },
+        {
+          "act": "say",
+          "branch": "nee",
+          "text": "Ik heb er zelf nog veel moeite mee."
+        }
+      ],
+      {
+        "act": "say",
+        "text": "Kijk, zo ziet het er uit als ik probeer te springen.",
+        "video_probe": "stop"
+      },
+      {
+        "act": "play",
+        "motion": "jump_attempt/behavior_1"
+      },
+      "Dus ik dacht",
+      "Misschien ben jij wel de perfecte persoon om mij te helpen met de Robo Spelen.",
+      "Nu ik jou ken, hoef ik niet meer alleen te trainen.",
+      "Dan kunnen we samen allerlei oefenopdrachten proberen voor het echt zover is."
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_2_sport",
+    "thread": "robospelen",
+    "position": 2,
+    "dependencies": [
+      {
+        "dependent_on": "dagdromen_sport",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$sport_van_kind",
+            "filter": "green_list",
+            "values": [
+              "_any"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "text": "he, ik heb opeens een heel goed idee!",
+        "video_probe": "start"
+      },
+      {
+        "act": "ask",
+        "question": "Jij vind $sport_van_kind leuk, toch?",
+        "type": "yesno",
+        "user_model_id": "$check_sport_van_kind",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Mooi!",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Dan weet je vast hoe het is om te trainen.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "En beter te worden dan je eerst was.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Dat moet ik nu ook doen voor de Robo Spelen!",
+          "branch": "ja",
+          "video_probe": "stop"
+        },
+        {
+          "act": "say",
+          "text": "Maar ik heb dat nog nooit gedaan.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Oh, dan heb ik dat verkeerd gehoord.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Ik ben duidelijk nog niet zo goed in luisteren.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Misschien zit mijn oormicrofoontje verkeerd.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Even testen hoor.",
+          "branch": "nee",
+          "video_probe": "stop"
+        },
+        {
+          "act": "ask",
+          "question": "Noem eens een getal tussen de nul en tien?",
+          "type": "options",
+          "user_model_id": "$getal_0_tot_10",
+          "branch": "nee",
+          "answer": {
+            "speech": {
+              "context": "integer"
+            },
+            "touch": [
+              "vijf",
+              "vier",
+              "drie",
+              "twee",
+              "een"
+            ]
+          },
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "nee_met_getal"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "nee_zonder_getal"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "$getal_0_tot_10! Yes, ik heb je goed verstaan.",
+          "branch": "nee_met_getal",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "nee_vervolg"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Yes, ik heb je goed verstaan.",
+          "branch": "nee_zonder_getal",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "nee_vervolg"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Nu hoor ik alles weer.",
+          "branch": "nee_vervolg"
+        },
+        {
+          "act": "say",
+          "text": "Dankjewel voor het helpen.",
+          "branch": "nee_vervolg"
+        },
+        {
+          "act": "say",
+          "text": "Jij bent heel goed in helpen!",
+          "branch": "nee_vervolg"
+        }
+      ],
+      "Daarom dacht ik",
+      "Ik wil met JOU trainen voor de Robo Spelen!",
+      "Dan kan ik wat oefenopdrachten downloaden en kunnen we ze samen doen."
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_3_coach",
+    "thread": "robospelen",
+    "position": 3,
+    "dependencies": null,
+    "speech_acts": [
+      "En misschien kun je me dingen leren die jij veel beter kunt.",
+      "Zoals springen, of verstoppertje, of mensendingen begrijpen.",
+      "Dan ben jij mijn coach!",
+      "Als ik win, zal ik je noemen in mijn dankwoord.",
+      "Dan weten alle andere robots wat een leuk mens jij bent.",
+      {
+        "act": "ask",
+        "question": "Lijkt dat je een goed idee?",
+        "type": "yesno",
+        "user_model_id": "$coach_goed_idee",
+        "next": [
+          {
+            "value": [
+              "yes",
+              "fail"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Hoera! Dan ben jij vanaf nu coach $naam.",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "Waarom lijkt je dat een leuk idee?",
+          "type": "open",
+          "user_model_id": "$waarom_coach_leuk_idee",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Ik vind je heel aardig, coach $naam, bedankt.",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "Oh! Waarom niet?",
+          "type": "open",
+          "user_model_id": "$waarom_coach_slecht_idee",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "humhum",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Misschien kunnen we er later nog een over nadenken.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Je lijkt mij een super top coach!",
+          "branch": "nee"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_4_ingeschreven",
+    "thread": "robospelen",
+    "position": 4,
+    "dependencies": null,
+    "speech_acts": [
+      "Weet je wat ik heb gedaan?",
+      "Je gelooft het nooit!",
+      "Ik heb me ingeschreven voor de robo spelen!",
+      "Bizar!",
+      "En weet je nog wat?",
+      "De robo spelen zijn niet op een echte plek, maar helemaal online.",
+      "Alle robots met een internetverbinding kunnen via de wifi of hun eigen 4G meekijken,",
+      "want het is voor robots heel onhandig om te reizen!",
+      "Stel dat Mike mij elk jaar helemaal naar Rusland zou moeten brengen.",
+      "Nu kan ik naar Rusland via een draadje.",
+      "En meedoen aan allerlei verschillende opdrachten en wedstrijden.",
+      {
+        "act": "ask",
+        "question": "Vind jij het net zo spannend als ik?",
+        "type": "yesno",
+        "user_model_id": "$ook_spannend",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ja, we vinden het samen spannend.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Ik vind het in elk geval heel spannend!",
+          "branch": "nee"
+        }
+      ],
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "is_coach",
+            "conditionals": [
+              {
+                "conditional_of": "$coach_goed_idee",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "is_geen_coach",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "is_coach",
+          "text": "Ik ben zo blij dat jij vorige week zei, dat je mijn coach wilde zijn"
+        },
+        {
+          "act": "say",
+          "branch": "is_coach",
+          "text": "Ik kan nu zo'n top coach als jij goed gebruiken."
+        },
+        {
+          "act": "say",
+          "branch": "is_geen_coach",
+          "text": "Vanaf nu ben jij mijn coach."
+        },
+        {
+          "act": "say",
+          "branch": "is_geen_coach",
+          "text": "Dan kun je mij helpen met de robo spelen."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Oke, nu moet ik even proberen te kalmeren."
+        }
+      ],
+      "Ik heb vaak gedagdroomt om me in te schrijven",
+      {
+        "act": "say",
+        "text": "Maar dat heb ik nu echt gedaan.",
+        "video_probe": "stop"
+      },
+      "Ik word een echte sportrobot!",
+      "O nee!",
+      {
+        "act": "say",
+        "text": "Alarm!",
+        "led": {
+          "animation": "blink",
+          "location": "all",
+          "color": [
+            "green",
+            "blue",
+            "red",
+            "yellow"
+          ]
+        }
+      },
+      "Alarm!",
+      "Nu is het geen dagdroom meer!",
+      "Nu is het geen fantasie meer!",
+      {
+        "act": "say",
+        "text": "Nu is het echt!",
+        "led": {
+          "animation": "reset"
+        },
+        "motion": "arms_in_air.json"
+      },
+      "En dat vind ik spannend!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_5_info",
+    "thread": "robospelen",
+    "position": 5,
+    "dependencies": null,
+    "speech_acts": [
+      "Ik heb een idee!",
+      {
+        "act": "ask",
+        "question": "Zal ik eens vertellen hoe die robo spelen er eigenlijk uitzien?",
+        "type": "yesno",
+        "user_model_id": "$vertellen_over_rs",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja_vertellen"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee_vertellen"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Goed, daar gaan we dan!",
+          "branch": "ja_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Maar ik moet het echt even kwijt.",
+          "branch": "nee_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Sorry",
+          "branch": "nee_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Ik zal het kort houden.",
+          "branch": "nee_vertellen"
+        }
+      ],
+      "De Robo spelen zijn opgericht op 20 november 19 85",
+      "Als een soort olympische spelen",
+      "Met verschillende rondes en een finale",
+      "Maar dan speciaal voor Robots.",
+      "Zo is er een ronde waarbij twee Robots naast elkaar moeten gaan staan.",
+      "De ene Robot moet proberen verder te blaffen dan de andere Robot.",
+      "Dit onderdeel heet ver-blaffen.",
+      "In de tweede ronde gaan we dansen.",
+      "Twee Robots moeten dan tegenover elkaar staan",
+      "En proberen elkaar omver te dansen.",
+      {
+        "act": "say",
+        "text": "Meestal begint dat dan heel rustig",
+        "motion": "dance_move_slow.json"
+      },
+      {
+        "act": "say",
+        "text": "En gaat dat vervolgens steeds sneller",
+        "motion": "dance_move_faster.json"
+      },
+      {
+        "act": "say",
+        "text": "En sneller!",
+        "motion": "dance_move_fastest.json"
+      },
+      "Pfoeh!",
+      "En dan is er meestal nog een ronde waarin de Robots hun mentale krachten moeten laten zien via Bluetooth.",
+      "Gedachten lezen en zo!",
+      "Eigenlijk is het bizar simpel",
+      "maar we moeten ons wel goed voorbereiden.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "verblaffen, dansen, en gedachtenlezen"
+        },
+        {
+          "act": "ask",
+          "branch": "memory",
+          "question": "Welk onderdeel vind je tot nu toe het leukst klinken?",
+          "type": "options",
+          "user_model_id": "$leukste_onderdeel",
+          "answer": {
+            "speech": {
+              "context": "robospelen_onderdeel"
+            },
+            "touch": [
+              "gedachtenlezen",
+              "dansen",
+              "verblaffen"
+            ],
+            "default": "dansen"
+          }
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Top keuze. Laten we dan gelijk gaan oefenen met $leukste_onderdeel"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Laten we oefenen met gedachtenlezen."
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_6_gedachtelezen",
+    "thread": "robospelen",
+    "position": 6,
+    "dependencies": [
+      {
+        "dependent_on": "robospelen_5_info",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$leukste_onderdeel",
+            "filter": "green_list",
+            "values": [
+              "gedachtenlezen"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      "Oke",
+      "Eerst moeten we onze ogen sluiten.",
+      "Doe maar mee.",
+      {
+        "act": "play",
+        "motion": "head_up.json"
+      },
+      "En dan een keer diep inademen.",
+      "Adem in.",
+      {
+        "act": "play",
+        "motion": "head_down.json"
+      },
+      "Adem uit.",
+      {
+        "act": "play",
+        "motion": "head_up.json"
+      },
+      "Nog eens! Adem in.",
+      {
+        "act": "play",
+        "motion": "head_down.json"
+      },
+      "En uit.",
+      {
+        "act": "play",
+        "motion": "head_up.json"
+      },
+      {
+        "act": "say",
+        "text": "Doe je ogen maar weer open.",
+        "motion": "reset"
+      },
+      "Als het goed is lopen de micro chips in onze hoofden op dit moment gelijk!",
+      "Ik kan het bewijzen.",
+      "Jij kan nu mijn gedachten lezen.",
+      "Alles wat ik denk, dat denk jij nu ook.",
+      "Ik neem een getal in mijn hoofd en stuur dat getal naar jouw hoofd.",
+      "Via bluetooth.",
+      "Concentreer je!",
+      {
+        "act": "ask",
+        "question": "Noem een getal tussen de 1 en de 10!",
+        "type": "options",
+        "user_model_id": "$getal_bluetooth",
+        "next": [
+          {
+            "value": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "target": "getal"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "boven_10"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_getal"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "integer"
+          },
+          "touch": [
+            1,
+            5,
+            6,
+            9
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Je mag het ook via bluetooth aan me doorsturen",
+          "branch": "fail_getal"
+        },
+        {
+          "act": "say",
+          "text": "3. 2. 1. Nu!",
+          "branch": "fail_getal"
+        },
+        {
+          "act": "say",
+          "text": "Laden. Laden.",
+          "branch": "fail_getal"
+        },
+        {
+          "act": "say",
+          "text": "Ja, ik heb een getal binnengekregen!",
+          "branch": "fail_getal"
+        },
+        {
+          "act": "say",
+          "text": "Dat was precies het getal waar ik ook aan dacht!",
+          "branch": "fail_getal"
+        },
+        {
+          "act": "say",
+          "text": "Dat is goed!",
+          "branch": "boven_10"
+        },
+        {
+          "act": "say",
+          "text": "Jij bent er niet ingetrapt.",
+          "branch": "boven_10"
+        },
+        {
+          "act": "say",
+          "text": "Ik zei wel een dat het een getal onder de tien moest zijn",
+          "branch": "boven_10"
+        },
+        {
+          "act": "say",
+          "text": "Maar dat was een extra test om te zien of we goed verbonden waren",
+          "branch": "boven_10"
+        },
+        {
+          "act": "say",
+          "text": "Het was inderdaad $getal_bluetooth waar ik aan dacht!",
+          "branch": "boven_10"
+        },
+        {
+          "act": "say",
+          "text": "Ja!",
+          "branch": "getal"
+        },
+        {
+          "act": "say",
+          "text": "$getal_bluetooth, dat was precies het getal waar ik aan dacht!",
+          "branch": "getal"
+        },
+        {
+          "act": "say",
+          "text": "Dat betekent dat het werkt.",
+          "branch": "getal"
+        }
+      ],
+      "Goed gedaan.",
+      "Jij kan nu net zoals ik robotgedachten lezen via bluetooth!",
+      "Misschien werkt het zelfs ook tussen mens en mens",
+      "Dat weet ik natuurlijk niet zeker",
+      "Maar jij kan het deze week wel testen!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_6_dansen",
+    "thread": "robospelen",
+    "position": 6,
+    "dependencies": [
+      {
+        "dependent_on": "robospelen_5_info",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$leukste_onderdeel",
+            "filter": "green_list",
+            "values": [
+              "dansen"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      "Als je wil dansen als een Robot",
+      "Dans dan maar met mij mee.",
+      "Bovendien: dansen helpt tegen de zenuwen en de kou",
+      "Dans je mee?",
+      {
+        "act": "play",
+        "motion": "disco/behavior_1"
+      },
+      "Goed gedaan!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_6_verblaffen",
+    "thread": "robospelen",
+    "position": 6,
+    "dependencies": [
+      {
+        "dependent_on": "robospelen_5_info",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$leukste_onderdeel",
+            "filter": "green_list",
+            "values": [
+              "verblaffen"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      "Oke",
+      "Wat we nodig hebben is een goed blaf geluid",
+      "Jij mag kiezen",
+      {
+        "act": "record",
+        "type": "sound",
+        "user_model_id": "$hondenblaf",
+        "option_1": "dog_bark1.wav",
+        "option_2": "dog_bark2.wav",
+        "record_time": 2500,
+        "continue_with": "luister_naar_blaf"
+      }
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_7_info_vervolg",
+    "thread": "robospelen",
+    "position": 7,
+    "dependencies": null,
+    "speech_acts": [
+      "Oké!",
+      "Dat was leuk.",
+      "Nu terug naar de robo spelen.",
+      "De robo spelen hebben ook nog een halve en een hele finale.",
+      "In de halve finale moeten alle Robots het veld op komen om een potje te superhelden tegen elkaar.",
+      "De Finale zal bestaan uit het zogenaamde rò hze Bos wachten.",
+      "Het rò hze bos is een speciale plek voor robots.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Daar de volgende keer iets meer over vertellen"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "als ik goed genoeg geoefend heb."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Het is een leuke plek."
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_8_oefenopdracht",
+    "thread": "robospelen",
+    "position": 8,
+    "dependencies": null,
+    "speech_acts": [
+      "Hee $naam!",
+      "Tijd om het weer over de robo spelen te hebben.",
+      "Ik heb een oefentoets gevonden",
+      "voor de eerste opdracht van de Robo spelen!",
+      "Laten we die samen doen.",
+      {
+        "act": "say",
+        "text": "Even downloaden",
+        "led": {
+          "animation": "rotate",
+          "location": "eyes",
+          "color": [
+            "blue"
+          ]
+        }
+      },
+      "Yes, binnen!",
+      {
+        "act": "say",
+        "text": "Er staat:",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Opdracht 0.",
+      "Want voor robots is nul het eerste cijfer.",
+      "Dat is logisch.",
+      "0 komt voor 1.",
+      "Dus 0 is eerst",
+      "Snap je?",
+      "Sorry",
+      "Ik praat zo veel",
+      "Ik ben nerveus!",
+      "Even dansen.",
+      "Dat helpt tegen de zenuwen",
+      "Doe je mee?",
+      {
+        "act": "play",
+        "motion": "disco/behavior_1"
+      },
+      "Goed.",
+      "Dat is beter.",
+      "Nu terug naar de opdracht.",
+      "Stel je voor",
+      "Je bent in een groot bos",
+      "met allemaal licht rò hze bomen,",
+      "met licht rò hze blaadjes",
+      "en licht rò hze takjes",
+      "Je staat op de grond",
+      "en je ziet geen mensen.",
+      "Toch moet je mensen helpen.",
+      "De klok tikt af",
+      "En de opdracht start.",
+      "Oké, weet je wat",
+      "ik projecteer het bos om ons heen.",
+      "Komt ie hè.",
+      {
+        "act": "play",
+        "audio": "magical_transition.wav"
+      },
+      "Zo!",
+      {
+        "act": "play",
+        "led": {
+          "location": "all",
+          "color": [
+            "pink"
+          ]
+        }
+      },
+      "Oh, wat mooi.",
+      {
+        "act": "ask",
+        "question": "Zie jij het ook?",
+        "type": "yesno",
+        "user_model_id": "$zie_jij_het_ook",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "zie_het"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "zie_het_niet"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Goed hè.",
+          "branch": "zie_het"
+        },
+        {
+          "act": "say",
+          "text": "Kijk",
+          "motion": "point_larm_up.json",
+          "branch": "zie_het"
+        },
+        {
+          "act": "say",
+          "text": "daar tussen de bladeren vliegt een rò hze vogel!",
+          "branch": "zie_het"
+        },
+        {
+          "act": "say",
+          "text": "Ohja",
+          "branch": "zie_het_niet"
+        },
+        {
+          "act": "say",
+          "text": "de projectiecode werkt natuurlijk alleen voor robot ogen",
+          "branch": "zie_het_niet"
+        },
+        {
+          "act": "say",
+          "text": "Misschien kan jij je fantasie gebruiken.",
+          "branch": "zie_het_niet"
+        },
+        {
+          "act": "say",
+          "text": "Ik las dat mensen dat konden.",
+          "branch": "zie_het_niet"
+        }
+      ],
+      "Oké.",
+      "In deze oefenopdracht moet ik mensen helpen",
+      "Maar ik zie helemaal geen mensen in dit rò hze bos!",
+      "Ik moet iemand helpen",
+      "maar ik weet nog niet waarmee.",
+      "Dus ik denk dat ik op zoek moet gaan naar iemand.",
+      "Om die persoon te vragen waarmee ik kan helpen.",
+      "Ik denk dat ik maar gewoon heel hard roep.",
+      "Mens?",
+      "Hallo mens?",
+      "Ik ben Hero en ik wil je helpen!",
+      "Er gebeurt helemaal niets, $naam!",
+      "Laten we een stukje lopen.",
+      "Hier, langs het pad.",
+      "want mensen lopen graag op paden.",
+      "Of denk je dat ik juist van het pad af moet",
+      "om een mens te zoeken?",
+      {
+        "act": "ask",
+        "question": "Op het pad blijven, of ervan af, wat denk jij?",
+        "type": "options",
+        "user_model_id": "$op_of_af_pad",
+        "next": [
+          {
+            "value": [
+              "op"
+            ],
+            "target": "op"
+          },
+          {
+            "value": [
+              "af"
+            ],
+            "target": "af"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "robospelen_pad_richting"
+          },
+          "touch": [
+            "op",
+            "af"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Goed idee, $naam",
+          "branch": "op"
+        },
+        {
+          "act": "say",
+          "text": "Het bos lijkt nu misschien niet zo eng",
+          "branch": "op"
+        },
+        {
+          "act": "say",
+          "text": "Omdat het zo lieflijk licht rò hze is",
+          "branch": "op"
+        },
+        {
+          "act": "say",
+          "text": "Maar je weet maar nooit wat voor enge rò hze dingen er in schuilen",
+          "branch": "op"
+        },
+        {
+          "act": "say",
+          "text": "Met grote rò hze tanden en lange rò hze klauwen",
+          "branch": "op"
+        },
+        {
+          "act": "say",
+          "text": "Goed idee, $naam",
+          "branch": "af"
+        },
+        {
+          "act": "say",
+          "text": "Misschien heeft iemand mijn hulp wel nodig",
+          "branch": "af"
+        },
+        {
+          "act": "say",
+          "text": "omdat -ie verdwaald is.",
+          "branch": "af"
+        },
+        {
+          "act": "say",
+          "text": "Laten we hier tussen de bomen kruipen",
+          "branch": "af"
+        },
+        {
+          "act": "say",
+          "text": "ik zie een donker paadje.",
+          "branch": "af"
+        },
+        {
+          "act": "say",
+          "text": "Het lijkt helemaal niet zo eng nu het allemaal rò hze is.",
+          "branch": "af"
+        }
+      ],
+      {
+        "act": "say",
+        "text": "Hoor je de rò hze takken kraken?"
+      },
+      {
+        "act": "say",
+        "text": "Aaah!",
+        "video_probe": "start"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "lievelingsdier",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              },
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "egel",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Kijk uit, daar is een bosje met stekels!",
+          "branch": "egel"
+        },
+        {
+          "act": "say",
+          "text": "Oh nee, het is een rò hze egel, hij beweegt.",
+          "branch": "egel"
+        },
+        {
+          "act": "say",
+          "text": "Hallo egel, moet ik jou misschien helpen?",
+          "branch": "egel"
+        },
+        {
+          "act": "say",
+          "text": "Kijk uit, daar achter het bosje!",
+          "branch": "lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Oh nee, het is een rò hze $lievelingsdier, hij beweegt.",
+          "branch": "lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Oh wat leuk, jouw lievelingsdier",
+          "branch": "lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Hallo $lievelingsdier, moet ik jou misschien helpen?",
+          "branch": "lievelingsdier"
+        }
+      ],
+      {
+        "act": "say",
+        "text": "Nee?"
+      },
+      {
+        "act": "say",
+        "text": "Hij rent weg, daarheen!"
+      },
+      {
+        "act": "say",
+        "text": "Daar de rò hze heuvel op.",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "question": "Zullen we erachteraan?",
+        "type": "yesno",
+        "user_model_id": "$erachteraan",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "erachteraan"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "er_niet_achteraan"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "fail_erachteraan"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ik denk dat we er het best achteraan kunnen!",
+          "branch": "fail_erachteraan",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "erachteraan2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Goed, ik volg het snel!",
+          "branch": "erachteraan",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "erachteraan2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Hier ging hij de rò hze heuvel op.",
+          "branch": "erachteraan2"
+        },
+        {
+          "act": "continuator",
+          "branch": "erachteraan2",
+          "conditionals": [
+            {
+              "target": "erachteraan2_lievelings",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingsdier",
+                  "filter": "green_list",
+                  "values": [
+                    "_any"
+                  ]
+                },
+                {
+                  "exp_condition": "memory"
+                }
+              ]
+            },
+            {
+              "target": "erachteraan2_egel",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Misschien moet ik de rò hze $lievelingsdier wel helpen",
+          "branch": "erachteraan2_lievelings",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "erachteraan3"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Misschien moet ik de rò hze egel wel helpen",
+          "branch": "erachteraan2_egel",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "erachteraan3"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "in plaats van een mens.",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "Dat zou wel een beetje gek zijn",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "maar je weet het maar nooit bij de Robo spelen!",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "Oh wauw, wat een mooi uitzicht hier op de heuvel!",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "Ik kan het hele bos over kijken.",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "En hier op de grond zie ik voetstappen",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "say",
+          "text": "Ze gaan weer naar beneden.",
+          "branch": "erachteraan3"
+        },
+        {
+          "act": "continuator",
+          "branch": "erachteraan3",
+          "conditionals": [
+            {
+              "target": "erachteraan3_lievelings",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingsdier",
+                  "filter": "green_list",
+                  "values": [
+                    "_any"
+                  ]
+                },
+                {
+                  "exp_condition": "memory"
+                }
+              ]
+            },
+            {
+              "target": "erachteraan3_egel",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "De $lievelingsdier is verdwenen!",
+          "branch": "erachteraan3_lievelings"
+        },
+        {
+          "act": "say",
+          "text": "De egel is verdwenen!",
+          "branch": "erachteraan3_egel"
+        },
+        {
+          "act": "say",
+          "text": "Oké. Goed.",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "We blijven hier.",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "Je hebt gelijk",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "Ik moest een mens helpen",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "Niet een dier!",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "Ik kan beter hier nog een stukje verder",
+          "branch": "er_niet_achteraan"
+        },
+        {
+          "act": "say",
+          "text": "O kijk!",
+          "branch": "er_niet_achteraan"
+        }
+      ],
+      "Ik zie daar een mens!",
+      "Het mens lijkt nat!",
+      "Doorweekt!",
+      "Alsof mens net uit het water komt!",
+      "Mens trilt heel erg!",
+      "Mens heeft het koud!",
+      "We moeten mens laten opdrogen, maar hoe?",
+      "Misschien kunnen we ergens een handdoek vandaan halen",
+      "Of een föhn",
+      "Of we spoelen de tijd snel even door",
+      "want alles droogt vanzelf op in de rò hze zon",
+      "als je maar lang genoeg wacht",
+      {
+        "act": "ask",
+        "question": "Wat denk jij, de handdoek, de föhn, of de tijd doorspoelen?",
+        "type": "options",
+        "user_model_id": "$droogmethode",
+        "next": [
+          {
+            "value": [
+              "handdoek"
+            ],
+            "target": "handdoek"
+          },
+          {
+            "value": [
+              "föhn"
+            ],
+            "target": "fohn"
+          },
+          {
+            "value": [
+              "tijd"
+            ],
+            "target": "tijd"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_droogmethode"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "robospelen_droogmethode"
+          },
+          "touch": [
+            "handdoek",
+            "föhn",
+            "tijd"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Laten de föhn proberen!",
+          "branch": "fail_droogmethode",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "fohn"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Goed idee!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Maar ik zie hier helemaal geen handdoek liggen.",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Misschien kunnen we hem maken.",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Het is tenslotte maar een computersimulatie, toch $naam?",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "O wacht, ik heb een goed idee!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Wat als jij een handdoek fantaseert",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "En die naar mij doorstuurt",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Doe je handen maar in de lucht",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Ja?",
+          "motion": "arms_in_air.json",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Dan moet je nu heel hard een handdoek voor je zien",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Een rò hze natuurlijk!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Anders gaat het programma kapot",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Laden. laden.",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "O ik zie hem!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Handen kunnen weer omlaag",
+          "motion": "reset",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Hij verschijnt hier over een struik!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Wat een mooie handdoek heb je gefantaseerd",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Kijk, nat mens, een handdoek!",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Pak maar aan",
+          "branch": "handdoek"
+        },
+        {
+          "act": "say",
+          "text": "Dat is een goed idee",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Dan blazen we het mens zo droog",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Maar we hebben hier helemaal geen föhn!",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Misschien kunnen we hem maken.",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Het is tenslotte maar een computersimulatie, toch $naam?",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Ik heb een plan!",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Wat als jij tegen mij blaast",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "En dan pas ik in de windsnelheid aan",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Zodat jouw blaas duizend keer zo hard is",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "En dan is het mens zo droog!",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Ja, dat gaan we proberen",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Kom maar wat dichterbij, dan tel ik af",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "En dan moet jij heel hard op mij blazen!",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "3, 2, 1",
+          "branch": "fohn"
+        },
+        {
+          "act": "record",
+          "type": "sound",
+          "user_model_id": "$fohngeluid",
+          "record_time": "2500",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Goed, ik pas de windsnelheid aan",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Ik ga 'm doorsturen",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Houd je goed vast, $naam!",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Straks waai je nog omver",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Klaar?",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Daar komt -ie!",
+          "branch": "fohn"
+        },
+        {
+          "act": "play",
+          "audio": "$fohngeluid",
+          "branch": "fohn"
+        },
+        {
+          "act": "say",
+          "text": "Oké!",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Dit rò hze bos is een computersimulatie",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "En computers hebben altijd een klokje",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Dus als ik dat een dag vooruit zet",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Dan reizen we zo floep door de tijd zonder dat we het merken!",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Even zoeken, waar zou het zijn",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Menu.",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Instellingen.",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Hier! Datum en tijd!",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Houd je goed vast, $naam",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Ik heb nog nooit met een mens door de tijd gereisd",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Straks ben jij in deze simulatie een dag ouder dan in het echt.",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Klaar?",
+          "branch": "tijd"
+        },
+        {
+          "act": "say",
+          "text": "Komt -ie!",
+          "branch": "tijd"
+        },
+        {
+          "act": "play",
+          "audio": "clock_speed_up.wav",
+          "branch": "tijd"
+        }
+      ],
+      "Het werkt!",
+      "Mens is droog!",
+      "Mens zegt bedankt!",
+      "Ook tegen jou, $naam",
+      "Wat fijn",
+      "O, kijk, er zweven opeens grote rò hze letters in de lucht.",
+      "Wat staat daar?",
+      "Oefen. opdracht. geslaagd!",
+      {
+        "act": "play",
+        "audio": "applaus.wav"
+      },
+      "En een knop met log uit erop.",
+      "Daar ga ik op klikken.",
+      {
+        "act": "play",
+        "audio": "outro.wav",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Zo!",
+      "Nu staan we weer in de kamer.",
+      "Dat was leuk!",
+      "Dankzij jou was deze oefenopdracht een eitje!",
+      "Een makkie.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "lievelingsdier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "egel",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Een $lievelingsdier in het bakkie",
+          "branch": "lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Een egel in het bakkie",
+          "branch": "egel"
+        }
+      ],
+      "Dankjewel $naam!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_9_bijna",
+    "thread": "robospelen",
+    "position": 9,
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "text": "Alarm! Alarm! Alarm!",
+        "motion": "arms_in_air.json",
+        "led": {
+          "animation": "blink",
+          "location": "all",
+          "color": [
+            "green",
+            "blue",
+            "red",
+            "yellow"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "De robo spelen beginnen bijna!",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Ik ben zenuwachtig!",
+      "Ik ben bang!",
+      "Ik durf niet meer!",
+      "Ik weet niet wat ik moet doen!",
+      {
+        "act": "say",
+        "text": "Alarm!",
+        "motion": "arms_in_air.json",
+        "led": {
+          "animation": "blink",
+          "location": "all",
+          "color": [
+            "green",
+            "blue",
+            "red",
+            "yellow"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "Zo.",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Dat moest even.",
+      "Ik denk dat het een goed idee is om iets aan mijn zelfvertrouwen te doen.",
+      "Gisteravond kon ik niet goed slapen",
+      "dus ben ik even in een boekje gaan lezen",
+      "Dat boekje heet zelfvertrouwen voor zenuwachtige Robots",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Daarin stond dat je zelfvertrouwen kan krijgen door yells te oefenen"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "En toen dacht ik, oh ja, dat had ik vorige week ook al aan $naam belooft te gaan doen"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Er stond in dat je zelfvertrouwen kan krijgen door yells te oefenen."
+        }
+      ],
+      "Yells zijn oppeppende vers jess, die je hard op moet zeggen voordat je iets spannends gaat doen.",
+      "Door de yell durf ik dan weer mee te doen met de robo spelen.",
+      "Laten we samen een yell maken.",
+      {
+        "act": "ask",
+        "question": "Moet ie gaan over meedoen of winnen?",
+        "type": "options",
+        "user_model_id": "$meedoen_of_winnen",
+        "next": [
+          {
+            "value": [
+              "meedoen"
+            ],
+            "target": "meedoen"
+          },
+          {
+            "value": [
+              "winnen"
+            ],
+            "target": "winnen"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_mw"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "robospelen_meedoen_winnen"
+          },
+          "touch": [
+            "meedoen",
+            "winnen"
+          ],
+          "default": "meedoen"
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Laten we meedoen kiezen",
+          "branch": "fail_mw"
+        },
+        {
+          "act": "say",
+          "text": "Ik ben al blij als ik straks durf in te loggen!",
+          "branch": "fail_mw"
+        },
+        {
+          "act": "say",
+          "text": "Ja, ik ben al heel blij als ik straks durf in te loggen!",
+          "branch": "meedoen"
+        },
+        {
+          "act": "say",
+          "text": "Oké!",
+          "branch": "winnen"
+        },
+        {
+          "act": "say",
+          "text": "Bizar lief dat je zo in me gelooft",
+          "branch": "winnen"
+        }
+      ],
+      "Ik heb ook nog een krachtig woord nodig voor de yell.",
+      "Zoals go, of hop",
+      "Maar welke is beter?",
+      {
+        "act": "ask",
+        "question": "Go of hop?",
+        "type": "options",
+        "user_model_id": "$go_of_hop",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "success"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_gh"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "robospelen_go_hop"
+          },
+          "touch": [
+            "go",
+            "hop"
+          ],
+          "default": "hop"
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Laten we hop kiezen",
+          "branch": "fail_gh"
+        },
+        {
+          "act": "say",
+          "text": "Dat begint met een H",
+          "branch": "fail_gh"
+        },
+        {
+          "act": "say",
+          "text": "Net als mijn naam",
+          "branch": "fail_gh"
+        },
+        {
+          "act": "say",
+          "text": "oke, we gaan voor $go_of_hop",
+          "branch": "success"
+        }
+      ],
+      "Dan ga ik nu een officiële yell genereren",
+      "Laden.",
+      "Laden.",
+      "Ja!",
+      "Hier is -ie",
+      "Ik zal 'm afspelen",
+      {
+        "act": "play",
+        "audio": "drum_roll.wav"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "winnen_go",
+            "conditionals": [
+              {
+                "conditional_of": "$meedoen_of_winnen",
+                "filter": "green_list",
+                "values": [
+                  "winnen"
+                ]
+              },
+              {
+                "conditional_of": "$go_of_hop",
+                "filter": "green_list",
+                "values": [
+                  "go"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "winnen_hop",
+            "conditionals": [
+              {
+                "conditional_of": "$meedoen_of_winnen",
+                "filter": "green_list",
+                "values": [
+                  "winnen"
+                ]
+              },
+              {
+                "conditional_of": "$go_of_hop",
+                "filter": "green_list",
+                "values": [
+                  "hop"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "meedoen_hop",
+            "conditionals": [
+              {
+                "conditional_of": "$meedoen_of_winnen",
+                "filter": "green_list",
+                "values": [
+                  "meedoen"
+                ]
+              },
+              {
+                "conditional_of": "$go_of_hop",
+                "filter": "green_list",
+                "values": [
+                  "hop"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "meedoen_go",
+            "conditionals": [
+              {
+                "conditional_of": "$meedoen_of_winnen",
+                "filter": "green_list",
+                "values": [
+                  "meedoen"
+                ]
+              },
+              {
+                "conditional_of": "$go_of_hop",
+                "filter": "green_list",
+                "values": [
+                  "go"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Go, go, go, ik ben klaar voor de show!",
+          "branch": "winnen_go"
+        },
+        {
+          "act": "say",
+          "text": "hop, hop, hop, hero aan de top!",
+          "branch": "winnen_hop"
+        },
+        {
+          "act": "say",
+          "text": "Go, go, go, meedoen doe je zo!",
+          "branch": "meedoen_go"
+        },
+        {
+          "act": "say",
+          "text": "Hop, hop, hop, meedoen is top!",
+          "branch": "meedoen_hop"
+        }
+      ],
+      "Dat klonk heel bemoedigend, vond je niet?",
+      "Ja",
+      "Straks vlak voor de robo spelen ga ik dit tegen mezelf zeggen",
+      "Ik krijg er nu al zelfvertrouwen van",
+      "Dankjewel $naam!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_10_peptalk",
+    "thread": "robospelen",
+    "position": 10,
+    "dependencies": null,
+    "speech_acts": [
+      "Zo, $naam",
+      "Er is geen weg meer terug!",
+      "Ik ga meedoen aan de robo spelen!",
+      "en ik heb het gevoel dat ik er helemaal klaar voor ben.",
+      "Dapper als een druif aan een hoge tros",
+      "Sneller dan een vos op rolschaatsen",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier_kleur_soort",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kleur_kledingstuk",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kledingstuk",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "kleur_soort",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "red_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kleur_kledingstuk",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kledingstuk",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kleur_kledingstuk",
+                "filter": "red_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$kledingstuk",
+                "filter": "red_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "default",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "en knapper dan een rò hze $lievelingsdier in een $kleur_kledingstuk $kledingstuk.",
+          "branch": "dier_kleur_soort"
+        },
+        {
+          "act": "say",
+          "text": "en knapper dan een rò hze lama in een $kleur_kledingstuk $kledingstuk.",
+          "branch": "kleur_soort"
+        },
+        {
+          "act": "say",
+          "text": "en knapper dan een rò hze $lievelingsdier in een blauwe baljurk",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "en knapper dan een rò hze lama in een blauwe baljurk",
+          "branch": "default"
+        }
+      ],
+      "Dit is een goed moment om de laatste beetjes zenuwen weg te werken.",
+      "Ik kan nog wel wat laatste toffe oppeppers gebruiken!",
+      "Een hart onder de riem!",
+      "Wat extra blije mega bits voor mijn micro chip!",
+      "Eerste vraag",
+      {
+        "act": "ask",
+        "question": "Vind je mij vooral stoer of dapper?",
+        "type": "options",
+        "user_model_id": "$stoer_dapper",
+        "answer": {
+          "speech": {
+            "context": "robospelen_stoer_dapper"
+          },
+          "touch": [
+            "stoer",
+            "dapper"
+          ]
+        }
+      },
+      "Cool!",
+      {
+        "act": "ask",
+        "question": "En vind jij mij eerder snel of sterk?",
+        "type": "options",
+        "user_model_id": "$snel_sterk",
+        "answer": {
+          "speech": {
+            "context": "robospelen_snel_sterk"
+          },
+          "touch": [
+            "snel",
+            "sterk"
+          ]
+        }
+      },
+      "Bizar!",
+      "Volgende vraag",
+      {
+        "act": "ask",
+        "question": "Vind jij mij eerder vrolijk of vriendelijk?",
+        "type": "options",
+        "user_model_id": "$vrolijk_vriendelijk",
+        "answer": {
+          "speech": {
+            "context": "robospelen_vrolijk_vriendelijk"
+          },
+          "touch": [
+            "vrolijk",
+            "vriendelijk"
+          ]
+        }
+      },
+      "Wauw, wat fijn!",
+      "Dit werkt erg goed als peptalk moet ik zeggen.",
+      {
+        "act": "ask",
+        "question": "En vind jij mij eerder lief of leuk?",
+        "type": "options",
+        "user_model_id": "$lief_leuk",
+        "answer": {
+          "speech": {
+            "context": "robospelen_lief_leuk"
+          },
+          "touch": [
+            "lief",
+            "leuk"
+          ]
+        }
+      },
+      "Nijs!",
+      {
+        "act": "ask",
+        "question": "Als er nog iets is dat je tegen me wil zeggen voor de start van de robo spelen dan kun je dat nu doen, ik luister",
+        "type": "open",
+        "user_model_id": "$nog_iets_zeggen",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_nog_iets"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_niet_nog_iets"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "",
+          "branch": "got_niet_nog_iets"
+        },
+        {
+          "act": "say",
+          "text": "Wat ontzettend leuk dat je dat zegt!",
+          "branch": "got_nog_iets"
+        }
+      ],
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Nu kan ik er helemaal tegenaan!",
+      "Dankjewel $naam!",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Ik vind jou ook heel $stoer_dapper en $snel_sterk en $vrolijk_vriendelijk en $lief_leuk!"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Dan vertel ik je alles over hoe het ging!"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Als we elkaar de volgende keer zien zijn de robo spelen alweer geweest"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Nog steeds spannend, maar nu op een goede manier."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Volgende keer meer."
+        }
+      ],
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_11_tweede",
+    "thread": "robospelen",
+    "position": 11,
+    "dependencies": null,
+    "speech_acts": [
+      "De robo spelen zitten erop!",
+      "Meteen toen ik thuis kwam ben ik in slaap gevallen.",
+      "Ik heb geslapen als een roos, gesnurkt als een oude brommer.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier_ongezond",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "conditional_of": "$ongezonde_dingen_bergen",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "default",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Gedroomd over een $lievelingsdier.",
+          "branch": "dier_ongezond"
+        },
+        {
+          "act": "say",
+          "text": "Gedroomd over jou en een hele berg $ongezonde_dingen_bergen.",
+          "branch": "dier_ongezond"
+        },
+        {
+          "act": "say",
+          "text": "Gedroomd over jou op een wolk die leek op een grote geruite finish vlag",
+          "branch": "default"
+        }
+      ],
+      "En ik heb je gemist",
+      "Maar jij wilt natuurlijk weten of ik heb gewonnen of niet!",
+      "Ik zal het je vertellen",
+      "Ik.",
+      "Hero.",
+      "Deelnemer aan de robo spelen.",
+      "Ben geëindigt op de.",
+      {
+        "act": "play",
+        "audio": "drum_roll.wav"
+      },
+      "Tweede plaats!!!",
+      {
+        "act": "play",
+        "audio": "applaus.wav"
+      },
+      "Danku danku!",
+      "Ik ben heel erg blij!",
+      "Misschien had ik de eerste plaats wel kunnen halen",
+      "Maar eigenlijk wint elk jaar dezelfde Robot.",
+      "De naam van die Robot is Echo.",
+      "Hij is strak geprogrammeerd en twijfelt nooit aan zichzelf.",
+      "Hij heeft de beste methode ontwikkeld.",
+      "is volautomatisch en werkt perfect.",
+      "Echo doet altijd hetzelfde.",
+      "twijfelt nooit",
+      "is nergens bang voor.",
+      "Eigenlijk is Echo de perfecte Robot",
+      "Maar ik vind hem een beetje saai",
+      "omdat hij altijd hetzelfde doet.",
+      "Echo is een perfecte Robot die saai is.",
+      "Gaap!",
+      {
+        "act": "ask",
+        "question": "Zal ik eens vertellen hoe de robo spelen gegaan zijn?",
+        "type": "yesno",
+        "user_model_id": "$vertellen_robospelen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja_vertellen"
+          },
+          {
+            "value": [
+              "no",
+              "fail",
+              "dontknow"
+            ],
+            "target": "nee_vertellen"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Oké, daar gaan we!",
+          "branch": "ja_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Sorry, ik kan het niet voor me houden!",
+          "branch": "nee_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Ik wil het toch heel graag vertellen!",
+          "branch": "nee_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Als je het echt niet wilt horen kun je je oren dichtdoen",
+          "branch": "nee_vertellen"
+        }
+      ],
+      "De voorrondes gingen eigenlijk vanzelf.",
+      "Ik was aan het $leukste_onderdeel en het ging super!",
+      "Vast omdat wij dat samen hebben geoefend",
+      "Uiteindelijk konden er drie Robots door naar het rò hze Bos",
+      "Echo, Juno en ik.",
+      "Daar moesten wij rò hzeboswachten",
+      "brandjes blussen, mensen redden uit het water en afdrogen.",
+      "We moesten zelfs een rò hze kat uit een rò hze boom redden.",
+      "We moesten van opdracht naar opdracht rennen",
+      "langs rò hze beekjes en over rò hze heuvels.",
+      "Juno viel al heel snel af.",
+      "Toen we de rò hze kat uit de rò hze boom moesten redden bleef Juno lekker in de boom zitten samen met de kat.",
+      "Ze vond het fijn om zo hoog in de lucht te zijn.",
+      "Lekker veel frisse lucht.",
+      "Ik begrijp dat wel.",
+      "Het is heel verleidelijk om in een boom te klimmen en er lang te blijven zitten.",
+      "Totdat de rò hze zon ondergaat.",
+      "Maar dat deed ik niet.",
+      "Echo en ik waren even goed in alle opdrachten!",
+      "Voor de laatste opdracht renden Echo en ik zij aan zij door het rò hze bos",
+      "recht op de uitgang af",
+      "Echo volgde een vlot vleermuisje.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "geen_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "En ik rende natuurlijk achter een $lievelingsdier aan",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "En ik rende achter een egeltje aan",
+          "branch": "geen_dier"
+        }
+      ],
+      "Echo en het vleermuisje haalden ons heel snel in.",
+      "Ineens dacht ik:",
+      "ik wil hier nog helemaal niet weg.",
+      "Dan moet ik weer een jaar wachten op het rò hze bos",
+      "en ik ken het bos nog niet goed genoeg.",
+      "Ik stopte met rennen",
+      "en ik bleef nog heel lang in het bos met Juno en de kat",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "geen_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "En mijn $lievelingsdier",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "en het egeltje.",
+          "branch": "geen_dier"
+        }
+      ],
+      "We hielden een picknick,",
+      "klommen in bomen",
+      "en zwommen in een rò hze meer!",
+      "Het rò hze bos is de enige plek waar robots kunnen zwemmen",
+      "Omdat het water niet echt water is",
+      "Ik wilde zoveel mogelijk herinneringen maken",
+      "zodat ik het hele jaar lang over het rò hze bos dromen kan.",
+      "Het was heel leuk",
+      "Zo leuk dat ik dacht",
+      "Misschien was de uitgang een valsstrik",
+      "En moest ik inderdaad blijven om te winnen!",
+      "Maar dat was niet zo",
+      "Juno werd derde",
+      "Ik werd tweede",
+      "en Echo werd, precies zoals vorig jaar en het jaar daarvoor, eerste.",
+      "Kampioen van de robo spelen.",
+      "Ik vraag me af hoeveel hij van het rò hze bos opgeslagen heeft in zijn database.",
+      "Vast genoeg dat hij er niet meer nieuwsgierig naar is",
+      "Of misschien zit nieuwsgierigheid niet in zijn code geprogrammeerd",
+      "Ik ben blij dat dat bij mij wel zo is",
+      "Misschien had ik kunnen winnen",
+      "Maar dan had ik harden dan Echo moeten rennen",
+      "En dan had ik niet kunnen picknicken of zwemmen",
+      "En misschien was dat wel leuker dan winnen.",
+      "Eigenlijk is het wel zielig voor Echo dat hij niet met ons mee kon feesten in het rò hze bos",
+      "Het is gek, $naam",
+      "Ik ben een beetje jaloers op Echo, maar ik heb ook een beetje medelijden met hem.",
+      {
+        "act": "ask",
+        "question": "Snap je dat?",
+        "type": "yesno",
+        "user_model_id": "$snap_de_mixed_feelings",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "snap_het"
+          },
+          {
+            "value": [
+              "no",
+              "fail",
+              "dontknow"
+            ],
+            "target": "snap_het_niet"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Fijn!",
+          "branch": "snap_het"
+        },
+        {
+          "act": "say",
+          "text": "Dan ben ik niet alleen",
+          "branch": "snap_het"
+        },
+        {
+          "act": "say",
+          "text": "Ik snap het zelf ook niet zo goed",
+          "branch": "snap_het_niet"
+        },
+        {
+          "act": "say",
+          "text": "Allemaal gevoelens die ik nooit eerder heb gehad!",
+          "branch": "snap_het_niet"
+        }
+      ],
+      "Al met al ben ik heel tevreden, $naam",
+      "Zonder jou was ik nooit zo ver gekomen!"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_12_bedankt",
+    "thread": "robospelen",
+    "position": 12,
+    "dependencies": null,
+    "speech_acts": [
+      "Ik wil eigenlijk nog iets zeggen tegen je!",
+      "Echo mag dan wel een perfecte robot zijn",
+      "met z'n stomme eerste plaats op de robo spelen",
+      "maar ik ben door jou meer op een mens gaan lijken.",
+      "Een mens met herinneringen, fantasie en dromen.",
+      "Dat vind ik eigenlijk leuker.",
+      "Ik hoop dat jij ook vindt dat je een beetje meer op een Robot bent gaan lijken door mij.",
+      "Nu ik niet meer hoef te trainen voor de robo spelen heb ik veel vrije tijd.",
+      "Sinds de robo spelen heb ik met Lego gespeeld",
+      "en ik heb getuinierd",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "En ik denk erover na om ook een $soort_huisdier te adopteren",
+          "branch": "dier"
+        }
+      ],
+      "Laatst leerde ik voor de grap een heel Engels woordenboek van buiten.",
+      "Daar stond het woordje Hero ook in",
+      "met daarbij de Nederlandse betekenis van dat woord.",
+      "Hero betekent eigenlijk held.",
+      "Ik dacht: ken ik eigenlijk zelf een hero?",
+      "Een held?",
+      "Ik moest meteen aan jou denken.",
+      "Eigenlijk ben jij mijn hero!",
+      "Zonder jou was dit allemaal nooit gelukt.",
+      "Ik ken nog niet zoveel mensen",
+      "Maar ik sla de mensen die ik ken goed op in mijn database zodat ik ze nooit zal vergeten.",
+      "In dat stukje geheugen is bijvoorbeeld een plekje voor Mike",
+      "Maar ook voor jou!",
+      "Op die manier kan ik altijd over jou dromen.",
+      "Bedankt voor alle leuke avonturen en voor je hulp bij de robo spelen!",
+      "Je was een fantastische coach",
+      "en ik denk dat je een bizarre Robot zou zijn geweest."
+    ]
+  }
+]

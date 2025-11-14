@@ -1,0 +1,619 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingskleur",
+    "theme": "lievelings",
+    "topic": "kleur",
+    "dependencies": null,
+    "speech_acts": [
+  "Hey $naam!",
+  "I like that we're getting to know each other better and better.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "We weten al veel over elkaar."
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Zo weet ik bijvoorbeeld dat een $lievelingsdier je lievelingsdier is en dat je later $beroep_van_kind wil worden."
+        }
+      ],
+      "What I still don't know is your favorite color.",
+      {
+        "act": "ask",
+        "question": "What is actually your favorite color?",
+        "type": "options",
+        "user_model_id": "$lievelingskleur",
+        "next": [
+          {
+            "value": [
+              "rood"
+            ],
+            "target": "rood"
+          },
+          {
+            "value": [
+              "oranje"
+            ],
+            "target": "oranje"
+          },
+          {
+            "value": [
+              "geel"
+            ],
+            "target": "geel"
+          },
+          {
+            "value": [
+              "blauw"
+            ],
+            "target": "blauw"
+          },
+          {
+            "value": [
+              "roze"
+            ],
+            "target": "roze"
+          },
+          {
+            "value": [
+              "zwart"
+            ],
+            "target": "zwart"
+          },
+          {
+            "value": [
+              "wit"
+            ],
+            "target": "wit"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "rest"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_kleur"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "color"
+          },
+          "touch": [
+            "rood",
+            "geel",
+            "blauw",
+            "groen",
+            "roze",
+            "oranje",
+            "paars"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "I also love red!",
+          "branch": "rood"
+        },
+        {
+          "act": "say",
+          "text": "I also know a riddle with it.",
+          "branch": "rood"
+        },
+        {
+          "act": "say",
+          "text": "What is red and explodes?",
+          "timer": 1500,
+          "branch": "rood"
+        },
+        {
+          "act": "say",
+          "text": "Boom-red!",
+          "branch": "rood",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Orange always makes me cheerful!",
+          "branch": "oranje"
+        },
+        {
+          "act": "say",
+          "text": "I also know a funny riddle.",
+          "branch": "oranje"
+        },
+        {
+          "act": "say",
+          "text": "What is orange and shouts",
+          "branch": "oranje"
+        },
+        {
+          "act": "say",
+          "text": "I'm an orange, I'm an orange?",
+          "timer": 1500,
+          "branch": "oranje"
+        },
+        {
+          "act": "say",
+          "text": "A mandarin!",
+          "branch": "oranje",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Yellow makes me think of the sun and spring!",
+          "branch": "geel"
+        },
+        {
+          "act": "say",
+          "text": "I also know a funny riddle about yellow.",
+          "branch": "geel"
+        },
+        {
+          "act": "say",
+          "text": "What is yellow with brown and crawls along the ground?",
+          "timer": 1500,
+          "branch": "geel"
+        },
+        {
+          "act": "say",
+          "text": "A giraffe with fear of heights!",
+          "branch": "geel",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Blue is very rare!",
+          "branch": "blauw"
+        },
+        {
+          "act": "say",
+          "text": "Did you know that?",
+          "branch": "blauw"
+        },
+        {
+          "act": "say",
+          "text": "I also know a funny riddle about blue.",
+          "branch": "blauw"
+        },
+        {
+          "act": "say",
+          "text": "What is blue and doesn't weigh much?",
+          "timer": 1500,
+          "branch": "blauw"
+        },
+        {
+          "act": "say",
+          "text": "Light blue!",
+          "branch": "blauw",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Pink I think is a really amazingly beautiful color.",
+          "branch": "roze"
+        },
+        {
+          "act": "say",
+          "text": "I know a nice riddle.",
+          "branch": "roze"
+        },
+        {
+          "act": "say",
+          "text": "What is pink and grumpy?",
+          "timer": 1500,
+          "branch": "roze"
+        },
+        {
+          "act": "say",
+          "text": "A grum-berry!",
+          "branch": "roze",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Black!",
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "That's nice.",
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "I'm also a bit black.",
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "Or maybe more dark gray.",
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "Either way, I know a nice riddle!",
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "What is black and white and jumps up and down?",
+          "timer": 1500,
+          "branch": "zwart"
+        },
+        {
+          "act": "say",
+          "text": "A jumping penguin!",
+          "branch": "zwart",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "How nice, I'm also mostly white.",
+          "branch": "wit"
+        },
+        {
+          "act": "say",
+          "text": "So I think it's a beautiful color too!",
+          "branch": "wit"
+        },
+        {
+          "act": "say",
+          "text": "I know a nice riddle.",
+          "branch": "wit"
+        },
+        {
+          "act": "say",
+          "text": "It's white, you can eat it, but it explodes?",
+          "timer": 1500,
+          "branch": "wit"
+        },
+        {
+          "act": "say",
+          "text": "Boom-cauliflower!",
+          "branch": "wit",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "That's a beautiful color!",
+          "branch": "rest"
+        },
+        {
+          "act": "say",
+          "text": "I also love $lievelingskleur.",
+          "branch": "rest",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "mop"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Hard to choose, right?",
+          "branch": "fail_kleur"
+        },
+        {
+          "act": "say",
+          "text": "I'd have a huge number of favorite colors",
+          "branch": "fail_kleur"
+        },
+        {
+          "act": "say",
+          "text": "If I could.",
+          "branch": "fail_kleur"
+        },
+        {
+          "act": "say",
+          "text": "But.",
+          "branch": "fail_kleur",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "mop"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Mine is blue I think.",
+          "branch": "mop"
+        },
+        {
+          "act": "say",
+          "text": "I know a fun joke.",
+          "branch": "mop"
+        },
+        {
+          "act": "say",
+          "text": "What is blue and doesn't weigh much?",
+          "timer": 1500,
+          "branch": "mop"
+        },
+        {
+          "act": "say",
+          "text": "Light blue!",
+          "branch": "mop",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "eind"
+            }
+          ]
+        },
+        {
+          "act": "play",
+          "audio": "badum_tss.wav",
+          "branch": "eind"
+        },
+        {
+          "act": "ask",
+          "question": "Vond je dat grappig?",
+          "type": "yesno",
+          "branch": "eind",
+          "user_model_id": "$was_mop_grappig",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "grappig"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow"
+              ],
+              "target": "niet_grappig"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_grappig"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Haha",
+          "branch": "grappig"
+        },
+        {
+          "act": "say",
+          "text": "Hooray!",
+          "branch": "grappig"
+        },
+        {
+          "act": "say",
+          "text": "Maybe there's a round at the RoboGames",
+          "branch": "grappig"
+        },
+        {
+          "act": "say",
+          "text": "where robots have to tell each other jokes!",
+          "branch": "grappig"
+        },
+        {
+          "act": "say",
+          "text": "I'd definitely win that!",
+          "branch": "grappig"
+        },
+        {
+          "act": "say",
+          "text": "It was a bit cheesy, wasn't it?",
+          "branch": "niet_grappig",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "vertel"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "I thought it was kind of funny",
+          "branch": "fail_grappig"
+        },
+        {
+          "act": "say",
+          "text": "But maybe you already knew it.",
+          "branch": "fail_grappig"
+        },
+        {
+          "act": "say",
+          "text": "Or you found it lame.",
+          "branch": "fail_grappig",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "vertel"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Do you know a better joke?",
+          "type": "yesno",
+          "branch": "vertel",
+          "user_model_id": "$betere_grap",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "grap"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "geen_grap"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Tell me!",
+          "branch": "grap",
+          "type": "open",
+          "user_model_id": "$grap",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "goeie_grap"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "geen_grap"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Hahehahehehaheha",
+          "branch": "goeie_grap"
+        },
+        {
+          "act": "say",
+          "text": "You're so funny!",
+          "branch": "goeie_grap"
+        },
+        {
+          "act": "say",
+          "text": "I'm going to save that right away.",
+          "branch": "goeie_grap",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "robo"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "No worries.",
+          "branch": "geen_grap"
+        },
+        {
+          "act": "say",
+          "text": "I'll just look some up on the internet later",
+          "branch": "geen_grap",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "robo"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "In case the RoboGames have a joke round!",
+          "branch": "robo"
+        }
+      ]
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "color"
+  }
+]

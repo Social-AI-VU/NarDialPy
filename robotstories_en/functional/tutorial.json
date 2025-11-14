@@ -1,0 +1,245 @@
+[
+  {
+    "mini-dialog": "functional",
+    "id": "tutorial_spraak",
+    "function": "tutorial",
+    "dependencies": null,
+    "speech_acts": [
+      "Laat ik uitleggen hoe je met mij kunt praten.",
+      "Als ik een vraag stel, dan probeer ik te luisteren naar je antwoord",
+      "Het helpt als je dat een beetje luid, en duidelijk kan doen.",
+      "Soms heb ik wat moeite om mensen te verstaan, dan kun je jouw antwoord gewoon herhalen",
+      "Laten we een keertje oefenen.",
+      "Hier komt de eerste vraag",
+      {
+        "act": "ask",
+        "question": "Welke kleur hebben mijn ogen nu?",
+        "type": "options",
+        "led": {
+          "location": [
+            "FaceLeds"
+          ],
+          "color": [
+            "blauw"
+          ]
+        },
+        "next": [
+          {
+            "value": [
+              "blauw",
+              "donkerblauw",
+              "lichtblauw"
+            ],
+            "target": "correct"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "incorrect"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "color"
+          }
+        }
+      },
+      [
+        {
+          "act": "say",
+          "branch": "correct",
+          "text": "Ze zijn inderdaad blauw, goed gedaan!"
+        },
+        {
+          "act": "say",
+          "branch": "incorrect",
+          "text": "Die kleur kunnen ze inderdaad worden, maar deze keer waren ze echt blauw. Je hebt wel op het juiste moment geantwoord en dat is het belangrijkste."
+        },
+        {
+          "act": "say",
+          "branch": "fail",
+          "text": "Dankjewel! Denk er aan om luid, en duidelijk, antwoord te geven."
+        }
+      ],
+      {
+        "act": "play",
+        "led": {
+          "location": [
+            "FaceLeds"
+          ],
+          "color": [
+            "Wit"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "tutorial_touch",
+    "function": "tutorial",
+    "dependencies": null,
+    "speech_acts": [
+      "Als het me even niet lukt om je goed te verstaan",
+      "dan heb ik een oplossing",
+      "Je kunt dan antwoord geven via mijn grijze, tenen",
+      "Dat zijn namelijk knopjes",
+      {
+        "act": "say",
+        "text": "Links, waar het lampje nu groen is, betekent ja \\pau=400\\ en rechts, waar het lampje nu rood is betekent nee",
+        "led": {
+          "location": [
+            "LeftFootLeds",
+            "RightFootLeds"
+          ],
+          "color": [
+            "red",
+            "green"
+          ]
+        }
+      },
+      "Bij een meerkeuze vraag zal ik wat opties opnoemen",
+      {
+        "act": "say",
+        "text": "Dan kun je op de ja knop drukken bij het beste antwoord",
+        "led": {
+          "location": [
+            "LeftFootLeds",
+            "RightFootLeds"
+          ],
+          "color": [
+            "wit",
+            "wit"
+          ]
+        }
+      },
+      "Laten we dat even oefenen. \\pau=400\\",
+      {
+        "act": "ask",
+        "question": "Welke kleur hebben mijn ogen nu?",
+        "type": "options",
+        "led": {
+          "location": [
+            "FaceLeds"
+          ],
+          "color": [
+            "groen"
+          ]
+        },
+        "next": [
+          {
+            "value": [
+              "groen",
+              "donkergroen",
+              "lichtgroen"
+            ],
+            "target": "correct"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "incorrect"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": ""
+          }
+        ],
+        "answer": {
+          "touch": [
+            "paars",
+            "blauw",
+            "groen",
+            "oranje"
+          ],
+          "max_answer_time": [
+            "touch=5000"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "branch": "correct",
+          "text": "Jazeker! Ze zijn inderdaad groen."
+        },
+        {
+          "act": "say",
+          "branch": "incorrect",
+          "text": "Die kleur kunnen ze inderdaad worden, maar deze keer waren ze echt groen."
+        },
+        {
+          "act": "say",
+          "branch": "incorrect",
+          "text": "Mocht je te laat of te vroeg hebben gedrukt, alle antwoorden komen twee keer voorbij. Je kunt dan eventjes wachten met drukken tot jouw antwoord terug komt."
+        }
+      ],
+      {
+        "act": "say",
+        "text": "Mocht jouw antwoord er niet tussen zitten, dan kun je eentje kiezen die het beste bij jou past.",
+        "led": {
+          "location": [
+            "FaceLeds"
+          ],
+          "color": [
+            "Wit"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "tutorial_check",
+    "function": "tutorial",
+    "dependencies": null,
+    "speech_acts": [
+      "Zo nu heb ik alles wel uitgelegd",
+      {
+        "act": "ask",
+        "question": "Heb je hier nog vragen over?",
+        "type": "yesno",
+        "next": [
+          {
+            "value": [
+              "yes",
+              "dontknow",
+              "fail"
+            ],
+            "target": "vraag"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "geen_vraag"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "vraag",
+          "text": "Mike, kun jij $naam even helpen?",
+          "wait_for_event": "FrontTactilTouched"
+        },
+        {
+          "act": "say",
+          "branch": "geen_vraag",
+          "text": "Top!"
+        }
+      ],
+      "Laten we verder gaan."
+    ]
+  }
+]

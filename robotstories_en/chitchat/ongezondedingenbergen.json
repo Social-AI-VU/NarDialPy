@@ -1,0 +1,194 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "ongezondedingenbergen",
+    "theme": "personalia",
+    "topic": "ongezonde_dingen",
+    "dependencies": null,
+    "speech_acts": [
+      "By the way $naam",
+      "I was daydreaming about the future before you came.",
+      "Later I'll be a very handy robot thanks to you!",
+      "And then I suddenly had a fun idea!",
+      "Imagine there was a competition.",
+      "And the prizes were mountains of ice cream, chocolate, cookies, candy, or chips.",
+      "Which mountain would you most like to win?",
+      {
+        "act": "ask",
+        "question": "A mountain of ice cream, chocolate, cookies, candy, or chips?",
+        "type": "options",
+        "user_model_id": "$ongezonde_dingen_bergen",
+        "next": [
+          {
+            "value": [
+              "ijs",
+              "chocola",
+              "koekjes",
+              "snoep",
+              "chips"
+            ],
+            "target": "keuze_gemaakt"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_ongezonde_dingen_bergen"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "food"
+          },
+          "touch": [
+            "ijs",
+            "chocola",
+            "koekjes",
+            "snoep",
+            "chips"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "A mountain of $ongezonde_dingen_bergen, I'll remember that!",
+          "branch": "keuze_gemaakt"
+        },
+        {
+          "act": "say",
+          "text": "Because I suddenly thought: $naam helps me so well!",
+          "branch": "keuze_gemaakt"
+        },
+        {
+          "act": "say",
+          "text": "I also find it hard to choose!",
+          "branch": "fail_ongezonde_dingen_bergen"
+        },
+        {
+          "act": "say",
+          "text": "I asked it for my idea.",
+          "branch": "fail_ongezonde_dingen_bergen"
+        }
+      ],
+      "When I'm a very handy robot later",
+      "Maybe then I can organize the RoboGames myself!",
+      "I'd change it into RoboGames for collaborations between robots and children!",
+      "Only you don't need a super large memory card of course.",
+      "So I wanted to come up with another prize for you already!",
+      {
+        "act": "ask",
+        "branch": "robospelen_prijs",
+        "question": "Do you think that's the best prize, such a whole mountain of food?",
+        "type": "yesno",
+        "user_model_id": "$goede_prijs",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "goede_prijs"
+          },
+          {
+            "value": [
+              "no",
+              "fail",
+              "dontknow"
+            ],
+            "target": "niet_goede_prijs"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "That's a relief!",
+          "branch": "goede_prijs"
+        },
+        {
+          "act": "say",
+          "text": "Then I'll remember this well for later.",
+          "branch": "goede_prijs"
+        },
+        {
+          "act": "say",
+          "text": "Aha!",
+          "branch": "niet_goede_prijs"
+        },
+        {
+          "act": "say",
+          "text": "Then it's good we're talking about it already.",
+          "branch": "niet_goede_prijs"
+        },
+        {
+          "act": "ask",
+          "question": "What would you rather have then?",
+          "branch": "niet_goede_prijs",
+          "type": "open",
+          "user_model_id": "$prijs_voor_kind",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "got_prijs"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "got_no_prijs"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Bizarre!",
+          "branch": "got_prijs"
+        },
+        {
+          "act": "say",
+          "text": "What a great idea!",
+          "branch": "got_prijs"
+        },
+        {
+          "act": "say",
+          "text": "I'll store that right away for later!",
+          "branch": "got_prijs"
+        },
+        {
+          "act": "say",
+          "text": "Saving. Saving.",
+          "branch": "got_prijs"
+        },
+        {
+          "act": "say",
+          "text": "Thank you $naam!",
+          "branch": "got_prijs"
+        },
+        {
+          "act": "say",
+          "text": "I also find it difficult",
+          "branch": "got_no_prijs"
+        },
+        {
+          "act": "say",
+          "text": "I think it will still take quite a long time",
+          "branch": "got_no_prijs"
+        },
+        {
+          "act": "say",
+          "text": "before I'm allowed to organize the RoboGames",
+          "branch": "got_no_prijs"
+        },
+        {
+          "act": "say",
+          "text": "So you can think about it for a few more years!",
+          "branch": "got_no_prijs"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "unhealthy_things"
+  }
+]

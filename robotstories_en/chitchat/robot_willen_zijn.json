@@ -1,0 +1,157 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "robot_willen_zijn",
+    "theme": "verschillen_robot_mens",
+    "topic": "robot_willen_zijn",
+    "dependencies": [
+      {
+        "dependent_on": "eerste_begroeting_secret_handshake",
+        "type": "follow-up",
+        "session_break": 2,
+        "conditionals": null
+      }
+    ],
+    "speech_acts": [
+      "You know, $naam.",
+      "Yesterday I was thinking about seeing you again today",
+      "And that today I get to learn from you about human things again.",
+      "And then I suddenly wondered:",
+      {
+        "act": "ask",
+        "question": "Would you sometimes like to be a robot?",
+        "type": "yesno",
+        "user_model_id": "$robot_willen_zijn",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Wow!",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "Why would you want to be a robot?",
+          "type": "open",
+          "user_model_id": "$waarom_robot_zijn",
+          "branch": "ja",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "weet_waarom"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "niet_waarom"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "That's okay, I sometimes don't know either.",
+          "branch": "niet_waarom"
+        },
+        {
+          "act": "say",
+          "text": "I love hearing that!",
+          "branch": "weet_waarom"
+        },
+        {
+          "act": "ask",
+          "question": "May I tell other robots that too?",
+          "type": "yesno",
+          "user_model_id": "$aan_andere_robots_vertellen",
+          "branch": "weet_waarom",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "vertellen"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "niet_vertellen"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Hooray! Hold on a moment.",
+          "branch": "vertellen"
+        },
+        {
+          "act": "play",
+          "audio": "send_message.wav",
+          "branch": "vertellen"
+        },
+        {
+          "act": "say",
+          "text": "I've passed it on to them over Wi-Fi.",
+          "branch": "vertellen"
+        },
+        {
+          "act": "say",
+          "text": "And lots of robots say thank you, dear $naam.",
+          "branch": "vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Alright, then I'll keep your kind words entirely to myself.",
+          "branch": "niet_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Thank you, dear $naam.",
+          "branch": "niet_vertellen"
+        },
+        {
+          "act": "say",
+          "text": "Well, you don't know what you're missing!",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "But of course I don't know what it's like to be human either.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Maybe that is nicer indeed.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "But I don't think I'll ever find out!",
+          "branch": "nee"
+        }
+      ]
+    ],
+    "theme_en": "differences_robot_human",
+    "topic_en": "want_to_be_robot"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "luister_naar_blaf",
+    "theme": "help",
+    "topic": "verblaffen",
+    "dependencies": null,
+    "speech_acts": [
+        "Yes, good!",
+        "Wow!",
+        "Right?",
+        "Let's listen.",
+      {
+        "act": "play",
+        "audio": "$hondenblaf"
+      },
+        "Yes!",
+        "Wow, it sounds exactly like a dog!",
+        "If I play this sound at the RoboGames",
+        "really loud",
+        "then maybe it will go the farthest of all distance barkers!",
+        "Thank you, $naam!"
+    ],
+    "theme_en": "help",
+    "topic_en": "distance_barking"
+  }
+]

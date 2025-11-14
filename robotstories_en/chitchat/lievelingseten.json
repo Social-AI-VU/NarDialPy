@@ -1,0 +1,1061 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": null,
+    "speech_acts": [
+      "Let's move on to something else",
+      "I've discovered something special!",
+      "A lot of food that many children really like",
+      "starts with a P!",
+      "Like: pizza, pasta, pancakes, poffertjes, and fries.",
+      {
+        "act": "ask",
+        "question": "Which P do you like the most?",
+        "type": "options",
+        "user_model_id": "$lievelingseten_met_p",
+        "next": [
+          {
+            "value": [
+              "pizza"
+            ],
+            "target": "pizza"
+          },
+          {
+            "value": [
+              "pasta"
+            ],
+            "target": "pasta"
+          },
+          {
+            "value": [
+              "pannenkoeken"
+            ],
+            "target": "pannenkoeken"
+          },
+          {
+            "value": [
+              "poffertjes"
+            ],
+            "target": "poffertjes"
+          },
+          {
+            "value": [
+              "patat"
+            ],
+            "target": "patat"
+          },
+          {
+            "value": [
+              "fail",
+              "_others"
+            ],
+            "target": "fail_lievelingseten_met_p"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "lievelingseten_met_p"
+          },
+          "touch": [
+            "pizza",
+            "pasta",
+            "pannenkoeken",
+            "poffertjes",
+            "patat"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Pizza! Pizza! Ooooh pizza!",
+          "branch": "pizza"
+        },
+        {
+          "act": "ask",
+          "question": "Have you ever had the cheese melt so much that there's a long string between your mouth and your pizza slice when you take a bite?",
+          "branch": "pizza",
+          "type": "yesno",
+          "user_model_id": "$pizza_sliert",
+          "next": [
+            {
+              "value": [
+                "yes",
+                "dontknow",
+                "fail",
+                "no"
+              ],
+              "target": "wel_pizza_sliert"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Some people think that looks gross, but I don't!",
+          "branch": "wel_pizza_sliert"
+        },
+        {
+          "act": "say",
+          "text": "Such a string looks like the best cable that gives me power.",
+          "branch": "wel_pizza_sliert"
+        },
+        {
+          "act": "say",
+          "text": "And mamma mia!",
+          "branch": "wel_pizza_sliert"
+        },
+        {
+          "act": "say",
+          "text": "If that string tastes to you like power does to me,",
+          "branch": "wel_pizza_sliert"
+        },
+        {
+          "act": "say",
+          "text": "then that string can only be proof of a super pizza!",
+          "branch": "wel_pizza_sliert"
+        },
+        {
+          "act": "say",
+          "text": "Fantastico!",
+          "branch": "pasta"
+        },
+        {
+          "act": "say",
+          "text": "That's Italian for awesome!",
+          "branch": "pasta"
+        },
+        {
+          "act": "say",
+          "text": "I learned that from Italian robots who make pasta.",
+          "branch": "pasta"
+        },
+        {
+          "act": "say",
+          "text": "Robots can't eat pasta of course,",
+          "branch": "pasta"
+        },
+        {
+          "act": "say",
+          "text": "but we think all those different shapes are awesome!",
+          "branch": "pasta"
+        },
+        {
+          "act": "say",
+          "text": "Pancakes seem very tasty to me too!",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "I've seen you put syrup on them.",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "That looks a bit like motor oil!",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "In the future there will surely be pancake houses for people and robots together.",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "They'll have pancakes with syrup for you",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "and hard drives with motor oil for me!",
+          "branch": "pannenkoeken"
+        },
+        {
+          "act": "say",
+          "text": "Poffertjes also look tasty to me!",
+          "branch": "poffertjes"
+        },
+        {
+          "act": "say",
+          "text": "And the word also sounds very tasty.",
+          "branch": "poffertjes"
+        },
+        {
+          "act": "say",
+          "text": "Pof pof poffertje!",
+          "branch": "poffertjes"
+        },
+        {
+          "act": "say",
+          "text": "And it rhymes with what you are if you get lots of poffertjes",
+          "branch": "poffertjes"
+        },
+        {
+          "act": "say",
+          "text": "then you're a real lucky one!",
+          "branch": "poffertjes"
+        },
+        {
+          "act": "say",
+          "text": "If I were a human, I'd also think that's the tastiest P!",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "I especially like the deep fryer.",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "It looks like the little oil bath I sometimes get put in.",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "That helps when I'm a bit rusty.",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "Maybe next time I can swim in the deep fryer!",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "But then it should be turned off of course.",
+          "branch": "patat"
+        },
+        {
+          "act": "say",
+          "text": "otherwise I'll come out as a Hero croquette!",
+          "branch": "patat"
+        }
+      ],
+      {
+        "act": "ask",
+        "question": "What do you actually like about $lievelingseten_met_p?",
+        "type": "open"
+      },
+      "Wow, that sounds good.",
+      "I hope there'll be a robot version of $lievelingseten_met_p soon."
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "food"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten_vervolg_pizza",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "pizza"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+  "Hey $naam",
+  "Yesterday I was thinking about you.",
+  "And that last week we talked about your favorite food that starts with a P!",
+  "I saved that your favorite P food is $lievelingseten_met_p!",
+  "Yesterday I tried to make pizza myself.",
+  "That seems useful to learn!",
+  "With that I can make you and many other people very happy!",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "type": "yesno",
+  "question": "Have you ever made pizza at home?",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "pizza_wel_gemaakt"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow"
+            ],
+            "target": "pizza_niet_gemaakt"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "pizza_eerste_fail"
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "question": "Cool! And did your pizza turn out well?",
+          "branch": "pizza_wel_gemaakt",
+          "type": "yesno",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "pizza_wel_gelukt"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow"
+              ],
+              "target": "pizza_niet_gelukt"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Nice! Mine went a bit wrong.",
+          "branch": "pizza_wel_gelukt"
+        },
+        {
+          "act": "say",
+          "text": "Oh dear! Well, mine didn't go perfectly either!",
+          "branch": "pizza_niet_gelukt"
+        },
+        {
+          "act": "say",
+          "text": "Mine went a bit wrong yesterday.",
+          "branch": "pizza_eerste_fail"
+        },
+        {
+          "act": "say",
+          "text": "I had also never done it before!",
+          "branch": "pizza_niet_gemaakt"
+        },
+        {
+          "act": "say",
+          "text": "That's why it went a bit wrong.",
+          "branch": "pizza_niet_gemaakt"
+        }
+      ],
+      {
+        "act": "ask",
+        "question": "Do you remember we talked about our lucky numbers?",
+        "user_model_id": "$herinnert_ggg",
+        "type": "yesno",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "herinnert_ggg_wel"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "herinnert_ggg_niet"
+          }
+        ]
+      },
+      [
+        {
+          "act": "continuator",
+          "branch": "herinnert_ggg_wel",
+          "conditionals": [
+            {
+              "target": "herinnert_ggg_met_ggg",
+              "conditionals": [
+                {
+                  "conditional_of": "$heeft_geluksgetal",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinnert_ggg_zonder_ggg",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "branch": "herinnert_ggg_zonder_ggg",
+          "act": "say",
+          "text": "How nice that you still remember!"
+        },
+        {
+          "branch": "herinnert_ggg_zonder_ggg",
+          "act": "say",
+          "text": "I remember that you don't have a lucky number."
+        },
+        {
+          "branch": "herinnert_ggg_met_ggg",
+          "act": "say",
+          "text": "Me too!"
+        },
+        {
+          "branch": "herinnert_ggg_met_ggg",
+          "act": "say",
+          "text": "Your lucky number is $robot_rugnummer!"
+        },
+        {
+          "act": "continuator",
+          "branch": "herinnert_ggg_niet",
+          "conditionals": [
+            {
+              "target": "herinnert_ggg_niet_met_ggg",
+              "conditionals": [
+                {
+                  "conditional_of": "$heeft_geluksgetal",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinnert_ggg_niet_zonder_ggg",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "branch": "herinnert_ggg_niet_met_ggg",
+          "act": "say",
+          "text": "That was quite a while ago."
+        },
+        {
+          "branch": "herinnert_ggg_niet_met_ggg",
+          "act": "say",
+          "text": "But I saved in my Hero memory that $robot_rugnummer is your lucky number!"
+        },
+        {
+          "branch": "herinnert_ggg_niet_zonder_ggg",
+          "act": "say",
+          "text": "That makes sense, because you don't have a lucky number."
+        }
+      ],
+      "My lucky numbers are 0 and 1, remember?",
+      "Sometimes I suddenly encounter a 0 or 1 in a human thing.",
+      "That makes me so wildly happy that my robo-brain goes wild!",
+      "When that happens, I sometimes accidentally read the 0 or 1 twice.",
+      "The pizza recipe said: set the oven to two hundred and twenty degrees.",
+      "Two times two and a zero.",
+      "A zero, hooray! Hooray, a zero!",
+      "My robo-brain passed that on to my robot arm.",
+      "You can probably hear it already: two twos and two zeros.",
+      "I set the oven to two thousand two hundred degrees!",
+      "Insanely mega hot!",
+      "But yeah, what did I know, I had never made pizza before!",
+      "Still haven't, actually.",
+      "Of course there was no pizza left when I opened the oven!",
+      "Just a completely black, rock-hard circle!",
+      "Such a mistake wouldn't be very useful at the RoboGames!",
+      "Shall we keep training?"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "eten"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten_vervolg_pasta",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "pasta"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+  "Hey $naam",
+  "Yesterday I was thinking about you.",
+  "And that last week we talked about your favorite food that starts with a P!",
+  "I saved that your favorite P food is $lievelingseten_met_p!",
+  "Yesterday I tried to make pasta myself for the first time.",
+  "That seems useful to learn!",
+  "With that I can make you and many other people very happy!",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "type": "yesno",
+  "question": "Have you ever made pasta yourself?",
+        "user_model_id": "$lievelingseten_met_p_gemaakt",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "pasta_wel_gemaakt"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "pasta_niet_gemaakt"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Cool! Then you can probably guess what went wrong for me.",
+          "branch": "pasta_wel_gemaakt"
+        },
+        {
+          "act": "say",
+          "text": "You can probably guess what went wrong for me.",
+          "branch": "pasta_niet_gemaakt"
+        }
+      ],
+      "I had a pack of spaghetti ready.",
+      "I felt like pasta carbonara.",
+      "But in the first step of the recipe it said",
+      "Put a pan on the heat and melt the chocolate in it.",
+      "I thought that was a bit strange, but hey, the recipe said so!",
+      "But when everything was done, the spaghetti was no use to me anymore.",
+      {
+        "act": "ask",
+        "question": "So what kind of pasta do you think the recipe was for?",
+        "type": "open"
+      },
+      "It was a recipe for chocolate paste!",
+      "Bizarre",
+      "Such a mistake wouldn't be very useful at the RoboGames!",
+      "Shall we keep training?"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "eten"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten_vervolg_pannenkoeken",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "pannenkoeken"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+  "Hey $naam",
+  "Yesterday I was thinking about you.",
+  "And that last week we talked about your favorite food that starts with a P!",
+  "I saved that your favorite P food is $lievelingseten_met_p!",
+  "Yesterday I tried to bake pancakes.",
+  "That seems useful to learn!",
+  "With that I can make you and many other people very happy!",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "type": "yesno",
+  "question": "Have you ever baked pancakes yourself?",
+        "user_model_id": "$lievelingseten_met_p_gemaakt",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "pannenkoeken_wel_gemaakt"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "pannenkoeken_niet_gemaakt"
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "branch": "pannenkoeken_wel_gemaakt",
+          "question": "Cool! And how do you flip pancakes at your place, with a spatula or by tossing them in the air?",
+          "type": "open"
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_wel_gemaakt",
+          "text": "Oh cool! Yesterday I tried to flip pancakes by tossing them into the air"
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_wel_gemaakt",
+          "text": "But it went a bit wrong for me."
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_wel_gemaakt",
+          "text": "I didn't know how hard to throw the pancake up. "
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_niet_gemaakt",
+          "text": "Well, I'll tell you what didn't go quite right for me."
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_niet_gemaakt",
+          "text": "Then you'll probably nail it in one go!"
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_niet_gemaakt",
+          "text": "On YouTube I saw pancake bakers sometimes flip a pancake in the air! "
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_niet_gemaakt",
+          "text": "I wanted to do that too."
+        },
+        {
+          "act": "say",
+          "branch": "pannenkoeken_niet_gemaakt",
+          "text": "But I didn't know how hard to throw the pancake up."
+        }
+      ],
+      "So I did it a bit too hard, and the pancake flew very high.",
+      "So high that it hit the ceiling.",
+      "And then it stuck there.",
+      "What do you think happened then?",
+      "Suddenly, splat!",
+      "The pancake fell upside down on my head!",
+      "I was covered in batter!",
+      "Bizarre",
+      "Such a mistake wouldn't be very useful at the RoboGames!",
+      "Shall we keep training?"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "eten"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten_vervolg_poffertjes",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "poffertjes"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+  "Hey $naam",
+  "Yesterday I was thinking about you.",
+  "And that last week we talked about your favorite food that starts with a P!",
+  "I saved that your favorite P food is $lievelingseten_met_p!",
+  "Yesterday I tried to bake poffertjes.",
+  "That seems useful to learn!",
+  "Because with that I can make you and many other people very happy!",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "type": "yesno",
+  "question": "Have you ever baked poffertjes at home?",
+        "user_model_id": "$lievelingseten_met_p_gemaakt",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "poffertjes_wel_gemaakt"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "poffertjes_niet_gemaakt"
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "branch": "poffertjes_wel_gemaakt",
+          "question": "And did it go well the very first time?",
+          "user_model_id": "$poffertjesEersteKeerGoed",
+          "type": "yesno",
+          "next": [
+            {
+              "value": [
+                "fail",
+                "dontknow"
+              ],
+              "target": "poffertjesWelFail"
+            },
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "poffertjesWelJa"
+            },
+            {
+              "value": [
+                "no"
+              ],
+              "target": "poffertjesWelNee"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "branch": "poffertjesWelFail",
+          "text": "For me it went quite well, until I had to flip the poffertjes."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjesWelJa",
+          "text": "Wow, impressive! "
+        },
+        {
+          "act": "say",
+          "branch": "poffertjesWelJa",
+          "text": "Mine also went quite well, until I had to flip the poffertjes."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjesWelNee",
+          "text": "Me neither!"
+        },
+        {
+          "act": "say",
+          "branch": "poffertjesWelNee",
+          "text": "It went quite well until I had to flip the poffertjes."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "It's a lot of fun to do! "
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "First you make batter."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "Then you divide it over all the hollows in the poffertjes pan!"
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "That went very well for me."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "But then I had to flip the poffertjes."
+        },
+        {
+          "act": "say",
+          "branch": "poffertjes_niet_gemaakt",
+          "text": "Actually you have to do that poffertje by poffertje, with a fork."
+        }
+      ],
+      "But I mixed up pancakes and poffertjes.",
+      "I thought, I'll toss them into the air!",
+      "Then I'll catch them flipped over again!",
+      "With a pancake that works quite well.",
+      "But a pancake is in a pan on its own.",
+      "Poffertjes are so many at once!",
+      "So almost all of them fell on the floor.",
+      "Bizarre",
+      "Such a mistake wouldn't be very useful at the RoboGames!",
+      "Shall we keep training?"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "eten"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingseten_vervolg_patat",
+    "theme": "lievelings",
+    "topic": "eten",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "patat"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+  "Hey $naam",
+  "Yesterday I was thinking about you.",
+  "And that last week we talked about your favorite food that starts with a P!",
+  "I saved that your favorite P food is $lievelingseten_met_p!",
+  "Yesterday I tried to make fries myself from a pile of potatoes.",
+  "That seems useful to learn!",
+  "With that I can make you and many other people very happy!",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "type": "yesno",
+  "question": "Do you ever make fries at home?",
+        "user_model_id": "$lievelingseten_met_p_gemaakt",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "patat_wel_gemaakt"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "patat_niet_gemaakt"
+          },
+          {
+            "value": [
+              "dontknow",
+              "fail"
+            ],
+            "target": "patat_fail_gemaakt"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "patat_wel_gemaakt",
+          "text": "Cool!"
+        },
+        {
+          "act": "say",
+          "branch": "patat_fail_gemaakt",
+          "text": "Ik niet!"
+        },
+        {
+          "act": "say",
+          "branch": "patat_niet_gemaakt",
+          "text": "Ik ook niet!"
+        }
+      ],
+  "Through my cable I asked Piet for tips before I started.",
+  "Piet is a fry-cutting robot.",
+  "He works in a big fries factory.",
+  "Piet and I are very good robot friends!",
+  "He helped me a lot.",
+  "Still, something didn't go quite right.",
+      {
+        "act": "ask",
+  "question": "Do you remember we talked about our lucky numbers?",
+        "user_model_id": "$herinnert_ggg",
+        "type": "yesno",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "herinnert_ggg_wel"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "herinnert_ggg_niet"
+          }
+        ]
+      },
+      [
+        {
+          "act": "continuator",
+          "branch": "herinnert_ggg_wel",
+          "conditionals": [
+            {
+              "target": "herinnert_ggg_met_ggg",
+              "conditionals": [
+                {
+                  "conditional_of": "$heeft_geluksgetal",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinnert_ggg_zonder_ggg",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "branch": "herinnert_ggg_zonder_ggg",
+          "act": "say",
+          "text": "How nice that you still remember!"
+        },
+        {
+          "branch": "herinnert_ggg_zonder_ggg",
+          "act": "say",
+          "text": "I remember that you don't have a lucky number."
+        },
+        {
+          "branch": "herinnert_ggg_met_ggg",
+          "act": "say",
+          "text": "Me too!"
+        },
+        {
+          "branch": "herinnert_ggg_met_ggg",
+          "act": "say",
+          "text": "Your lucky number is $robot_rugnummer!"
+        },
+        {
+          "act": "continuator",
+          "branch": "herinnert_ggg_niet",
+          "conditionals": [
+            {
+              "target": "herinnert_ggg_niet_met_ggg",
+              "conditionals": [
+                {
+                  "conditional_of": "$heeft_geluksgetal",
+                  "filter": "green_list",
+                  "values": [
+                    "yes"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinnert_ggg_niet_zonder_ggg",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "branch": "herinnert_ggg_niet_met_ggg",
+          "act": "say",
+          "text": "That was quite a while ago."
+        },
+        {
+          "branch": "herinnert_ggg_niet_met_ggg",
+          "act": "say",
+          "text": "But I saved in my Hero memory that $robot_rugnummer is your lucky number!"
+        },
+        {
+          "branch": "herinnert_ggg_niet_zonder_ggg",
+          "act": "say",
+          "text": "That makes sense, because you don't have a lucky number."
+        }
+      ],
+      "My lucky numbers are 0 and 1, remember?",
+      "Piet has only one lucky number, and by chance it's also 1.",
+      "He said: Hero, fries have the shape of our lucky number.",
+      "Just set your robo-brain to infinity in a moment.",
+      "Then you'll chop all those potatoes into fries super fast!",
+      "I followed Piet's tip.",
+      "But Piet had forgotten that I have two lucky numbers!",
+      "And when you put numbers in order, zero comes before one!",
+      "My robo-brain set to infinity thought: I'll start at the beginning!",
+      "I'm going to cut the potatoes into little zeros.",
+      "Only when I started frying did I see I'd made fried potatoes!",
+      "Also very tasty.",
+      "But yeah, no fries!",
+      "Bizarre",
+      "Such a mistake wouldn't be very useful at the RoboGames!",
+      "Shall we keep training?"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "food"
+  }
+]

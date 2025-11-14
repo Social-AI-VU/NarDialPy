@@ -1,0 +1,929 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier",
+    "theme": "lievelings",
+    "topic": "dier",
+    "dependencies": null,
+    "speech_acts": [
+      "Hey $naam!",
+      "Something else for a moment.",
+      "I met a very special robot yesterday.",
+      "His name is Ol lie.",
+      "Ol lie is a robot otter!",
+      {
+        "act": "say",
+        "text": "I told him about you too",
+        "video_probe": "start"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "conditional_of": "$coach_goed_idee",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "That you're my coach."
+        }
+      ],
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "conditional_of": "$beroep_van_kind",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "That you want to become $beroep_van_kind later."
+        }
+      ],
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "conditional_of": "$sport_van_kind",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "That you like $sport_van_kind."
+        }
+      ],
+      "Let me tell you more about Ol lie now.",
+      "He swims and talks a lot with regular otters.",
+      {
+        "act": "say",
+        "text": "He told me a whole lot about that yesterday!",
+        "video_probe": "stop"
+      },
+      "Now I think the otter is my favorite animal.",
+      {
+        "act": "ask",
+        "question": "What's your favorite animal?",
+        "type": "options",
+        "next": [
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "geen_lievelingsdier"
+          },
+          {
+            "value": [
+              "otter"
+            ],
+            "target": "otter"
+          },
+          {
+            "value": [
+              "aap"
+            ],
+            "target": "aap"
+          },
+          {
+            "value": [
+              "adelaar"
+            ],
+            "target": "adelaar"
+          },
+          {
+            "value": [
+              "dolfijn"
+            ],
+            "target": "dolfijn"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "lievelingsdier"
+          }
+        ],
+        "user_model_id": "$lievelingsdier",
+        "answer": {
+          "speech": {
+            "context": "animals"
+          },
+          "touch": [
+            "aap",
+            "dolfijn",
+            "adelaar",
+            "otter",
+            "tijger",
+            "olifant",
+            "hond",
+            "kat"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "That's a really hard question huh!",
+          "branch": "geen_lievelingsdier"
+        },
+        {
+          "act": "ask",
+          "branch": "geen_lievelingsdier",
+          "question": "Do you like more than one animal?",
+          "type": "yesno",
+          "user_model_id": "$meer_dan_1_dier",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "ja_meer"
+            },
+            {
+              "value": [
+                "no"
+              ],
+              "target": "nee_meer"
+            },
+            {
+              "value": [
+                "fail",
+                "dontknow"
+              ],
+              "target": "fail_meer"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "But it's pretty hard to choose!",
+          "branch": "nee_meer"
+        },
+        {
+          "act": "say",
+          "text": "Imagine you walk into a zoo.",
+          "branch": "nee_meer"
+        },
+        {
+          "act": "say",
+          "text": "You can instantly visit a monkey, a dolphin, or an eagle.",
+          "branch": "nee_meer"
+        },
+        {
+          "act": "ask",
+          "question": "Which one do you go to first? ",
+          "branch": "nee_meer",
+          "type": "options",
+          "user_model_id": "$drie_dierentuindieren",
+          "next": [
+            {
+              "value": [
+                "aap"
+              ],
+              "target": "aap"
+            },
+            {
+              "value": [
+                "dolfijn"
+              ],
+              "target": "dolfijn"
+            },
+            {
+              "value": [
+                "adelaar"
+              ],
+              "target": "adelaar"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_dierentuin"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "aap_adelaar_dolfijn"
+            },
+            "touch": [
+              "aap",
+              "dolfijn",
+              "adelaar"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "I'd go to the dolphin first.",
+          "branch": "fail_dierentuin"
+        },
+        {
+          "act": "say",
+          "text": "I'd love to swim as fast as a dolphin!",
+          "branch": "fail_dierentuin",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "dolfijn2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Cool! I think monkeys are super fun too.",
+          "branch": "aap"
+        },
+        {
+          "act": "say",
+          "text": "I'd love to be able to swing that well!",
+          "branch": "aap"
+        },
+        {
+          "act": "say",
+          "text": "I don't know if there's a swinging task at the RoboGames.",
+          "branch": "aap"
+        },
+        {
+          "act": "say",
+          "text": "I'll look that up!",
+          "branch": "aap"
+        },
+        {
+          "act": "say",
+          "text": "Maybe there's also a task with stones.",
+          "branch": "aap",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "lievelingsdier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Eagles are really crazy big.",
+          "branch": "adelaar"
+        },
+        {
+          "act": "say",
+          "text": "I'd also love to fly like an eagle!",
+          "branch": "adelaar"
+        },
+        {
+          "act": "say",
+          "text": "Maybe one day I can get a little motor mounted on my back.",
+          "branch": "adelaar"
+        },
+        {
+          "act": "say",
+          "text": "I hope there'll be a flying round at the RoboGames someday, or a round with stones.",
+          "branch": "adelaar",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "lievelingsdier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Cool! Dolphins can swim really fast!",
+          "branch": "dolfijn"
+        },
+        {
+          "act": "say",
+          "text": "I'd like that too!",
+          "branch": "dolfijn",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "dolfijn2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Maybe I should wear a suit with dolphin fins.",
+          "branch": "dolfijn2"
+        },
+        {
+          "act": "say",
+          "text": "Otters can also swim fast, and they float too.",
+          "branch": "dolfijn2",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "lievelingsdier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Me too!",
+          "branch": "ja_meer"
+        },
+        {
+          "act": "ask",
+          "question": "Name a few?",
+          "branch": "ja_meer",
+          "type": "options",
+          "next": [
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_meer"
+            },
+            {
+              "value": [
+                "aap"
+              ],
+              "target": "aap"
+            },
+            {
+              "value": [
+                "adelaar"
+              ],
+              "target": "adelaar"
+            },
+            {
+              "value": [
+                "dolfijn"
+              ],
+              "target": "dolfijn"
+            },
+            {
+              "value": [
+                "otter"
+              ],
+              "target": "otter"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "lievelingsdier"
+            }
+          ],
+          "user_model_id": "$lievelingsdier",
+          "answer": {
+            "speech": {
+              "context": "animals"
+            },
+            "touch": [
+              "aap",
+              "dolfijn",
+              "adelaar",
+              "otter",
+              "tijger",
+              "olifant",
+              "hond",
+              "kat"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "I actually like all animals.",
+          "branch": "fail_meer"
+        },
+        {
+          "act": "say",
+          "text": "But otters are my favorite right now!",
+          "branch": "fail_meer",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "back2ollie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "An otter!",
+          "branch": "otter"
+        },
+        {
+          "act": "say",
+          "text": "Ol lie will like that",
+          "branch": "otter"
+        },
+        {
+          "act": "say",
+          "text": "And how cool that we have the same favorite animal!",
+          "branch": "otter"
+        },
+        {
+          "act": "say",
+          "text": "I'll remember that forever.",
+          "branch": "otter",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "lievelingsdier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "A $lievelingsdier is a really cool animal too!",
+          "branch": "lievelingsdier"
+        },
+        {
+          "act": "ask",
+          "branch": "lievelingsdier",
+          "question": "What do you like so much about a $lievelingsdier?",
+          "type": "open",
+          "user_model_id": "$waarom_lievelingsdier",
+          "next": [
+            {
+              "value": ["success"],
+              "target": "got_waarom"
+            },
+            {
+              "value": ["fail"],
+              "target": "got_no_waarom"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "$lievelingsdier is indescribably fun!",
+          "branch": "got_no_waarom"
+        },
+        {
+          "act": "say",
+          "text": "I think so too!",
+          "branch": "got_no_waarom",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "back2ollie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Wow, I didn't know all that!",
+          "branch": "got_waarom"
+        },
+        {
+          "act": "say",
+          "text": "A $lievelingsdier also sounds like a super cool animal!",
+          "branch": "got_waarom",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "back2ollie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ol lie told me that otters each have their own stone.",
+          "branch": "back2ollie"
+        },
+        {
+          "act": "say",
+          "text": "They keep it in their armpit while they swim!",
+          "branch": "back2ollie"
+        },
+        {
+          "act": "say",
+          "text": "I think that's crazy cool.",
+          "branch": "back2ollie"
+        }
+      ],
+      "But I'm talking your ears off about otters!",
+      "Let's talk about something else!"
+    ],
+    "theme_en": "lievelings",
+    "topic_en": "animal"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_hond",
+    "theme": "dier",
+    "topic": "hond",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "hond",
+              "puppy"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I watched lots of videos of a $lievelingsdier on YouTube.",
+      "One video I found was really funny.",
+      "The $lievelingsdier had to jump over all kinds of obstacles.",
+      "And run through a tunnel and over a seesaw.",
+      "The $lievelingsdier that did it fastest won a prize.",
+      "So kind of like the RoboGames, but for a $lievelingsdier.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "dog"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_kat",
+    "theme": "dier",
+    "topic": "kat",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "kat",
+              "poes"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I watched lots of videos of a $lievelingsdier on YouTube.",
+      "What I noticed",
+      "is that a $lievelingsdier really likes to sit in a box.",
+      "It's sort of the opposite of robots.",
+      "I don't like sitting in a box.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "cat"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_dolfijn",
+    "theme": "dier",
+    "topic": "dolfijn",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "dolijn"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I watched lots of videos of a $lievelingsdier on YouTube.",
+      "One video I found was really funny.",
+      "Someone was paddling a canoe.",
+      "And suddenly a few dolphins swam around.",
+      "They splashed the man in the canoe wet.",
+      "That made me laugh.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "dolphin"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_katachtige",
+    "theme": "dier",
+    "topic": "katachtige",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "cheetah",
+              "tijger",
+              "panter"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I watched lots of videos of a $lievelingsdier on YouTube.",
+      "They can run incredibly fast.",
+      "I wouldn't want to race against that.",
+      "I can only walk very slowly, let alone run.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "feline"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_konijn",
+    "theme": "dier",
+    "topic": "konijn",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "konijn"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I read that rabbits are rodents.",
+      "Do they also like carrots?",
+      "Of course they shouldn't eat too many or they'll turn orange.",
+      "Although that would be kind of funny.",
+      "An orange rabbit.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "rabbit"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_adelaar",
+    "theme": "dier",
+    "topic": "adelaar",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "adelaar"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "They can fly very fast.",
+      "Up to 300 kilometers per hour.",
+      "I dream of one day being able to fly along on its back.",
+      "Can you picture it?",
+      "Me on a little saddle on the back of such a big bird.",
+      "Funny, right?",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "eagle"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_paard",
+    "theme": "dier",
+    "topic": "paard",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "green_list",
+            "values": [
+              "paard"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I did a bit of research.",
+      "I watched lots of videos of a $lievelingsdier on YouTube.",
+      "One video I found was really funny.",
+      "The horse had to neigh.",
+      "With its big teeth.",
+      "I thought that was really funny.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "horse"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_overig",
+    "theme": "dier",
+    "topic": "overig",
+    "dependencies": [
+      {
+        "dependent_on": "lievelingsdier",
+        "type": "user-model",
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingsdier",
+            "filter": "red_list",
+            "values": [
+              "hond",
+              "puppy",
+              "kat",
+              "poes",
+              "dolfijn",
+              "cheetah",
+              "tijger",
+              "panter",
+              "konijn",
+              "adelaar",
+              "paard"
+            ]
+          }
+        ]
+      }
+    ],
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Last time you told me that a $lievelingsdier was your favorite animal.",
+      "I've been thinking about that again.",
+      "A $lievelingsdier is really a cool animal.",
+      "I think it's really awesome that it's your favorite animal.",
+      "I found lots of videos of a $lievelingsdier on YouTube.",
+      "You should watch some tonight too.",
+      "Very interesting.",
+      "Always fun to learn new things.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier",
+    "topic_en": "other"
+  },
+  {
+    "mini-dialog": "chitchat",
+    "id": "lievelingsdier_control",
+    "theme": "dier_control",
+    "topic": "dier",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Just in between I wanted to tell you something.",
+      "I'm totally crazy about animals.",
+      "They come in all kinds of shapes and sizes.",
+      "From small insects to big elephants and whales.",
+      "Some have striking colors to stand out, like the peacock.",
+      "Others have dull colors to hide easily.",
+      "I just wanted to tell you that.",
+      "Let's continue again.",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      }
+    ],
+    "theme_en": "dier_control",
+    "topic_en": "animal"
+  }
+]

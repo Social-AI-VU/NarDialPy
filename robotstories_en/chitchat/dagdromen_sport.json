@@ -1,0 +1,244 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "dagdromen_sport",
+    "theme": "personalia",
+    "topic": "sport",
+    "dependencies": null,
+    "speech_acts": [
+      "Do you know what I sometimes wonder?",
+      "Whether I could be a sports robot.",
+      {
+        "act": "ask",
+        "question": "Do you play a sport?",
+        "type": "yesno",
+        "user_model_id": "$doet_kind_sport",
+        "topics": [
+          {
+            "value": [
+              "yes"
+            ],
+            "topics": [
+              "sport"
+            ]
+          }
+        ],
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "question": "Which sport do you play?",
+          "type": "options",
+          "user_model_id": "$sport_van_kind",
+          "topics": [
+            {
+              "value": [
+                "success"
+              ],
+              "topics": [
+                "sport",
+                "_answer"
+              ]
+            }
+          ],
+          "branch": "ja",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "wel_sport"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "wel_sport_2"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "sports"
+            },
+            "touch": [
+              "Voetbal",
+              "Hockey",
+              "Zwemmen",
+              "Dansen",
+              "Judo"
+            ]
+          }
+        },
+        {
+          "act": "ask",
+          "question": "Are you interested in sports?",
+          "type": "yesno",
+          "branch": "nee",
+          "user_model_id": "$kind_interesse_sport",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "interesse"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "geen_sport"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Which sport would you like to try?",
+          "type": "options",
+          "user_model_id": "$sport_van_kind",
+          "branch": "interesse",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "wel_sport"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "wel_sport_2"
+            }
+          ],
+          "topics": [
+            {
+              "value": [
+                "success"
+              ],
+              "topics": [
+                "sport",
+                "_answer"
+              ]
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "sports"
+            },
+            "touch": [
+              "Voetbal",
+              "Hockey",
+              "Zwemmen",
+              "Dansen",
+              "Judo"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Wow, $sport_van_kind!",
+          "branch": "wel_sport",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "wel_sport_2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Maybe it's something for me too.",
+          "branch": "wel_sport_2"
+        },
+        {
+          "act": "ask",
+          "question": "What do you like about it?",
+          "type": "open",
+          "user_model_id": "$sport_van_kind_reden",
+          "branch": "wel_sport_2"
+        },
+        {
+          "act": "say",
+          "text": "Sounds really cool, from what I hear!",
+          "branch": "wel_sport_2"
+        },
+        {
+          "act": "say",
+          "text": "I totally get that. I'm not very good at it either.",
+          "branch": "geen_sport"
+        },
+        {
+          "act": "say",
+          "text": "There are plenty of other fun things for us to do.",
+          "branch": "geen_sport",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": ""
+            }
+          ]
+        }
+      ],
+      "Soms kijk ik uit het raam en denk ik aan later.",
+      "Sometimes I look out the window and see myself as a sports robot.",
+      {
+        "act": "ask",
+        "question": "Do you think I could become a good sports robot?",
+        "type": "yesno",
+        "user_model_id": "$goede_sportrobot_janee",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Hmm, then I'll think about it a bit more.",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "That's so sweet of you!",
+          "branch": "ja"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "sport"
+  }
+]

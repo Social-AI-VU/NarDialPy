@@ -1,0 +1,180 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "binaire_getallen",
+    "theme": "lievelings",
+    "topic": "getal",
+    "dependencies": null,
+    "speech_acts": [
+      "Hey $naam, I need to choose a robot jersey number for the Robo Games!",
+      {
+        "act": "ask",
+        "question": "Do you have a lucky number?",
+        "type": "yesno",
+        "user_model_id": "$heeft_geluksgetal",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "ja",
+          "text": "Cool."
+        },
+        {
+          "act": "ask",
+          "question": "What is your lucky number?",
+          "type": "options",
+          "user_model_id": "$robot_rugnummer",
+          "branch": "ja",
+          "answer": {
+            "speech": {
+              "context": "integer"
+            },
+            "touch": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "default": 0,
+            "fast": false
+          },
+          "next": [
+            {
+              "value": [
+                0,
+                1
+              ],
+              "target": "01"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "waarom"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Maybe it's typical for robots to love numbers!",
+          "branch": "nee"
+        },
+        {
+          "act": "ask",
+          "question": "Which jersey number should I take for the Robo Games then?",
+          "type": "options",
+          "user_model_id": "$robot_rugnummer",
+          "branch": "nee",
+          "answer": {
+            "speech": {
+              "context": "integer"
+            },
+            "touch": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "default": 0,
+            "fast": false
+          },
+          "next": [
+            {
+              "value": [
+                0,
+                1
+              ],
+              "target": "01"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "waarom"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "How nice! That's one of my lucky numbers!",
+          "branch": "01",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "waarom"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "What do you like so much about $robot_rugnummer?",
+          "type": "open",
+          "user_model_id": "$geluksgetal_reden",
+          "branch": "waarom"
+        },
+        {
+          "act": "say",
+          "text": "Sounds like $robot_rugnummer is indeed a good choice!",
+          "branch": "waarom"
+        },
+        {
+          "act": "say",
+          "text": "Let's go with $robot_rugnummer as the jersey number.",
+          "branch": "fail"
+        }
+      ],
+      "So I have two lucky numbers: zero and one.",
+      "For robots those are the most special numbers in the whole world.",
+      "One and zero together control everything I think, and hear, and see.",
+      "Zero is off, one is on.",
+      "Or actually, zero is no, one is yes.",
+      "That was a fun robot fact."
+    ],
+    "theme_en": "favorites",
+    "topic_en": "number"
+  }
+]

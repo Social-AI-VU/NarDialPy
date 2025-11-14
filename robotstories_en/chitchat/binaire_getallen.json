@@ -1,180 +1,78 @@
-[
   {
-    "mini-dialog": "chitchat",
     "id": "binaire_getallen",
-    "theme": "lievelings",
-    "topic": "getal",
-    "dependencies": null,
-    "speech_acts": [
-      "Hey $naam, I need to choose a robot jersey number for the Robo Games!",
+    "type": "chitchat",
+    "theme": "favorites",
+    "topics": ["numbers", "robots", "lucky number"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "say", "text": "Hey %naam%, I need to choose a robot jersey number for the Robo Games!" },
       {
-        "act": "ask",
-        "question": "Do you have a lucky number?",
-        "type": "yesno",
-        "user_model_id": "$heeft_geluksgetal",
-        "next": [
-          {
-            "value": [
-              "yes"
-            ],
-            "target": "ja"
-          },
-          {
-            "value": [
-              "no",
-              "dontknow",
-              "fail"
-            ],
-            "target": "nee"
-          }
-        ]
-      },
-      [
-        {
-          "act": "say",
-          "branch": "ja",
-          "text": "Cool."
-        },
-        {
-          "act": "ask",
-          "question": "What is your lucky number?",
-          "type": "options",
-          "user_model_id": "$robot_rugnummer",
-          "branch": "ja",
-          "answer": {
-            "speech": {
-              "context": "integer"
-            },
-            "touch": [
-              0,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10
-            ],
-            "default": 0,
-            "fast": false
-          },
-          "next": [
-            {
-              "value": [
-                0,
-                1
-              ],
-              "target": "01"
-            },
-            {
-              "value": [
-                "_others"
-              ],
-              "target": "waarom"
-            },
-            {
-              "value": [
-                "fail"
-              ],
-              "target": "fail"
-            }
-          ]
-        },
-        {
-          "act": "say",
-          "text": "Maybe it's typical for robots to love numbers!",
-          "branch": "nee"
-        },
-        {
-          "act": "ask",
-          "question": "Which jersey number should I take for the Robo Games then?",
-          "type": "options",
-          "user_model_id": "$robot_rugnummer",
-          "branch": "nee",
-          "answer": {
-            "speech": {
-              "context": "integer"
-            },
-            "touch": [
-              0,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10
-            ],
-            "default": 0,
-            "fast": false
-          },
-          "next": [
-            {
-              "value": [
-                0,
-                1
-              ],
-              "target": "01"
-            },
-            {
-              "value": [
-                "_others"
-              ],
-              "target": "waarom"
-            },
-            {
-              "value": [
-                "fail"
-              ],
-              "target": "fail"
-            }
-          ]
-        },
-        {
-          "act": "say",
-          "text": "How nice! That's one of my lucky numbers!",
-          "branch": "01",
-          "next": [
-            {
-              "value": [
-                "true"
-              ],
-              "target": "waarom"
-            }
-          ]
-        },
-        {
-          "act": "ask",
-          "question": "What do you like so much about $robot_rugnummer?",
-          "type": "open",
-          "user_model_id": "$geluksgetal_reden",
-          "branch": "waarom"
-        },
-        {
-          "act": "say",
-          "text": "Sounds like $robot_rugnummer is indeed a good choice!",
-          "branch": "waarom"
-        },
-        {
-          "act": "say",
-          "text": "Let's go with $robot_rugnummer as the jersey number.",
-          "branch": "fail"
+        "type": "ask_yesno",
+        "text": "Do you have a lucky number?",
+        "set_variable": "heeft_geluksgetal",
+        "next": {
+          "yes": "ja",
+          "no": "nee",
+          "dontknow": "nee",
+          "fail": "nee"
         }
-      ],
-      "So I have two lucky numbers: zero and one.",
-      "For robots those are the most special numbers in the whole world.",
-      "One and zero together control everything I think, and hear, and see.",
-      "Zero is off, one is on.",
-      "Or actually, zero is no, one is yes.",
-      "That was a fun robot fact."
-    ],
-    "theme_en": "favorites",
-    "topic_en": "number"
+      },
+
+      { "type": "say", "text": "Cool.", "branch": "ja" },
+      {
+        "type": "ask_options",
+        "text": "What is your lucky number?",
+        "options": ["0","1","2","3","4","5","6","7","8","9","10"],
+        "set_variable": "robot_rugnummer",
+        "branch": "ja",
+        "next": {
+          "0": "waarom",
+          "1": "waarom",
+          "2": "waarom",
+          "3": "waarom",
+          "4": "waarom",
+          "5": "waarom",
+          "6": "waarom",
+          "7": "waarom",
+          "8": "waarom",
+          "9": "waarom",
+          "10": "waarom",
+          "fail": "fail"
+        }
+      },
+
+      { "type": "say", "text": "Maybe it's typical for robots to love numbers!", "branch": "nee" },
+      {
+        "type": "ask_options",
+        "text": "Which jersey number should I take for the Robo Games then?",
+        "options": ["0","1","2","3","4","5","6","7","8","9","10"],
+        "set_variable": "robot_rugnummer",
+        "branch": "nee",
+        "next": {
+          "0": "waarom",
+          "1": "waarom",
+          "2": "waarom",
+          "3": "waarom",
+          "4": "waarom",
+          "5": "waarom",
+          "6": "waarom",
+          "7": "waarom",
+          "8": "waarom",
+          "9": "waarom",
+          "10": "waarom",
+          "fail": "fail"
+        }
+      },
+
+      { "type": "ask_open", "text": "What do you like so much about %robot_rugnummer%?", "set_variable": "geluksgetal_reden", "add_interest_from_variable": "robot_rugnummer", "add_interest_from_answer": true, "next": {"success": "waarom_done", "fail": "fail"} },
+      { "type": "say", "text": "Sounds like %robot_rugnummer% is indeed a good choice!", "branch": "waarom_done" },
+      { "type": "say", "text": "Let's go with %robot_rugnummer% as the jersey number.", "branch": "fail" },
+
+      { "type": "say", "text": "So I have two lucky numbers: zero and one." },
+      { "type": "say", "text": "For robots those are the most special numbers in the whole world." },
+      { "type": "say", "text": "One and zero together control everything I think, and hear, and see." },
+      { "type": "say", "text": "Zero is off, one is on." },
+      { "type": "say", "text": "Or actually, zero is no, one is yes." },
+      { "type": "say", "text": "That was a fun robot fact." }
+    ]
   }
-]

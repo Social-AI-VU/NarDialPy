@@ -1,0 +1,189 @@
+[
+  {
+    "mini-dialog": "functional",
+    "id": "secret_handshake_maken",
+    "function": "greeting",
+    "dependencies": null,
+    "speech_acts": [
+      "Het is bijna tijd om te gaan",
+      "Ik heb gezien dat volwassenen elkaar een hand geven als ze elkaar ontmoeten en gedag zeggen.",
+      "Maar dat lijkt me eigenlijk een beetje saai.",
+      "Iedereen geeft elkaar al een hand.",
+      "Laten wij onze eigen geheime begroeting bedenken!",
+      "De begroeting bestaat uit een liedje en een beweging",
+      "Ik heb alleen nog geen leuk liedje.",
+      {
+        "act": "say",
+        "text": "Wacht, ik download er wel eventjes twee",
+        "led": {
+          "animation": "rotate",
+          "location": "eyes",
+          "color": [
+            "blue"
+          ]
+        }
+      },
+      "Mag jij zo kiezen welke je de leukste vind",
+      {
+        "act": "say",
+        "text": "klaar",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Dit is de eerste",
+      {
+        "act": "play",
+        "audio": "tiktok1.wav"
+      },
+      "Dit is de tweede",
+      {
+        "act": "play",
+        "audio": "tiktok2.wav"
+      },
+      {
+        "act": "ask",
+        "question": "Vind je het eerste of tweede liedje leuker, of zal ik kiezen?",
+        "type": "options",
+        "user_model_id": "$keuze_liedje_handshake",
+        "next": [
+          {
+            "value": [
+              "eerste"
+            ],
+            "target": "eerste"
+          },
+          {
+            "value": [
+              "tweede"
+            ],
+            "target": "tweede"
+          },
+          {
+            "value": [
+              "hero"
+            ],
+            "target": "hero"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "involvement_which_option_or_robot"
+          },
+          "touch": [
+            "eerste",
+            "tweede",
+            "hero"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "branch": "eerste",
+          "text": "Het eerste liedje, die was leuk hè",
+          "save_sound": {
+            "user_model_id": "$handshake_sound",
+            "file": "tiktok1.wav"
+          }
+        },
+        {
+          "act": "say",
+          "branch": "tweede",
+          "text": "Het tweede liedje, die was leuk hè",
+          "save_sound": {
+            "user_model_id": "$handshake_sound",
+            "file": "tiktok2.wav"
+          }
+        },
+        {
+          "act": "say",
+          "branch": "hero",
+          "text": "Het eerste liedje vond ik het leukst, dus die heb ik gekozen",
+          "save_sound": {
+            "user_model_id": "$handshake_sound",
+            "file": "tiktok1.wav"
+          }
+        },
+        {
+          "act": "say",
+          "branch": "fail",
+          "text": "Ik heb even gemist wat je zei, sorry. Laten we voor het eerste liedje gaan.",
+          "save_sound": {
+            "user_model_id": "$handshake_sound",
+            "file": "tiktok1.wav"
+          }
+        }
+      ],
+      "En dan nu de beweging",
+      "Je mag zo mijn armen vastpakken",
+      "En ze bewegen, om een begroeting te maken, passend bij het liedje",
+      "Dan sla ik die beweging op, zodat ik hem daarna weer kan nadoen",
+      {
+        "act": "say",
+        "text": "Als je er klaar voor bent, kun je op de ja knop drukken",
+        "led": {
+          "location": [
+            "RightFootLeds"
+          ],
+          "color": [
+            "groen"
+          ]
+        },
+        "wait_for_event": "RightBumperPressed",
+        "set_stiffness": {
+          "joints": [
+            "RArm",
+            "LArm"
+          ],
+          "stiffness": 0
+        }
+      },
+      {
+        "act": "say",
+        "text": "Pak mijn armen maar vast. Je kunt bewegen in 3. 2. 1.",
+        "led": {
+          "location": [
+            "RightFootLeds"
+          ],
+          "color": [
+            "wit"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "",
+        "record_motion": [
+          "RArm",
+          "LArm"
+        ],
+        "audio": "$handshake_sound"
+      },
+      {
+        "act": "say",
+        "text": "3, 2, 1, klaar.",
+        "animated": false
+      },
+      {
+        "act": "say",
+        "save_motion": {
+          "user_model_id": "$handshake_motion",
+          "joints": [
+            "RArm",
+            "LArm"
+          ]
+        }
+      },
+      "Het is heel mooi geworden.",
+      "We gaan het zo terug kijken",
+      "Maar eerst wil ik nog wat zeggen."
+    ]
+  }
+]

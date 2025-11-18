@@ -1,0 +1,325 @@
+{
+  "mini-dialog": "chitchat",
+  "id": "lievelingseten_vervolg_pizza",
+  "theme": "lievelings",
+  "topic": "eten",
+  "dependencies": [
+    [
+      {
+        "dependent_on": "lievelingseten",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": [
+          {
+            "conditional_of": "$lievelingseten_met_p",
+            "filter": "green_list",
+            "values": [
+              "pizza"
+            ]
+          }
+        ]
+      },
+      {
+        "dependent_on": "binaire_getallen",
+        "type": "user-model",
+        "session_break": 0,
+        "conditionals": null
+      }
+    ]
+  ],
+  "speech_acts": [
+    "Yesterday I tried to make pizza myself.",
+    "That seems useful to learn!",
+    "That way I can make you and lots of other people very happy!",
+    {
+      "act": "ask",
+      "type": "yesno",
+      "question": "Have you ever made pizza yourself?",
+      "user_model_id": "$heeft_pizza_gemaakt",
+      "next": [
+        {
+          "value": [
+            "ja"
+          ],
+          "target": "pizza_wel_gemaakt"
+        },
+        {
+          "value": [
+            "nee",
+            "dontknow"
+          ],
+          "target": "pizza_niet_gemaakt"
+        },
+        {
+          "value": [
+            "fail"
+          ],
+          "target": "pizza_eerste_fail"
+        }
+      ]
+    },
+    [
+      {
+        "act": "ask",
+          "question": "Cool! And did your pizza turn out well?",
+        "branch": "pizza_wel_gemaakt",
+        "user_model_id": "$heeft_pizza_gemaakt_gelukt",
+        "type": "yesno",
+        "next": [
+          {
+            "value": [
+              "ja"
+            ],
+            "target": "pizza_wel_gelukt"
+          },
+          {
+            "value": [
+              "nee",
+              "dontknow"
+            ],
+            "target": "pizza_niet_gelukt"
+          }
+        ]
+      },
+      {
+        "act": "say",
+          "text": "Nice! Mine went a bit wrong.",
+        "branch": "pizza_wel_gelukt"
+      },
+      {
+        "act": "say",
+          "text": "Oh no! Well, mine didn't go very well either!",
+        "branch": "pizza_niet_gelukt"
+      },
+      {
+        "act": "say",
+          "text": "I messed up a bit yesterday.",
+        "branch": "pizza_eerste_fail"
+      },
+      {
+        "act": "say",
+          "text": "I had never done it before either!",
+        "branch": "pizza_niet_gemaakt"
+      },
+      {
+        "act": "say",
+          "text": "That's why it went a bit wrong.",
+        "branch": "pizza_niet_gemaakt"
+      }
+    ],
+    {
+      "act": "ask",
+      "question": "Do you remember we talked about our lucky numbers?",
+      "user_model_id": "$herinnert_ggg",
+      "type": "yesno",
+      "next": [
+        {
+          "value": [
+            "ja"
+          ],
+          "target": "herinnert_ggg_wel"
+        },
+        {
+          "value": [
+            "nee",
+            "dontknow",
+            "fail"
+          ],
+          "target": "herinnert_ggg_niet"
+        }
+      ]
+    },
+    [
+      {
+        "act": "continuator",
+        "branch": "herinnert_ggg_wel",
+        "conditionals": [
+          {
+            "target": "herinnert_ggg_met_ggg",
+            "conditionals": [
+              {
+                "conditional_of": "$heeft_geluksgetal",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              },
+              {
+                "conditional_of": "$robot_rugnummer",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "herinnert_ggg_zonder_ggg",
+            "conditionals": []
+          }
+        ]
+      },
+      {
+        "branch": "herinnert_ggg_zonder_ggg",
+        "act": "say",
+          "text": "How nice that you remember!"
+      },
+      {
+        "branch": "herinnert_ggg_zonder_ggg",
+        "act": "say",
+          "text": "I remember that you don't have a lucky number."
+      },
+      {
+        "branch": "herinnert_ggg_met_ggg",
+        "act": "say",
+          "text": "Me too!"
+      },
+      {
+        "branch": "herinnert_ggg_met_ggg",
+        "act": "say",
+          "text": "Your lucky number is $robot_rugnummer!"
+      },
+      {
+        "act": "continuator",
+        "branch": "herinnert_ggg_niet",
+        "conditionals": [
+          {
+            "target": "herinnert_ggg_niet_met_ggg",
+            "conditionals": [
+              {
+                "conditional_of": "$heeft_geluksgetal",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              },
+              {
+                "conditional_of": "$robot_rugnummer",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "herinnert_ggg_niet_zonder_ggg",
+            "conditionals": []
+          }
+        ]
+      },
+      {
+        "branch": "herinnert_ggg_niet_met_ggg",
+        "act": "say",
+          "text": "That was quite a while ago."
+      },
+      {
+        "branch": "herinnert_ggg_niet_met_ggg",
+        "act": "say",
+          "text": "But I've saved in my Hero memory that $robot_rugnummer is your lucky number!"
+      },
+      {
+        "branch": "herinnert_ggg_niet_zonder_ggg",
+        "act": "say",
+          "text": "Makes sense, because you don't have a lucky number."
+      }
+    ],
+    {
+      "act": "ask",
+      "question": "Do you still know which numbers are my lucky numbers?",
+      "user_model_id": "$weet_gg_hero",
+      "type": "yesno",
+      "next": [
+        {
+          "value": [
+            "ja"
+          ],
+          "target": "herinnert_gg_hero_wel"
+        },
+        {
+          "value": [
+            "nee",
+            "dontknow",
+            "fail"
+          ],
+          "target": "herinnert_gg_hero_niet"
+        }
+      ]
+    },
+    [
+      {
+        "act": "ask",
+          "question": "Can you name them?",
+        "type": "options",
+        "user_model_id": "$recall_gg_hero",
+        "branch": "herinnert_gg_hero_wel",
+        "answer": {
+          "speech": {
+            "context": "integer"
+          },
+          "touch": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        "next": [
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "herinnert_gg_hero_niet"
+          },
+          {
+            "value": [
+              0,
+              1
+            ],
+            "target": "herinnert_gg_hero_correct"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "herinnert_gg_hero_incorrect"
+          }
+        ]
+      },
+      {
+        "branch": "herinnert_gg_hero_niet",
+        "act": "say",
+          "text": "My lucky numbers are 0 and 1!"
+      },
+      {
+        "branch": "herinnert_gg_hero_correct",
+        "act": "say",
+          "text": "Yes, that's right!"
+      },
+      {
+        "branch": "herinnert_gg_hero_incorrect",
+        "act": "say",
+          "text": "I actually like all numbers, but my lucky numbers are 0 and 1!"
+      }
+    ],
+    "Sometimes I suddenly come across a 0 or a 1 in a human thing.",
+    "That makes me so wildly happy that my robo-brain runs wild!",
+    "When that happens, I sometimes accidentally read the 0 or 1 twice.",
+    "The pizza recipe said: set the oven to two hundred and twenty degrees.",
+    "Two twos and a zero.",
+    "A zero, hooray! Hooray, a zero!",
+    "My robo-brain passed that on to my robot arm.",
+    "You can probably hear it already: two twos and two zeros.",
+    "I set the oven to two thousand two hundred degrees!",
+    "Insanely, mega hot!",
+    "But hey, how was I supposed to know, I'd never made pizza before!",
+    "Still haven't, by the way.",
+    "Of course there was no pizza left when I opened the oven!",
+    "Just a completely black, rock-hard circle!",
+    "A mistake like that wouldn't be very handy at the Robo Games!",
+    "Shall we continue training?"
+  ],
+  "theme_en": "favorites",
+  "topic_en": "food"
+}

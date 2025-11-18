@@ -1,0 +1,2558 @@
+[
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anything new one"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "dreaming"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Indeed, dreaming."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no waves"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "no waves are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I would like to talk about dogs"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "dreaming"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Indeed, dreaming."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I think I have what I like most about the sea is the waves"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I think I have what I like most about the sea is the waves are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I also really love the sea!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "If you hold a shell to your ear, it\u2019s just like you hear the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anything you want"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "dreaming"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Indeed, dreaming."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "mountains"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "How exciting! From the top of a mountain you have the most beautiful view over the world."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "the sound"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "the sound are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hi! Nice to meet you."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "favorite_tree"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "There are so many kinds of trees in nature."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Do you have a favorite tree?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes the Christmas tree"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "favorite_tree"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "likes_dogs"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you like dogs?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "No problem, different tastes!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "likes_dogs"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "You know, first_name."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Yesterday I was thinking about seeing you again today."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And that today I get to learn from you again about human things."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And then I suddenly wondered:"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Would you ever want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Bizarre!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Why would you want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I want to have super powers"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I really like hearing that!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "May I also tell other robots about that?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hooray! Just a moment."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I passed it on to them via wifi."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And lots of robots say thank you, dear first_name."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_2"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_3"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello, this is greeting 3."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_3"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "nature_sounds"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I love listening to the sounds of nature."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What is your favorite sound in nature?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "let me think I think you are my favorite sound in nature is"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "nature_sounds"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_favorite_feature"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "I wonder: If you could have any robot feature, what would it be?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "in Endor indestructible"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Wow, that's a cool feature! I wish I had that too."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_favorite_feature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_3"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!GOODBYE 3"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_3"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hi! Nice to meet you."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "favorite_tree"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "There are so many kinds of trees in nature."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Do you have a favorite tree?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "oak tree"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "favorite_tree"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "You know, first_name."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Yesterday I was thinking about seeing you again today."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And that today I get to learn from you again about human things."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And then I suddenly wondered:"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Would you ever want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Bizarre!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Why would you want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "because I would be"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I really like hearing that!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "May I also tell other robots about that?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Alright, then I\u2019ll keep your sweet words just for myself."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Thank you, dear first_name."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_favorite_feature"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "I wonder: If you could have any robot feature, what would it be?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "two beauties"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Wow, that's a cool feature! I wish I had that too."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_favorite_feature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_2"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anyting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "dreaming"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Indeed, dreaming."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I also really love the sea!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "If you hold a shell to your ear, it\u2019s just like you hear the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "the sound of waves"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "the sound of waves are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_4"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hi! This is greeting 4."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_4"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "ask_favorite_animal"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What is your favorite animal?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "my favorite animals are dogs"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Wow, I like dogs too!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "ask_favorite_animal"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "pineapple_on_pizza"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Do you like pineapple on pizza?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Yes or no?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "pineapple_on_pizza"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_4"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!GOODBYE 4"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_4"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anything"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "This is called dreaming!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "that it's blue"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "blue are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "mountains"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "How exciting! From the top of a mountain you have the most beautiful view over the world."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hi! Nice to meet you."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "yes"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Let's try a small personalized follow-up."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What's something fun you did today?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I dentist I went dancing"
+    },
+    {
+      "role": "robot",
+      "type": "personalize",
+      "text": "Thanks for sharing. Would you like to tell me a bit more?",
+      "source_question": "What's something fun you did today?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Thanks for telling me!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "You know, first_name."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Yesterday I was thinking about seeing you again today."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And that today I get to learn from you again about human things."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And then I suddenly wondered:"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Would you ever want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Bizarre!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Why would you want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "I'm curious"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I really like hearing that!"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "May I also tell other robots about that?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Alright, then I\u2019ll keep your sweet words just for myself."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Thank you, dear first_name."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_2"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anything"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "This is called dreaming!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "The sea can be so calming."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What do you like most about the sea?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "the waves"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "waves are great!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "talk_about_sea"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Let's try a small personalized follow-up."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What's something fun you did today?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "howdy I went to coffee place"
+    },
+    {
+      "role": "robot",
+      "type": "personalize",
+      "text": "Thanks for sharing. Would you like to tell me a bit more?",
+      "source_question": "What's something fun you did today?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Thanks for telling me!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hi! Nice to meet you."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know some people dream about clouds?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever dreamed about clouds?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "no"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dreams_about_clouds"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": null
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I think I would most like to go to the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Did you know I can sleep?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I get so tired I just shut down."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "Have you ever fallen asleep suddenly?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "PS4"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream12"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "likes_dogs"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you like dogs?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "yes"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Nice! Dogs are great."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "likes_dogs"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "You know, first_name."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Yesterday I was thinking about seeing you again today."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And that today I get to learn from you again about human things."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "And then I suddenly wondered:"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Would you ever want to be a robot?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Well, you don\u2019t know what you\u2019re missing!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "But of course, I don\u2019t know what it\u2019s like to be human either."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Maybe that actually is more fun."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "But I don\u2019t think I\u2019ll ever find out!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "robot_want_to_be"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Goodbye! Have a great day!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye_2"
+    }
+  ],
+  [
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Hello! How are you today?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What would you like to talk about?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "anything you want"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "greeting"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Sometimes I make up entire stories when I'm turned off."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+      "options": [
+        "dreaming",
+        "sleeping",
+        "resting"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "dreaming"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Indeed, dreaming."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I sometimes dream of being a robot dog with four legs."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I can fetch and deliver letters."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "What do you dream about?"
+    },
+    {
+      "role": "robot",
+      "type": "ask_yesno",
+      "text": "Do you remember any of your dreams?"
+    },
+    {
+      "role": "user",
+      "type": "answer_yesno",
+      "text": "no"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I have that sometimes too!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Then you dream something and afterwards it's gone!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "hero_can_dream_1"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Let's try a small personalized follow-up."
+    },
+    {
+      "role": "robot",
+      "type": "ask_open",
+      "text": "What's something fun you did today?"
+    },
+    {
+      "role": "user",
+      "type": "answer_open",
+      "text": "rent"
+    },
+    {
+      "role": "robot",
+      "type": "personalize",
+      "text": "Thanks for sharing. Would you like to tell me a bit more?",
+      "source_question": "What's something fun you did today?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Thanks for telling me!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "personalization_test"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Last night, when I was powered off,"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I dreamed I was standing in an empty field."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I was dreaming, but nothing happened."
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "dream_on_demand_2"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "By the way, do you know what I\u2019ve read?"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Apparently people get happy from nature."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach."
+    },
+    {
+      "role": "robot",
+      "type": "ask_options",
+      "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+      "options": [
+        "sea",
+        "forest",
+        "mountains",
+        "beach"
+      ]
+    },
+    {
+      "role": "user",
+      "type": "answer_options",
+      "text": "sea"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "I also really love the sea!"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "If you hold a shell to your ear, it\u2019s just like you hear the sea."
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "Okay, let\u2019s talk about something else!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "place_in_nature"
+    },
+    {
+      "role": "system",
+      "type": "dialog_start",
+      "dialog_id": "goodbye"
+    },
+    {
+      "role": "robot",
+      "type": "say",
+      "text": "It was nice talking to you. Goodbye!"
+    },
+    {
+      "role": "system",
+      "type": "dialog_end",
+      "dialog_id": "goodbye"
+    }
+  ]
+]

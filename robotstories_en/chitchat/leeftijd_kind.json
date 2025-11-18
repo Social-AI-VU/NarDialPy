@@ -1,0 +1,169 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "leeftijd_kind",
+    "theme": "personalia",
+    "topic": "leeftijd",
+    "dependencies": null,
+    "speech_acts": [
+      "I don't know that many people yet.",
+      {
+        "act": "ask",
+        "question": "How old are you?",
+        "type": "options",
+        "user_model_id": "$leeftijd",
+        "answer": {
+          "speech": {
+            "context": "integer"
+          },
+          "touch": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ]
+        }
+      },
+      "$leeftijd!",
+      "That's old!",
+      "For a robot I'm still very young.",
+      "Converted to human years I think I'm:",
+      {
+        "act": "branchingpoint",
+        "source": "$leeftijd",
+        "next": [
+          {
+            "value": [
+              4
+            ],
+            "target": "3"
+          },
+          {
+            "value": [
+              5
+            ],
+            "target": "4"
+          },
+          {
+            "value": [
+              6
+            ],
+            "target": "5"
+          },
+          {
+            "value": [
+              7
+            ],
+            "target": "6"
+          },
+          {
+            "value": [
+              8
+            ],
+            "target": "7"
+          },
+          {
+            "value": [
+              9,
+              "fail",
+              "_others"
+            ],
+            "target": "7_5"
+          },
+          {
+            "value": [
+              10
+            ],
+            "target": "8_5"
+          },
+          {
+            "value": [
+              11
+            ],
+            "target": "9_5"
+          },
+          {
+            "value": [
+              12
+            ],
+            "target": "11"
+          },
+          {
+            "value": [
+              13
+            ],
+            "target": "12"
+          },
+          {
+            "value": [
+              14
+            ],
+            "target": "13"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Three.",
+          "branch": "3"
+        },
+        {
+          "act": "say",
+          "text": "Four.",
+          "branch": "4"
+        },
+        {
+          "act": "say",
+          "text": "Five.",
+          "branch": "5"
+        },
+        {
+          "act": "say",
+          "text": "Six.",
+          "branch": "6"
+        },
+        {
+          "act": "say",
+          "text": "Seven.",
+          "branch": "7"
+        },
+        {
+          "act": "say",
+          "text": "Seven and a half.",
+          "branch": "7_5"
+        },
+        {
+          "act": "say",
+          "text": "Eight and a half.",
+          "branch": "8_5"
+        },
+        {
+          "act": "say",
+          "text": "Nine and a half.",
+          "branch": "9_5"
+        },
+        {
+          "act": "say",
+          "text": "Eleven.",
+          "branch": "11"
+        },
+        {
+          "act": "say",
+          "text": "Twelve.",
+          "branch": "12"
+        },
+        {
+          "act": "say",
+          "text": "Thirteen.",
+          "branch": "13"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "age"
+  }
+]

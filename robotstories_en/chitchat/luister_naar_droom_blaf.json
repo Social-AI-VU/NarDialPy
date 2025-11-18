@@ -1,0 +1,51 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "luister_naar_droom_blaf",
+    "theme": "help",
+    "topic": "droom_blaf",
+    "dependencies": null,
+    "speech_acts": [
+        "Let's listen.",
+      {
+        "act": "play",
+        "audio": "$hondenblaf"
+      },
+        "Yes! Amazing.",
+        "A real dog.",
+        "That's how you taught me to bark in the dream.",
+        "And sit.",
+        "You said sit and then I did.",
+      {
+        "act": "play",
+        "motion": "rest"
+      },
+        "And stand.",
+        "Join in if you like.",
+      {
+        "act": "play",
+        "motion": "wake_up"
+      },
+        "And sit.",
+      {
+        "act": "play",
+        "motion": "rest"
+      },
+        "And stand.",
+      {
+        "act": "play",
+        "motion": "wake_up"
+      },
+        "Alright, you go sit again now",
+        "then I'll keep standing a bit.",
+        "It's like an exercise for the RoboGames this way.",
+        "By the way I also dreamed I was a dog",
+        "Who could $vlieg_zwem_race",
+        "exactly like we thought up together.",
+        "Do you remember?",
+        "I wish everything were as easy and fun as in a dream."
+    ],
+    "theme_en": "help",
+    "topic_en": "dream_bark"
+  }
+]

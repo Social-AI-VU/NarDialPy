@@ -1,0 +1,423 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "huisdier",
+    "theme": "personalia",
+    "topic": "huisdier",
+    "dependencies": null,
+    "speech_acts": [
+      "Trouwens",
+      {
+        "act": "ask",
+        "question": "Heb jij een huisdier?",
+        "type": "yesno",
+        "user_model_id": "$heb_je_huisdier",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "nee"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "fail"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ik heb geen huisdier.",
+          "branch": "fail",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik ook niet.",
+          "branch": "nee",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Leuk!",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "Hoeveel huisdieren heb je?",
+          "branch": "ja",
+          "type": "options",
+          "user_model_id": "$hoeveel_huisdieren",
+          "next": [
+            {
+              "value": [
+                0
+              ],
+              "target": "0"
+            },
+            {
+              "value": [
+                1
+              ],
+              "target": "1"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "2_of_meer"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "integer"
+            },
+            "touch": [
+              1,
+              "2",
+              "meer dan 2",
+              0
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Ik heb ook nul huisdieren.",
+          "branch": "0",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Wow!",
+          "branch": "2_of_meer"
+        },
+        {
+          "act": "ask",
+          "question": "Zit daar ook een hond tussen?",
+          "type": "yesno",
+          "branch": "2_of_meer",
+          "user_model_id": "$ook_hond",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "ja_o_h"
+            },
+            {
+              "value": [
+                "no",
+                "fail",
+                "dontknow"
+              ],
+              "target": "nee_o_h"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Hoeveel honden heb je?",
+          "branch": "ja_o_h",
+          "type": "options",
+          "user_model_id": "$hoeveelheid_honden",
+          "next": [
+            {
+              "value": [
+                1
+              ],
+              "target": "hond"
+            },
+            {
+              "value": [
+                0,
+                "fail"
+              ],
+              "target": "nee_o_h"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "meer_honden"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "integer"
+            },
+            "touch": [
+              1,
+              "2",
+              "meer dan 2",
+              0
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Bizar!",
+          "branch": "meer_honden"
+        },
+        {
+          "act": "say",
+          "text": "Dat klinkt heel erg leuk!",
+          "branch": "meer_honden"
+        },
+        {
+          "act": "say",
+          "text": "Ik vind kleine honden leuker dan grote.",
+          "branch": "meer_honden"
+        },
+        {
+          "act": "say",
+          "text": "Ik ben zelf natuurlijk ook niet zo groot.",
+          "branch": "meer_honden"
+        },
+        {
+          "act": "ask",
+          "question": "Hoe heet jouw kleinste hond?",
+          "branch": "meer_honden",
+          "type": "open",
+          "user_model_id": "$naam_huisdier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "leuke_naam"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Wat voor andere dieren heb je dan?",
+          "type": "options",
+          "branch": "nee_o_h",
+          "user_model_id": "$soort_huisdier",
+          "next": [
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "ander_dier"
+            },
+            {
+              "value": [
+                "fail",
+                "dontknow"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "animals"
+            },
+            "touch": [
+              "kat",
+              "konijn",
+              "cavia",
+              "een ander dier"
+            ]
+          }
+        },
+        {
+          "act": "ask",
+          "question": "En wat voor soort dier heb je?",
+          "type": "options",
+          "branch": "1",
+          "user_model_id": "$soort_huisdier",
+          "next": [
+            {
+              "value": [
+                "hond"
+              ],
+              "target": "hond"
+            },
+            {
+              "value": [
+                "_others"
+              ],
+              "target": "ander_dier"
+            },
+            {
+              "value": [
+                "fail",
+                "dontknow"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "animals"
+            },
+            "touch": [
+              "kat",
+              "hond",
+              "cavia",
+              "een ander dier"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Cool!",
+          "branch": "hond"
+        },
+        {
+          "act": "say",
+          "text": "Ik vind honden leuk.",
+          "branch": "hond"
+        },
+        {
+          "act": "say",
+          "text": "Die zijn supergoed in mensen helpen.",
+          "branch": "hond",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "naam_dier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Cool!",
+          "branch": "ander_dier"
+        },
+        {
+          "act": "say",
+          "text": "Een $soort_huisdier lijkt me ook een leuk huisdier.",
+          "branch": "ander_dier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "naam_dier"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Hoe heet je $soort_huisdier?",
+          "type": "open",
+          "branch": "naam_dier",
+          "user_model_id": "$naam_huisdier",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "leuke_naam"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "got_no_answer_naam"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Geeft niks",
+          "branch": "got_no_answer_naam"
+        },
+        {
+          "act": "say",
+          "text": "Het mag ook geheim blijven",
+          "branch": "got_no_answer_naam",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Wat een leuke naam!",
+          "branch": "leuke_naam"
+        },
+        {
+          "act": "say",
+          "text": "Als ik ooit een $soort_huisdier krijg, noem ik hem ook zo.",
+          "branch": "leuke_naam",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "hero_wil_hond"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik zou heel graag een hond willen.",
+          "branch": "hero_wil_hond"
+        },
+        {
+          "act": "say",
+          "text": "Honden zijn supergoed in mensen helpen.",
+          "branch": "hero_wil_hond"
+        },
+        {
+          "act": "say",
+          "text": "Van mijn hond zou ik van alles over mensen kunnen leren.",
+          "branch": "hero_wil_hond"
+        },
+        {
+          "act": "say",
+          "text": "Ook als jij niet in de buurt bent om mee te praten!",
+          "branch": "hero_wil_hond"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "huisdier"
+  }
+]

@@ -1,0 +1,235 @@
+[
+  {
+    "mini-dialog": "functional",
+    "id": "eerste_begroeting",
+    "function": "greeting",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "text": "Hello, my name is Hero!",
+        "motion": "wave1.json"
+      },
+      "And I am a robot.",
+      {
+        "act": "say",
+        "text": "What's your name?",
+        "timer": 3000
+      },
+      "%first_name%, what a beautiful name!",
+      "I've never met anyone with that name before. I think",
+      "Let me first tell you something about myself",
+      "I'm practicing to become a care robot.",
+      "So I can help children in the hospital.",
+      "I still have a lot to learn, but I'm doing my best.",
+      "How nice that you want to help me with that",
+      "I like chatting and telling little stories \\pau=300\\"
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "begroeting_leuke_dag_gehad",
+    "function": "greeting",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "text": "Hello $naam!"
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "play",
+          "branch": "control",
+          "motion": "wave1.json"
+        },
+        {
+          "act": "play",
+          "branch": "memory",
+          "audio": "$handshake_sound",
+          "motion": "$handshake_motion"
+        }
+      ],
+      "Nice to see you again!",
+      {
+        "act": "ask",
+        "question": "Are you having a nice day today?",
+        "type": "yesno",
+        "user_model_id": "$leuke_dag_vandaag",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Great!",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "What have you done then?",
+          "type": "open",
+          "user_model_id": "$gedaan_vandaag",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "That sounds good.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Oh, that's a pity!",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Then let's quickly talk about something fun.",
+          "branch": "nee"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "functional",
+    "id": "begroeting_4",
+    "function": "greeting",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+      "Hallo $naam!",
+  "So nice to see you again",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "play",
+          "branch": "control",
+          "motion": "wave1.json"
+        },
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "I still really like the secret greeting we made together!"
+        },
+        {
+          "act": "play",
+          "branch": "memory",
+          "audio": "$handshake_sound",
+          "motion": "$handshake_motion"
+        }
+      ],
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+        "question": "Are you having a nice day today?",
+        "type": "yesno",
+        "user_model_id": "$leuke_dag_vandaag",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Great!",
+          "branch": "ja"
+        },
+        {
+          "act": "ask",
+          "question": "What have you done then?",
+          "type": "open",
+          "user_model_id": "$gedaan_vandaag",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "That sounds good.",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Oh, that's a pity!",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Then let's quickly talk about something fun.",
+          "branch": "nee"
+        }
+      ]
+    ]
+  }
+]

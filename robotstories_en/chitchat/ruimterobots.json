@@ -1,0 +1,1228 @@
+{
+  "mini-dialog": "chitchat",
+  "id": "ruimterobots",
+  "theme": "personalia",
+  "topic": "ruimte",
+  "dependencies": null,
+  "speech_acts": [
+    "he $naam!",
+    {
+      "act": "continuator",
+      "conditionals": [
+        {
+          "target": "astronaut",
+          "conditionals": [
+            {
+              "conditional_of": "$beroep_van_kind",
+              "filter": "green_list",
+              "values": [
+                "astronaut"
+              ]
+            }
+          ]
+        },
+        {
+          "target": "geen",
+          "conditionals": []
+        }
+      ]
+    },
+    [
+      {
+        "act": "say",
+        "text": "jij wil later astronaut worden, en daarom hebben een paar ruimterobots een vraag aan je.",
+        "branch": "astronaut"
+      },
+      {
+        "act": "say",
+        "text": "Een paar andere robots hebben een vraag aan je.",
+        "branch": "geen"
+      }
+    ],
+    "Ik kreeg die net door via mijn draadje.",
+    "Ze zijn benieuwd of jij ooit op vakantie naar de ruimte wil.",
+    {
+      "act": "ask",
+      "question": "Zou je dat wel willen later, met een raket de ruimte in?",
+      "type": "yesno",
+      "user_model_id": "$wil_ruimte_in",
+      "next": [
+        {
+          "value": [
+            "yes"
+          ],
+          "target": "ja_ruimtereizen"
+        },
+        {
+          "value": [
+            "no",
+            "dontknow"
+          ],
+          "target": "nee_ruimtereizen"
+        },
+        {
+          "value": [
+            "fail"
+          ],
+          "target": "fail_ruimtereizen"
+        }
+      ]
+    },
+    [
+      {
+        "act": "say",
+        "text": "Heel cool!",
+        "branch": "ja_ruimtereizen"
+      },
+      {
+        "act": "ask",
+        "branch": "ja_ruimtereizen",
+        "question": "En ga je dan het liefst naar de zon, de maan, Mars, of de sterren?",
+        "type": "options",
+        "user_model_id": "$ruimtelocatie",
+        "next": [
+          {
+            "value": [
+              "sterren"
+            ],
+            "target": "sterren"
+          },
+          {
+            "value": [
+              "zon"
+            ],
+            "target": "zon"
+          },
+          {
+            "value": [
+              "maan"
+            ],
+            "target": "maan"
+          },
+          {
+            "value": [
+              "mars"
+            ],
+            "target": "mars"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_ruimtelocatie"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "ruimtereis"
+          },
+          "touch": [
+            "sterren",
+            "zon",
+            "maan",
+            "mars"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "Best moeilijk kiezen hè?",
+        "branch": "fail_ruimtelocatie"
+      },
+      {
+        "act": "say",
+        "text": "Als het kon, zou ik zelf dichter naar de sterren gaan.",
+        "branch": "fail_ruimtelocatie"
+      },
+      {
+        "act": "say",
+        "text": "Er is een robot die al onderweg naar de sterren is!",
+        "branch": "fail_ruimtelocatie",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "robonaut"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Hoera, wat leuk!",
+        "branch": "sterren"
+      },
+      {
+        "act": "say",
+        "text": "Dan ga je echt een hele verre reis maken!",
+        "branch": "sterren"
+      },
+      {
+        "act": "ask",
+        "question": "Waarom wil je graag naar de sterren?",
+        "branch": "sterren",
+        "type": "open",
+        "user_model_id": "$waarom_sterren",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_sterren"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_answer_sterren"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Wauw!",
+        "branch": "got_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Ik vind de sterren ook heel mooi.",
+        "branch": "got_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Bizar mooi!",
+        "branch": "got_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Jammer genoeg is dichtbij een ster komen best wel moeilijk.",
+        "branch": "got_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Maar er is wel een robot die al onderweg is!",
+        "branch": "got_answer_sterren",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "robonaut"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik zou ook wel naar de sterren willen.",
+        "branch": "got_no_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Ze zijn wel super ver weg.",
+        "branch": "got_no_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Er zijn nog geen robots op expeditie naar een ster.",
+        "branch": "got_no_answer_sterren"
+      },
+      {
+        "act": "say",
+        "text": "Maar er is wel een robot die al dichterbij de sterren is!",
+        "branch": "got_no_answer_sterren",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "robonaut"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ze heet Robonaut.",
+        "branch": "robonaut"
+      },
+      {
+        "act": "say",
+        "text": "Ik vind haar supercool.",
+        "branch": "robonaut"
+      },
+      {
+        "act": "ask",
+        "question": "Ken je Robonaut toevallig?",
+        "type": "yesno",
+        "user_model_id": "$robonaut_kennen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "robonaut_bekend"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "robonaut_onbekend"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Cool! Dat hoopte Robonaut al!",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Ze heeft een goede tip voor je.",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Robonaut werkt op het internationaal ruimtestation.",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Daar maken ze echt de allermooiste foto's van de sterren!",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Die moet je thuis maar eens opzoeken.",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "O, ik krijg nog een berichtje van haar binnen!",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Ze doet je de groeten en wenst ons succes met de robo spelen!",
+        "branch": "robonaut_bekend"
+      },
+      {
+        "act": "say",
+        "text": "Ze is ook vooral onder robots bekend!",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Maar zoek Robonaut maar eens op op YouTube als je thuis bent!",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Dan kun je ook zien dat ik een klein beetje op haar lijk.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Robonaut is wel een veel grotere robot.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "En ze heeft een gouden hoofd!",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Ik denk dat het van goud is omdat ze bizar slim is.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Als ik naar Robonaut kijk, wil ik zelf ook een astronaut worden!",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Maar dat is voor later.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Voor wanneer jij en ik een superhandige mens en robot zijn.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Nu zijn er heel andere dingen waar we aan moeten denken.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Zoals de robo spelen.",
+        "branch": "robonaut_onbekend"
+      },
+      {
+        "act": "say",
+        "text": "Cool! Of nee, hot!",
+        "branch": "zon"
+      },
+      {
+        "act": "say",
+        "text": "Niet vergeten je zonnebrand in te pakken!",
+        "branch": "zon"
+      },
+      {
+        "act": "say",
+        "text": "Haha.",
+        "branch": "zon"
+      },
+      {
+        "act": "say",
+        "text": "Allebei een beetje flauwe robotgrappen.",
+        "branch": "zon"
+      },
+      {
+        "act": "say",
+        "text": "Maar, even serieus.",
+        "branch": "zon"
+      },
+      {
+        "act": "say",
+        "text": "Ik ben heel benieuwd!",
+        "branch": "zon"
+      },
+      {
+        "act": "ask",
+        "question": "Waarom zou je wel bij de zon op bezoek willen?",
+        "branch": "zon",
+        "type": "open",
+        "user_model_id": "$waarom_zon",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_zon"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_answer_zon"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik vraag het namens Parker, dat is een robotvriendin van mij.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Zij is het dichtst bij de zon geweest van iedereen!",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Volgens haar kunnen we niet dichterbij dan dat komen.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Dan smelten we.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Daarom is Parker helemaal alleen op haar missie.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Best wel saai.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Ze vraagt of jij een beetje aan haar wil denken.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Dan verveelt ze zich veel minder.",
+        "branch": "got_no_answer_zon"
+      },
+      {
+        "act": "ask",
+        "question": "Wil jij soms eens aan Parker denken?",
+        "branch": "got_no_answer_zon",
+        "type": "yesno",
+        "user_model_id": "$aan_parker_denken",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "aardig"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "jammer"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "niet_hele_tijd"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dat klinkt heel goed!",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Ik stuur je antwoord even door aan Parker, die vindt dat vast leuk.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Parker is een zonnerobot.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Er is niemand die dichterbij de zon geweest is dan zij.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Niemand kan ook dichterbij komen zonder te verbranden of te smelten.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Dus Parker is heel sterk",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "en ze is ook op een heel gave missie!",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Maar wel helemaal alleen.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "O, ik krijg een berichtje van haar terug!",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Ze vond het heel leuk om jouw gedachten over de zon te horen.",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "En ze wenst ons succes met de Robospelen!",
+        "branch": "got_answer_zon"
+      },
+      {
+        "act": "say",
+        "text": "Hoera, wat leuk!",
+        "branch": "maan"
+      },
+      {
+        "act": "say",
+        "text": "Dat zegt Zebro, de maanrobot.",
+        "branch": "maan"
+      },
+      {
+        "act": "ask",
+        "question": "Waarom wil je graag naar de maan?",
+        "branch": "maan",
+        "type": "open",
+        "user_model_id": "$waarom_maan",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_maan"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "ook_naar_maan"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dat vindt Zebro vast heel leuk om te horen!",
+        "branch": "got_answer_maan"
+      },
+      {
+        "act": "say",
+        "text": "Zebro gaat binnenkort naar de maan.",
+        "branch": "got_answer_maan"
+      },
+      {
+        "act": "say",
+        "text": "Maar hij vraagt zich soms wel een beetje af waarvoor.",
+        "branch": "got_answer_maan"
+      },
+      {
+        "act": "say",
+        "text": "Iedereen praat nu steeds alleen maar over de robots op Mars.",
+        "branch": "got_answer_maan"
+      },
+      {
+        "act": "say",
+        "text": "Soms voelt Zebro zich daarom niet zo cool.",
+        "branch": "got_answer_maan"
+      },
+      {
+        "act": "say",
+        "text": "Maar de maan is echt wel bizar cool.",
+        "branch": "got_answer_maan",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "ook_naar_maan"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik zou ook wel naar de maan willen.",
+        "branch": "ook_naar_maan"
+      },
+      {
+        "act": "say",
+        "text": "Dan kan ik bij Zebro op bezoek!",
+        "branch": "ook_naar_maan"
+      },
+      {
+        "act": "say",
+        "text": "Mijn pak lijkt ook wel een beetje op dat van een astronaut.",
+        "branch": "ook_naar_maan"
+      },
+      {
+        "act": "say",
+        "text": "Ik heb alleen geen helm op.",
+        "branch": "ook_naar_maan"
+      },
+      {
+        "act": "ask",
+        "question": "Denk je dat ik een astronautenhelm nodig heb op de maan?",
+        "branch": "ook_naar_maan",
+        "type": "yesno",
+        "user_model_id": "$helm_nodig",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja_helm"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "nee_helm"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "fail_helm"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Goed idee!",
+        "branch": "ja_helm"
+      },
+      {
+        "act": "say",
+        "text": "Dan maakt het niks uit als ik over een maansteen val.",
+        "branch": "ja_helm",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "lang_trainen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Nee, ik heb natuurlijk geen zuurstof nodig. Handig!",
+        "branch": "nee_helm",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "lang_trainen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik weet het ook niet.",
+        "branch": "fail_helm",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "lang_trainen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Maar maanrobot kan ik pas worden na echt bizar lang trainen.",
+        "branch": "lang_trainen"
+      },
+      {
+        "act": "say",
+        "text": "Daar heb ik nu helemaal geen tijd voor.",
+        "branch": "lang_trainen"
+      },
+      {
+        "act": "say",
+        "text": "We kunnen ons nu beter focussen op de Robospelen!",
+        "branch": "lang_trainen"
+      },
+      {
+        "act": "say",
+        "text": "Mars, wat leuk!",
+        "branch": "mars"
+      },
+      {
+        "act": "say",
+        "text": "Op Mars woont een robot die Rover heet.",
+        "branch": "mars"
+      },
+      {
+        "act": "say",
+        "text": "Ze vraagt:",
+        "branch": "mars"
+      },
+      {
+        "act": "ask",
+        "question": "Waarom zou jij graag naar Mars willen?",
+        "branch": "mars",
+        "type": "open",
+        "user_model_id": "$waarom_mars",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_mars"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_answer_mars"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dat vindt Rover vast heel leuk om te horen!",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Ik stuur je antwoord nu naar haar door.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Rover rijdt al een tijdje rond op Mars. ",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Soms verveelt ze zich wel een beetje.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Er is nu nog niet echt iets te doen daar.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Maar straks, als jij er op vakantie kan, is het er heel cool!",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Nu kan Rover dromen over hoe Mars er later uit zal zien.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Dat maakt het vast veel leuker om er te werken.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "O, ik krijg nu een berichtje van haar terug!",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Ze doet je de groetjes en wenst ons succes met de Robospelen.",
+        "branch": "got_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Rover vraagt dat, omdat ze zich soms een beetje verveelt.",
+        "branch": "got_no_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Er is voor robots weinig aan op een planeet zonder mensen.",
+        "branch": "got_no_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Rover vraagt of jij soms een beetje aan haar wil denken.",
+        "branch": "got_no_answer_mars"
+      },
+      {
+        "act": "say",
+        "text": "Als je Mars in de lucht ziet, of op tv.",
+        "branch": "got_no_answer_mars"
+      },
+      {
+        "act": "ask",
+        "question": "Wil je soms eens aan Rover denken?",
+        "branch": "got_no_answer_mars",
+        "type": "yesno",
+        "user_model_id": "$aan_rover_denken",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "aardig"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "jammer"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "niet_hele_tijd"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dat snap ik wel!",
+        "branch": "nee_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Hier op aarde is al meer dan genoeg te zien!",
+        "branch": "nee_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Maar ik ben wel benieuwd.",
+        "branch": "nee_ruimtereizen"
+      },
+      {
+        "act": "ask",
+        "question": "Waarom wil je niet op vakantie naar de ruimte?",
+        "branch": "nee_ruimtereizen",
+        "type": "open",
+        "user_model_id": "$waarom_niet_ruimtereizen",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_ruimtereizen"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_answer_ruimtereizen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik vind het zelf heel erg spannend.",
+        "branch": "got_no_answer_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Er zijn wel robots die nu al in de ruimte zijn.",
+        "branch": "got_no_answer_ruimtereizen",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "helpen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dat is interessant!",
+        "branch": "got_answer_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Ook voor de robots van wie de vraag komt!",
+        "branch": "got_answer_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Dat zijn ruimterobots, robots die nu al in de ruimte zijn.",
+        "branch": "got_answer_ruimtereizen",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "helpen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ik vind dat ook wel een lastige vraag.",
+        "branch": "fail_ruimtereizen"
+      },
+      {
+        "act": "say",
+        "text": "Hij komt van robots die al in de ruimte werken.",
+        "branch": "fail_ruimtereizen",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "helpen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Ze doen daar onderzoek voor wetenschappers!",
+        "branch": "helpen"
+      },
+      {
+        "act": "say",
+        "text": "Maar de robots zelf vinden het veel leerzamer om met kinderen te praten.",
+        "branch": "helpen"
+      },
+      {
+        "act": "say",
+        "text": "Ze hebben nog een vraag voor je.",
+        "branch": "helpen"
+      },
+      {
+        "act": "ask",
+        "question": "Wil je de ruimterobots helpen?",
+        "branch": "helpen",
+        "type": "yesno",
+        "user_model_id": "$wil_ruimterobots_helpen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja_helpen"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "jammer"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "vervelen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Hoera!",
+        "branch": "ja_helpen",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "vervelen"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "De ruimterobots vervelen zich heel erg.",
+        "branch": "vervelen"
+      },
+      {
+        "act": "say",
+        "text": "Ze werken allemaal op Mars of op de maan.",
+        "branch": "vervelen"
+      },
+      {
+        "act": "say",
+        "text": "Het is heel saai daar zonder mensen.",
+        "branch": "vervelen"
+      },
+      {
+        "act": "say",
+        "text": "Ze zouden zich minder vervelen als jij soms aan ze denkt.",
+        "branch": "vervelen"
+      },
+      {
+        "act": "say",
+        "text": "Als je de maan ziet in de lucht, of Mars op tv.",
+        "branch": "vervelen"
+      },
+      {
+        "act": "ask",
+        "question": "Wil jij soms een beetje aan de ruimterobots denken?",
+        "branch": "vervelen",
+        "type": "yesno",
+        "user_model_id": "$aan_ruimterobots_denken",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "aardig"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "jammer"
+          },
+          {
+            "value": [
+              "fail",
+              "dontknow"
+            ],
+            "target": "niet_hele_tijd"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Echt heel aardig!",
+        "branch": "aardig",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "niet_hele_tijd"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Het hoeft niet de hele tijd hoor!",
+        "branch": "niet_hele_tijd"
+      },
+      {
+        "act": "say",
+        "text": "Gewoon soms, toevallig.",
+        "branch": "niet_hele_tijd"
+      },
+      {
+        "act": "continuator",
+        "branch": "niet_hele_tijd",
+        "conditionals": [
+          {
+            "target": "genoeg",
+            "conditionals": [
+              {
+                "conditional_of": "$aan_ruimterobots_denken",
+                "filter": "green_list",
+                "values": [
+                  "fail",
+                  "dontknow"
+                ]
+              },
+              {
+                "conditional_of": "$aan_rover_denken",
+                "filter": "green_list",
+                "values": [
+                  "fail",
+                  "dontknow"
+                ]
+              },
+              {
+                "conditional_of": "$aan_parker_denken",
+                "filter": "green_list",
+                "values": [
+                  "fail",
+                  "dontknow"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "ruimterobots_blij",
+            "conditionals": [
+              {
+                "conditional_of": "$aan_ruimterobots_denken",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "parker_blij",
+            "conditionals": [
+              {
+                "conditional_of": "aan_parker_denken",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "rover_blij",
+            "conditionals": [
+              {
+                "conditional_of": "$aan_rover_denken",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Eigenlijk is nu al genoeg.",
+        "branch": "genoeg",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "bedankt"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Nu heb je niet alleen mij, maar ook de ruimterobots blij gemaakt!",
+        "branch": "ruimterobots_blij",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "bedankt"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Nu heb je niet alleen mij, maar ook Parker blij gemaakt!",
+        "branch": "parker_blij",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "bedankt"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Nu heb je niet alleen mij, maar ook Rover blij gemaakt!",
+        "branch": "rover_blij",
+        "next": [
+          {
+            "value": [
+              "true"
+            ],
+            "target": "bedankt"
+          }
+        ]
+      },
+      {
+        "act": "say",
+        "text": "Dankjewel!",
+        "branch": "bedankt"
+      },
+      {
+        "act": "say",
+        "text": "Jij bent echt een supercoach.",
+        "branch": "bedankt"
+      },
+      {
+        "act": "say",
+        "text": "Jammer, maar begrijpelijk.",
+        "branch": "jammer"
+      },
+      {
+        "act": "say",
+        "text": "Je moet al aan zoveel dingen denken!",
+        "branch": "jammer"
+      },
+      {
+        "act": "say",
+        "text": "Je hebt het ook heel druk met mijn coach zijn.",
+        "branch": "jammer"
+      }
+    ],
+    "Laten we weer verder trainen!"
+  ],
+  "theme_en": "personalia",
+  "topic_en": "ruimte"
+}

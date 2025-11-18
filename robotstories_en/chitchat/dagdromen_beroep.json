@@ -1,0 +1,89 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "dagdromen_beroep",
+    "theme": "personalia",
+    "topic": "beroep",
+    "dependencies": null,
+    "speech_acts": [
+  "Sometimes I look out the window and think absolutely nothing.",
+  "Sometimes I do think something.",
+  "Then I think about small things.",
+  "Sometimes I think about big things.",
+  "Then I think about the future.",
+  "About everything I still want to do.",
+  "Or what I want to become later.",
+      {
+        "act": "ask",
+  "question": "What do you want to be when you grow up?",
+        "type": "options",
+        "user_model_id": "$beroep_van_kind",
+        "answer": {
+          "speech": {
+            "context": "professions"
+          },
+          "touch": [
+            "Dokter",
+            "Politieagent",
+            "Influencer",
+            "Voetballer",
+            "Leraar",
+            "Kunstenaar"
+          ]
+        },
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "success"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "topics": [
+          {
+            "value": [
+              "success"
+            ],
+            "topics": [
+              "_answer"
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Fascinating!",
+          "branch": "success"
+        },
+        {
+          "act": "ask",
+          "question": "What seems so nice about becoming $beroep_van_kind?",
+          "type": "open",
+          "user_model_id": "$beroep_van_kind_waarom",
+          "branch": "success"
+        },
+        {
+          "act": "ask",
+          "question": "I don't know that job. What would you have to do then?",
+          "type": "open",
+          "user_model_id": "$beroep_van_kind_onbekend",
+          "branch": "fail"
+        },
+        {
+          "act": "say",
+          "text": "Fascinating! Glad you could teach me this, I'll store it immediately.",
+          "branch": "fail"
+        }
+      ]
+    ],
+    "theme_en": "personalia",
+    "topic_en": "beroep"
+  }
+]

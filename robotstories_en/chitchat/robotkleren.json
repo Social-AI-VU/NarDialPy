@@ -1,0 +1,399 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "robotkleren",
+    "theme": "verschillen_robot_mens",
+    "topic": "kleding",
+    "dependencies": null,
+    "speech_acts": [
+      "he $naam",
+      "Ik heb nog een vraag over mensendingen.",
+      "Jullie hebben bijna altijd allemaal kleren aan.",
+      "En ook allemaal verschillende.",
+      "Ik niet, ik zie er altijd hetzelfde uit.",
+      "Dat is handig",
+      "want dan ben ik 's ochtends meteen klaar om aan de slag te gaan!",
+      "Maar soms zou ik wel eens iets bijzonders aan willen.",
+      "Als jij mocht kiezen",
+      {
+        "act": "ask",
+        "question": "Wat zou je mij aan trekken, een t-shirt, of een rok, of misschien iets heel anders?",
+        "type": "options",
+        "user_model_id": "$kledingstuk",
+        "next": [
+          {
+            "value": [
+              "robotpak"
+            ],
+            "target": "niets"
+          },
+          {
+            "value": [
+              "badjas"
+            ],
+            "target": "badjas"
+          },
+          {
+            "value": [
+              "_others"
+            ],
+            "target": "een_kledingstuk"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_kleding"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "clothing"
+          },
+          "touch": [
+            "badjas",
+            "robotpak",
+            "t-shirt",
+            "rok",
+            "trui"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ik vind het ook moeilijk kiezen!",
+          "branch": "fail_kleding"
+        },
+        {
+          "act": "say",
+          "text": "Maar als ik het van jou zelf mag bepalen",
+          "branch": "fail_kleding"
+        },
+        {
+          "act": "say",
+          "text": "dan zou ik wel een badjas willen!",
+          "branch": "fail_kleding"
+        },
+        {
+          "act": "ask",
+          "question": "Vind je dat goed?",
+          "type": "yesno",
+          "branch": "fail_kleding",
+          "user_model_id": "$is_badjas_ok",
+          "next": [
+            {
+              "value": [
+                "yes",
+                "fail"
+              ],
+              "target": "badjas"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow"
+              ],
+              "target": "niets"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Jammer!",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Maar je hebt ook wel gelijk.",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Ik heb al een heel cool robotpak aan.",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Alle robotpakken zijn wit met een kleur.",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Kijk maar",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Dat van mij is grijs",
+          "branch": "niets"
+        },
+        {
+          "act": "say",
+          "text": "Als jij een robotpak zou ontwerpen,",
+          "branch": "niets"
+        },
+        {
+          "act": "ask",
+          "question": "Welke kleur zou je dan kiezen?",
+          "type": "options",
+          "branch": "niets",
+          "user_model_id": "$kleur_kledingstuk",
+          "next": [
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_kleur"
+            },
+            {
+              "value": [
+                "success"
+              ],
+              "target": "flitsend"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "color"
+            },
+            "touch": [
+              "rood",
+              "geel",
+              "blauw",
+              "groen"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Een badjas lijkt me super handig.",
+          "branch": "badjas"
+        },
+        {
+          "act": "say",
+          "text": "Die kan ik op de robo spelen tussen de wedstrijden door aan!",
+          "branch": "badjas"
+        },
+        {
+          "act": "ask",
+          "question": "Welke kleur badjas zou jij voor mij kiezen?",
+          "type": "options",
+          "branch": "badjas",
+          "user_model_id": "$kleur_kledingstuk",
+          "next": [
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_kleur"
+            },
+            {
+              "value": [
+                "success"
+              ],
+              "target": "kleur_gekozen_badjas"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "color"
+            },
+            "touch": [
+              "rood",
+              "geel",
+              "blauw",
+              "groen"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Een $kledingstuk!",
+          "branch": "een_kledingstuk"
+        },
+        {
+          "act": "say",
+          "text": "Bizar!",
+          "branch": "een_kledingstuk"
+        },
+        {
+          "act": "say",
+          "text": "Dat wil ik zeker aan.",
+          "branch": "een_kledingstuk"
+        },
+        {
+          "act": "ask",
+          "question": "En welke kleur moet mijn $kledingstuk hebben?",
+          "type": "options",
+          "branch": "een_kledingstuk",
+          "user_model_id": "$kleur_kledingstuk",
+          "next": [
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_kleur"
+            },
+            {
+              "value": [
+                "success"
+              ],
+              "target": "kleur_gekozen"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "color"
+            },
+            "touch": [
+              "rood",
+              "geel",
+              "blauw",
+              "groen"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Denk er nog maar even over na!",
+          "branch": "fail_kleur"
+        },
+        {
+          "act": "say",
+          "text": "Bizar, een $kledingstuk in het $kleur_kledingstuk!",
+          "branch": "kleur_gekozen",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "flitsend"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Bizar, een badjas, en dan ook nog eens $kleur_kledingstuk!",
+          "branch": "kleur_gekozen_badjas",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "flitsend"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "branch": "flitsend",
+          "question": "Wat vind je daar zo leuk aan?",
+          "type": "open"
+        },
+        {
+          "act": "say",
+          "text": "Dat denk ik ook. Het zou me denk ik heel flitsend staan!",
+          "branch": "flitsend"
+        },
+        {
+          "act": "continuator",
+          "branch": "flitsend",
+          "conditionals": [
+            {
+              "target": "ook_lievelingskleur",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingskleur",
+                  "filter": "green_list",
+                  "values": [
+                    "$kleur_kledingstuk"
+                  ]
+                },
+                {
+                  "exp_condition": "memory"
+                }
+              ]
+            },
+            {
+              "target": "andere_lievelingskleur",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingskleur",
+                  "filter": "red_list",
+                  "values": [
+                    "$kleur_kledingstuk"
+                  ]
+                },
+                {
+                  "exp_condition": "memory"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "he, $kleur_kledingstuk is toch jouw lievelingskleur?",
+          "type": "yesno",
+          "branch": "ook_lievelingskleur",
+          "user_model_id": "$gelijke_kleuren",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "gelijk"
+            },
+            {
+              "value": [
+                "dontknow",
+                "fail",
+                "no"
+              ],
+              "target": "fail_gelijk"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik vind ook meer dan één kleur mooi.",
+          "branch": "fail_gelijk"
+        },
+        {
+          "act": "say",
+          "text": "Maar $kleur_kledingstuk vind ik supermooi, dus dankjewel!",
+          "branch": "fail_gelijk"
+        },
+        {
+          "act": "say",
+          "text": "Hoera, dan heb ik dat goed onthouden!",
+          "branch": "gelijk"
+        },
+        {
+          "act": "say",
+          "text": "Wat lief dat ik jouw lievelingskleur aan mag!",
+          "branch": "gelijk"
+        },
+        {
+          "act": "say",
+          "branch": "andere_lievelingskleur",
+          "text": "$lievelingskleur is jouw lievelingskleur, maar nu koos je voor $kleur_kledingstuk"
+        },
+        {
+          "act": "say",
+          "branch": "andere_lievelingskleur",
+          "text": "Cool!"
+        },
+        {
+          "act": "say",
+          "branch": "andere_lievelingskleur",
+          "text": "Ik vind ook meer dan één kleur mooi."
+        }
+      ],
+      "Misschien kun je later wel robotkleren gaan ontwerpen!"
+    ],
+    "theme_en": "verschillen_robot_mens",
+    "topic_en": "kleding"
+  }
+]

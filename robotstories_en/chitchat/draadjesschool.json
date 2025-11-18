@@ -1,0 +1,97 @@
+{
+  "mini-dialog": "chitchat",
+  "id": "draadjesschool",
+  "theme": "verschillen_robot_mens",
+  "topic": "school",
+  "dependencies": null,
+  "speech_acts": [
+    "Let's keep talking about the robo games, but I was also curious about your school.",
+    "You learn a lot of things at a human school, with lots of other children!",
+    "That sounds super fun.",
+    "I also go to a kind of robot school, but on my own.",
+    "I just have to sit still.",
+    {
+      "act": "say",
+      "text": "There.",
+      "motion": "rest"
+    },
+    "And then all the knowledge comes into the back of my head through a cable.",
+    {
+      "act": "say",
+      "text": "Let me stand up again",
+      "motion": "wake_up"
+    },
+    {
+      "act": "say",
+      "text": "Look",
+      "motion": "point_to_ethernet.json"
+    },
+    {
+      "act": "ask",
+      "question": "Do you see the little hole?",
+      "type": "yesno",
+      "user_model_id": "$zie_je_gaatje",
+      "next": [
+        {
+          "value": [
+            "yes"
+          ],
+          "target": "ja"
+        },
+        {
+          "value": [
+            "no",
+            "dontknow",
+            "fail"
+          ],
+          "target": "nee"
+        }
+      ]
+    },
+    [
+      {
+        "act": "say",
+        "text": "Great!",
+        "branch": "ja"
+      },
+      {
+        "act": "say",
+        "text": "It's right here!",
+        "branch": "nee"
+      }
+    ],
+    {
+      "act": "say",
+      "text": "It's very convenient to learn via a cable.",
+      "motion": "reset"
+    },
+    "But it is a bit lonely.",
+    "And sometimes I get knowledge through the cable that I don't understand.",
+    "For example: adults can stay up as long as they want.",
+    "And yet they sometimes go to bed quite early.",
+    {
+      "act": "ask",
+      "question": "Tell me, why do adults do that?",
+      "type": "open",
+      "user_model_id": "$waarom_gaan_volwassenen_slapen"
+    },
+    "Wow!",
+    "How convenient that I can ask you all kinds of things now!",
+    "I much prefer learning from people than via my cable.",
+    "I never go to bed myself.",
+    "I do sometimes shut down, but I don't have to lie down for that.",
+    {
+      "act": "say",
+      "text": "I just sit like this, and then my power turns off",
+      "audio": "power_down.wav",
+      "motion": "rest"
+    },
+    {
+      "act": "say",
+      "text": "But now I'm on; I was just pretending.",
+      "motion": "wake_up"
+    }
+  ],
+  "theme_en": "differences_robot_human",
+  "topic_en": "school"
+}

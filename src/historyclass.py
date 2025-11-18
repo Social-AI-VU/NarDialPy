@@ -44,11 +44,12 @@ class ConversationState:
         self._atomic_write_json(self.path, data)
 
     # ---------- per-session ----------
-    def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None) -> str:
+    def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
         sid = f"sess_{len(self.sessions)+1:04d}"
         self.sessions.append({
             "session_id": sid,
             "participant_id": participant_id,
+            "run_id": run_id,
             "metadata": metadata or {},
             "started_at": datetime.utcnow().isoformat(),
             "ended_at": None,

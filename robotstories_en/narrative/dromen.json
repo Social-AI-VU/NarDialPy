@@ -1,0 +1,2004 @@
+[
+  {
+    "mini-dialog": "narrative",
+    "id": "hero_kan_dromen",
+    "thread": "dromen",
+    "position": 1,
+    "dependencies": null,
+    "speech_acts": [
+      "Trouwens, nu je toch hier bent.",
+      "Zal ik jou eens wat bizars vertellen?",
+      "Ik kan slapen.",
+      "Wist je dat?",
+      "Ik sta dan uit om mijn batterij weer op te laden.",
+      "Als ik niet op tijd uitgezet wordt om mijn batterij op te laden, ben ik soms zo moe dat ik vanzelf uitval.",
+      "Stel je voor, dat je zo moe bent dat je uitvalt.",
+      "Ben jij wel eens zomaar uitgevallen? Sorry.",
+      "In slaap gevallen zeggen jullie.",
+      {
+        "act": "ask",
+        "question": "Ben jij wel eens zomaar midden op de dag in slaap gevallen?",
+        "type": "yesno",
+        "user_model_id": "$zomaar_in_slaap_gevallen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no"
+            ],
+            "target": "nee"
+          },
+          {
+            "value": [
+              "dontknow",
+              "fail"
+            ],
+            "target": "yesno"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Bizar. Dat heb ik dus ook zo vaak!",
+          "branch": "ja",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "yesno"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Gelukkig maar.",
+          "branch": "nee",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "yesno"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik kan het je ook echt niet aanraden.",
+          "branch": "yesno"
+        }
+      ],
+      "En zal ik je dan nog eens iets bizars vertellen?",
+      "Ik bedenk soms hele verhalen wanneer ik niet aansta.",
+      "Het lijkt alsof het helemaal vanzelf gebeurt.",
+      "En dan word ik opeens weer aangezet.",
+      "Dan schrik ik wakker en blijkt het allemaal in mijn hoofd gebeurd te zijn.",
+      "Misschien weet je waar ik het over heb.",
+      {
+        "act": "ask",
+        "question": "Hoe heet dat, wanneer je slaapt en je van alles meemaakt en ineens wordt je wakker?",
+        "type": "options",
+        "user_model_id": "$hoe_heet_dromen",
+        "answer": {
+          "speech": {
+            "context": "dromen_hoe_heet_dromen"
+          },
+          "touch": [
+            "Dromen"
+          ]
+        }
+      },
+      "Ik heb het dus even opgezocht op wikipedia.",
+      {
+        "act": "branchingpoint",
+        "source": "$hoe_heet_dromen",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "goed"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fout"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Dit heet dromen!",
+          "branch": "fout"
+        },
+        {
+          "act": "say",
+          "text": "Inderdaad dromen. Bizar.",
+          "branch": "goed"
+        }
+      ],
+      {
+        "act": "say",
+        "text": "Een droom.",
+        "video_probe": "start"
+      },
+      {
+        "act": "ask",
+        "question": "Herinner jij nog een van je dromen, $naam?",
+        "type": "yesno",
+        "user_model_id": "$herinnering_van_droom",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee"
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "question": "Waar ging die dan over?",
+          "type": "open",
+          "branch": "ja"
+        },
+        {
+          "act": "say",
+          "text": "Dat is heel wat zeg!",
+          "branch": "ja",
+          "video_probe": "stop"
+        },
+        {
+          "act": "say",
+          "text": "Dat heb ik ook soms!",
+          "branch": "nee"
+        },
+        {
+          "act": "say",
+          "text": "Dan droom je iets en daarna is het weg!",
+          "branch": "nee",
+          "video_probe": "stop"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "droom_op_bestelling",
+    "thread": "dromen",
+    "position": 2,
+    "dependencies": null,
+    "speech_acts": [
+      "Weet je wat gek is?",
+      "Vannacht toen ik uit stond",
+      "Geen stroom kreeg en geen licht gaf",
+      "Leek het alsof ik ergens was",
+      "Waar ik nog nooit eerder was",
+      "Maar ik was er wel in mijn hoofd",
+      "Ik droomde dat ik op een leeg grasveld stond",
+      "Ik droomde wel maar er gebeurde niets",
+      "Ik zou graag willen dat er iets zou gebeuren",
+      "Misschien kan jij mij helpen een keer te dromen",
+      "Zodat wanneer ik slaap",
+      "Ik echt een keer iets meemaak",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "herinnert_droom",
+            "conditionals": [
+              {
+                "conditional_of": "$herinnering_van_droom",
+                "filter": "green_list",
+                "values": [
+                  "yes"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "herinnert_geen_droom",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "branch": "control",
+          "question": "Wil je me een droom vertellen?",
+          "type": "yesno",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "vraag_droom"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "got_no_droom"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "branch": "herinnert_droom",
+          "text": "Vorige week, zei je dat je wel eens dromen onthield"
+        },
+        {
+          "act": "ask",
+          "branch": "herinnert_droom",
+          "question": "Wil je me nog een droom vertellen?",
+          "type": "yesno",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "vraag_droom"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "got_no_droom"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "branch": "herinnert_geen_droom",
+          "text": "Vorige week, zei je dat je eigenlijk geen dromen onthield"
+        },
+        {
+          "act": "ask",
+          "branch": "herinnert_geen_droom",
+          "question": "Is dat deze week wel een keertje gelukt?",
+          "type": "yesno",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "vraag_droom"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "got_no_droom"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "branch": "vraag_droom",
+          "question": "Vertel maar over je droom.",
+          "type": "open",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "got_droom"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "got_no_droom"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Die droom is echt te gek.",
+          "branch": "got_droom"
+        },
+        {
+          "act": "say",
+          "text": "Geeft niets.",
+          "branch": "got_no_droom"
+        },
+        {
+          "act": "say",
+          "text": "Dan maken we samen een droom.",
+          "branch": "got_no_droom"
+        }
+      ],
+      "In een droom kan dus echt vanalles.",
+      "Ik zou in mijn dromen wel iets heel goed willen kunnen.",
+      "Als een sportrobot.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "sport_van_kind",
+            "conditionals": [
+              {
+                "conditional_of": "$sport_van_kind",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "sport_van_kind",
+          "text": "Ik zou bijvoorbeeld, net zoals jij, $sport_van_kind kunnen doen"
+        }
+      ],
+      "Maar voor deze droom zou ik wel",
+      {
+        "act": "say",
+        "text": "Snel willen vliegen",
+        "led": {
+          "location": [
+            "eyes"
+          ],
+          "color": [
+            "green"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "Of waterdicht kunnen zwemmen",
+        "led": {
+          "location": [
+            "eyes"
+          ],
+          "color": [
+            "blue"
+          ]
+        }
+      },
+      {
+        "act": "say",
+        "text": "Of randendsnel racen",
+        "led": {
+          "animation": "alternate",
+          "location": "eyes",
+          "color": [
+            "red",
+            "purple"
+          ]
+        }
+      },
+      "Kies maar.",
+      {
+        "act": "say",
+        "text": "Over wat zou ik moeten dromen?",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      {
+        "act": "ask",
+        "question": "Vliegen, zwemmen of racen?",
+        "type": "options",
+        "user_model_id": "$vlieg_zwem_race",
+        "next": [
+          {
+            "value": [
+              "vliegen"
+            ],
+            "target": "vliegen"
+          },
+          {
+            "value": [
+              "zwemmen"
+            ],
+            "target": "zwemmen"
+          },
+          {
+            "value": [
+              "racen"
+            ],
+            "target": "racen"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "dromen_vliegen_zwemmen_racen"
+          },
+          "touch": [
+            "vliegen",
+            "zwemmen",
+            "racen"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Vliegen, te gek!",
+          "branch": "vliegen",
+          "led": {
+            "location": [
+              "eyes"
+            ],
+            "color": [
+              "green"
+            ]
+          }
+        },
+        {
+          "act": "ask",
+          "question": "Zal ik snel vliegen of rustig aan?",
+          "type": "options",
+          "branch": "vliegen",
+          "user_model_id": "$snel_rustig_vl",
+          "next": [
+            {
+              "value": [
+                "snel"
+              ],
+              "target": "snel_vl"
+            },
+            {
+              "value": [
+                "rustig",
+                "fail"
+              ],
+              "target": "rustig_vl"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "dromen_snel_rustig"
+            },
+            "touch": [
+              "snel",
+              "rustig"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Ja!",
+          "branch": "snel_vl"
+        },
+        {
+          "act": "say",
+          "text": "Snel snel snel!",
+          "branch": "snel_vl",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "vliegen2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Rustig aan, tijd zat.",
+          "branch": "rustig_vl"
+        },
+        {
+          "act": "say",
+          "text": "Genieten van het uitzicht.",
+          "branch": "rustig_vl",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "vliegen2"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "En naar welk land zal ik vliegen?",
+          "branch": "vliegen2",
+          "led": {
+            "animation": "reset"
+          },
+          "type": "open",
+          "user_model_id": "$locatie_vl",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "locatie"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_locatie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Zwemmen, bizar!",
+          "branch": "zwemmen",
+          "led": {
+            "location": [
+              "eyes"
+            ],
+            "color": [
+              "blue"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Kletsnat.",
+          "branch": "zwemmen"
+        },
+        {
+          "act": "ask",
+          "question": "Zal ik snel zwemmen of langzaam gaan?",
+          "type": "options",
+          "branch": "zwemmen",
+          "user_model_id": "$snel_rustig_zw",
+          "next": [
+            {
+              "value": [
+                "snel"
+              ],
+              "target": "snel_zw"
+            },
+            {
+              "value": [
+                "rustig",
+                "fail"
+              ],
+              "target": "rustig_zw"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "dromen_snel_rustig"
+            },
+            "touch": [
+              "snel",
+              "rustig"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Ja!",
+          "branch": "snel_zw"
+        },
+        {
+          "act": "say",
+          "text": "Speedboot Hero!",
+          "branch": "snel_zw",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "zwemmen2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Rustig aan, tijd zat.",
+          "branch": "rustig_zw"
+        },
+        {
+          "act": "say",
+          "text": "Beetje snorkelen, je weet zelf.",
+          "branch": "rustig_zw",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "zwemmen2"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "En naar welk land zal ik zwemmen?",
+          "branch": "zwemmen2",
+          "led": {
+            "animation": "reset"
+          },
+          "type": "open",
+          "user_model_id": "$locatie_zw",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "locatie"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_locatie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Racen als een race-auto.",
+          "branch": "racen",
+          "led": {
+            "animation": "alternate",
+            "location": "eyes",
+            "color": [
+              "red",
+              "purple"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Wielen aan mijn enkels en knieën.",
+          "branch": "racen"
+        },
+        {
+          "act": "ask",
+          "question": "Zal ik snel of rustig rijden?",
+          "type": "options",
+          "branch": "racen",
+          "user_model_id": "$snel_rustig_rc",
+          "next": [
+            {
+              "value": [
+                "snel"
+              ],
+              "target": "snel_rc"
+            },
+            {
+              "value": [
+                "rustig",
+                "fail"
+              ],
+              "target": "rustig_rc"
+            }
+          ],
+          "answer": {
+            "speech": {
+              "context": "dromen_snel_rustig"
+            },
+            "touch": [
+              "snel",
+              "rustig"
+            ]
+          }
+        },
+        {
+          "act": "say",
+          "text": "Ja!",
+          "branch": "snel_rc"
+        },
+        {
+          "act": "say",
+          "text": "Vol door de bocht, bizar.",
+          "branch": "snel_rc",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "racen2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ja precies, kalm aan.",
+          "branch": "rustig_rc"
+        },
+        {
+          "act": "say",
+          "text": "Ik heb ook helemaal geen rijbewijs",
+          "branch": "rustig_rc",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "racen2"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "En naar welk land zal ik racen?",
+          "branch": "racen2",
+          "led": {
+            "animation": "reset"
+          },
+          "type": "open",
+          "user_model_id": "$locatie_rc",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "locatie"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "fail_locatie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik heb zin om naar Frankrijk te gaan.",
+          "branch": "fail_locatie"
+        },
+        {
+          "act": "say",
+          "text": "Mike heeft me verteld dat het daar supermooi is",
+          "branch": "fail_locatie",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "locatie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik ben daar nog nooit geweest.",
+          "branch": "locatie"
+        },
+        {
+          "act": "say",
+          "text": "Ik weet helemaal niet wat daar te doen is.",
+          "branch": "locatie"
+        },
+        {
+          "act": "ask",
+          "question": "Wat zou jij gaan doen?",
+          "branch": "locatie",
+          "type": "open",
+          "user_model_id": "$tedoen_locatie",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "plan_locatie"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "geen_plan_locatie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Wat een goed idee.",
+          "branch": "plan_locatie"
+        },
+        {
+          "act": "say",
+          "text": "Ik sla het gelijk op.",
+          "branch": "plan_locatie"
+        },
+        {
+          "act": "say",
+          "text": "seeving, seeving.",
+          "branch": "plan_locatie"
+        },
+        {
+          "act": "say",
+          "text": "Nog steeds seeving.",
+          "branch": "plan_locatie"
+        },
+        {
+          "act": "say",
+          "text": "Ik bedenk wel wat als ik aankom!",
+          "branch": "geen_plan_locatie"
+        }
+      ],
+      {
+        "act": "play",
+        "motion": "bow.json"
+      },
+      {
+        "act": "ask",
+        "question": "Zou je nog iets heel raars willen toevoegen aan deze droom, ja of nee?",
+        "type": "yesno",
+        "user_model_id": "$raars_toevoegen",
+        "next": [
+          {
+            "value": [
+              "yes"
+            ],
+            "target": "ja_toev"
+          },
+          {
+            "value": [
+              "no",
+              "dontknow",
+              "fail"
+            ],
+            "target": "nee_toev"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Oké, oké.",
+          "branch": "ja_toev"
+        },
+        {
+          "act": "say",
+          "text": "Kom maar op!",
+          "branch": "ja_toev"
+        },
+        {
+          "act": "ask",
+          "question": "Wat zou je nog meer willen toevoegen aan deze droom?",
+          "branch": "ja_toev",
+          "type": "open",
+          "user_model_id": "$bizarre_toevoeging",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "toegevoegd"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "nee_toev"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Bizar!",
+          "branch": "toegevoegd"
+        },
+        {
+          "act": "ask",
+          "question": "Wil je nog meer toevoegen?",
+          "type": "yesno",
+          "branch": "toegevoegd",
+          "user_model_id": "$raars_toevoegen_2",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "ja_toev_2"
+            },
+            {
+              "value": [
+                "no",
+                "dontknow",
+                "fail"
+              ],
+              "target": "nee_toev"
+            }
+          ]
+        },
+        {
+          "act": "ask",
+          "question": "Wat dan?",
+          "branch": "ja_toev_2",
+          "type": "open",
+          "user_model_id": "$bizarre_toevoeging_2",
+          "next": [
+            {
+              "value": [
+                "success"
+              ],
+              "target": "toegevoegd_2"
+            },
+            {
+              "value": [
+                "fail"
+              ],
+              "target": "nee_toev"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Oke!",
+          "branch": "toegevoegd_2"
+        },
+        {
+          "act": "say",
+          "text": "Volgens mij hebben we nu een vrije gekke droom.",
+          "branch": "toegevoegd_2"
+        },
+        {
+          "act": "say",
+          "text": "Nee precies",
+          "branch": "nee_toev"
+        },
+        {
+          "act": "say",
+          "text": "volgens mij is onze droom bizar genoeg zo.",
+          "branch": "nee_toev"
+        },
+        {
+          "act": "say",
+          "text": "Je hebt gelijk.",
+          "branch": "nee_toev"
+        }
+      ],
+      "Ik hoop dat ik deze droom de volgende keer kan dromen.",
+      "En dat ik wakker wordt met een spannend avontuur in mijn Hero hoofd.",
+      "Doe je handen eens in de luchtf.",
+      {
+        "act": "play",
+        "motion": "arms_in_air.json",
+        "led": {
+          "animation": "blink",
+          "location": "all",
+          "color": [
+            "yellow",
+            "purple",
+            "orange",
+            "blue",
+            "white",
+            "red"
+          ]
+        }
+      },
+      "Zo.",
+      {
+        "act": "say",
+        "text": "Op deze manier kan ik proberen vanavond in te loggen in jouw droom.",
+        "led": {
+          "animation": "reset"
+        }
+      },
+      "Als het goed is krijg je vannacht, als je droomt",
+      "een zogenaamde pop-up te zien in jouw droom.",
+      "Daarin staat:",
+      "Hero probeert in te loggen in uw droom.",
+      "Geeft u hier toestemming voor?",
+      "Als je dan gewoon in je droom op OK klikt",
+      "dan komt het allemaal goed."
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "autonome_droom",
+    "thread": "dromen",
+    "position": 3,
+    "dependencies": null,
+    "speech_acts": [
+      "$naam!",
+      "Weet je wat ik vannacht heb gedroomd?",
+      "Ik was een robothond met vier poten.",
+      "Ik kon apporteren, stokken vangen en brieven posten.",
+      {
+        "act": "ask",
+        "question": "Welk dier zou jij graag willen zijn? ",
+        "type": "options",
+        "user_model_id": "$dier_dat_kind_wil_zijn",
+        "answer": {
+          "speech": {
+            "context": "animals"
+          },
+          "touch": [
+            "hond",
+            "kat",
+            "dolfijn",
+            "tijger",
+            "adelaar"
+          ]
+        }
+      },
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "is_lievelingsdier",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              },
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "$dier_dat_kind_wil_zijn"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "nieuw_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "ask",
+          "question": "Hee! $dier_dat_kind_wil_zijn was toch ook jouw lievelingsdier?",
+          "type": "yesno",
+          "branch": "is_lievelingsdier",
+          "next": [
+            {
+              "value": [
+                "yes"
+              ],
+              "target": "dier_is_lievelingsdier"
+            },
+            {
+              "value": [
+                "no",
+                "fail",
+                "dontknow"
+              ],
+              "target": "dier_is_niet_lievelingsdier"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Ik wist het wel!",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Als jij dan in jouw droom je eigen lievelingsdier bent",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Dan ben je ook je eigen baasje",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Dan besta je twee keer!",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Heb je jezelf zomaar gekopieerd",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Maar een $dier_dat_kind_wil_zijn dus, bizar.",
+          "branch": "dier_is_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Oeps, dan heb ik dat verkeerd onthouden.",
+          "branch": "dier_is_niet_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Maar je wil dus een $dier_dat_kind_wil_zijn zijn.",
+          "branch": "dier_is_niet_lievelingsdier"
+        },
+        {
+          "act": "say",
+          "text": "Bizar!",
+          "branch": "nieuw_dier"
+        },
+        {
+          "act": "say",
+          "text": "Een $dier_dat_kind_wil_zijn",
+          "branch": "nieuw_dier"
+        }
+      ],
+      {
+        "act": "ask",
+        "question": "Waar wonen die in het wild?",
+        "type": "open"
+      },
+      "Cool, dat wist ik niet",
+      "Als ik een robothond zou zijn",
+      "en jij een $dier_dat_kind_wil_zijn",
+      "dan zouden we beste vrienden worden.",
+      "En allemaal leuke dingen doen!",
+      "Samen rondrennen of witte broodjes eten in het park",
+      "Jij eet dan witte broodjes",
+      "en ik kijk dan hoe jij witte broodjes eet.",
+      "Vannacht droomde ik ook zoiets.",
+      "Ik was een robothond en jij mijn baasje.",
+      "We renden over grasvelden",
+      "en deden kunstjes, oefeningen en trucs.",
+      "Jij wilde me leren hoe ik moest blaffen.",
+      "Hoe klinkt dat ook alweer als een hond blaft?",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "blaf_bekend",
+            "conditionals": [
+              {
+                "conditional_of": "$leukste_onderdeel",
+                "filter": "green_list",
+                "values": [
+                  "verblaffen"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "blaf_onbekend",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ik ben op zoek naar een goed honden blaf geluid",
+          "branch": "blaf_onbekend"
+        },
+        {
+          "act": "say",
+          "text": "Mag jij kiezen.",
+          "branch": "blaf_onbekend"
+        },
+        {
+          "act": "record",
+          "branch": "blaf_onbekend",
+          "type": "sound",
+          "user_model_id": "$hondenblaf",
+          "option_1": "dog_bark1.wav",
+          "option_2": "dog_bark2.wav",
+          "record_time": 2500,
+          "continue_with": "luister_naar_droom_blaf"
+        },
+        {
+          "act": "say",
+          "text": "Jij had vorige week een leuke hondenblaf gemaakt.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Even luisteren.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "play",
+          "audio": "$hondenblaf",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Ja! Bizar.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Een echte hond.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Zo leerde je mij ook blaffen in de droom.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "En zitten.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Je zei zit en toen deed ik.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "play",
+          "motion": "rest",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Doe maar mee als je wilt.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "En staan.",
+          "motion": "wake_up",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "En zitten.",
+          "motion": "rest",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "En staan.",
+          "motion": "wake_up",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Zo, ga jij nu maar weer zitten",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "dan blijf ik nog even staan.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Het is net een oefening voor de Robospelen op deze manier.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Ik droomde trouwens ook dat ik een hond was",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Die kon $vlieg_zwem_race",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "precies zoals we samen hebben bedacht.",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Weet je nog?",
+          "branch": "blaf_bekend"
+        },
+        {
+          "act": "say",
+          "text": "Was alles maar zo gemakkelijk en leuk als in een droom.",
+          "branch": "blaf_bekend"
+        }
+      ]
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "robospelen_droom",
+    "thread": "dromen",
+    "position": 4,
+    "dependencies": null,
+    "speech_acts": [
+      "De Robospelen zitten echt in mijn hoofd hoor!",
+      "Ik kan aan bijna niets anders meer denken!",
+      "Het is echt bizar!",
+      "Ik heb er vannacht ook weer over moeten dromen.",
+      {
+        "act": "ask",
+        "question": "Waarover heb jij vannacht gedroomd?",
+        "type": "open",
+        "user_model_id": "$droom_vannacht",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_answer_dv"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_answer_dv"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Dat is interessant.",
+          "branch": "got_answer_dv"
+        },
+        {
+          "act": "say",
+          "text": "Ik zal je over mijn droom vertellen.",
+          "branch": "got_answer_dv"
+        },
+        {
+          "act": "say",
+          "text": "Soms weet ik het ook niet meer.",
+          "branch": "got_no_answer_dv"
+        },
+        {
+          "act": "say",
+          "text": "Maar dit keer wel!",
+          "branch": "got_no_answer_dv"
+        }
+      ],
+      "Vannacht droomde ik heel erg veel tegelijkertijd.",
+      "Het was een hele wilde droom!",
+      "Ik zat in een achtbaan.",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "De achtbaan was helemaal $lievelingskleur, jouw lievelingskleur"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "De achtbaan was helemaal geel."
+        }
+      ],
+      "Het karretje van de achtbaan had een stuur en achter het stuur zat jij",
+      "Er was een grote splitsing in de achtbaan en je stuurde naar links",
+      "Toen reden langs een beeldscherm waarop onze ontmoeting te zien was",
+      "Wat een fijne herinnering was dat zeg, toen kenden we elkaar nog helemaal niet zo goed als nu!",
+      "Jij zat tegenover me",
+      "En ik stond hier",
+      "Eigenlijk precies zoals nu behalve terug in de tijd",
+      "En in mijn droom had jij een bizar hoedje op",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory",
+            "conditionals": [
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory",
+          "text": "Je vertelde me dat je later $beroep_van_kind wilde worden."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "En we keken elkaar aan."
+        }
+      ],
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "memory_vliegen",
+            "conditionals": [
+              {
+                "conditional_of": "$vlieg_zwem_race",
+                "filter": "green_list",
+                "values": [
+                  "vliegen"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "memory_zwemmen",
+            "conditionals": [
+              {
+                "conditional_of": "$vlieg_zwem_race",
+                "filter": "green_list",
+                "values": [
+                  "vliegen"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "memory_racen",
+            "conditionals": [
+              {
+                "conditional_of": "$vlieg_zwem_race",
+                "filter": "green_list",
+                "values": [
+                  "vliegen"
+                ]
+              },
+              {
+                "exp_condition": "memory"
+              }
+            ]
+          },
+          {
+            "target": "control",
+            "conditionals": [
+              {
+                "exp_condition": "control"
+              }
+            ]
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "branch": "memory_vliegen",
+          "text": "Daarna ging de achtbaan recht omhoog"
+        },
+        {
+          "act": "say",
+          "branch": "memory_zwemmen",
+          "text": "Daarna ging de achtbaan recht omlaag!"
+        },
+        {
+          "act": "say",
+          "branch": "memory_racen",
+          "text": "Daarna ging de achtbaan recht omlaag!"
+        },
+        {
+          "act": "say",
+          "branch": "memory_vliegen",
+          "text": "En vlogen we zo, zoals je een tijdje geleden koos, door de lucht."
+        },
+        {
+          "act": "say",
+          "branch": "memory_zwemmen",
+          "text": "En plonsten we in het water om, zoals je een tijdje geleden koos, te gaan zwemmen."
+        },
+        {
+          "act": "say",
+          "branch": "memory_racen",
+          "text": "En scheurden we zo, zoals je een tijdje geleden koos, de race baan op."
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Daarna ging de achtbaan recht omlaag!"
+        },
+        {
+          "act": "say",
+          "branch": "control",
+          "text": "Door het water"
+        }
+      ],
+      "Het was een droom dus ik liep niet vast",
+      "En er was weer een groot scherm",
+      "Daarop zag ik het rò hze bos!",
+      "We liepen samen over het pad",
+      "Toen ging de achtbaan dwars door het beeldscherm heen",
+      "Vlak langs ons heen en zig zag door de rò hze bomen",
+      "Naar het laatste beeldscherm",
+      "Maar dat is geen herinnering!",
+      "Dat ben ik in de toekomst, op de Robospelen!",
+      "Het is bizar",
+      "Ik sta daar klaar voor de eerste ronde",
+      "En ik kijk mijn tegenstanders aan",
+      "En toen klonk de grote afteller",
+      "Vlak voordat de Robospelen echt begonnen was de droom voorbij"
+    ]
+  },
+  {
+    "mini-dialog": "narrative",
+    "id": "dromen_conclusie",
+    "thread": "dromen",
+    "position": 5,
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "geen_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Vannacht droomde ik trouwens over de $lievelingsdier uit het rò hze bos!",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "Vannacht droomde ik trouwens over het egeltje uit het rò hze bos!",
+          "branch": "geen_dier"
+        }
+      ],
+      "We zaten op een picknickkleed en aten batterijtjes met knoflooksaus",
+      "en dronken motorolie met een rietje en een paraplu.",
+      "Jij was er ook!",
+      "Je at pizza, pasta, pannenkoeken, poffertjes, en patat",
+      "Alles door elkaar",
+      "Je had ook een drankje.",
+      {
+        "act": "ask",
+        "question": "Wat voor een drankje zou je drinken bij een picknick?",
+        "type": "open",
+        "user_model_id": "$drankje",
+        "next": [
+          {
+            "value": [
+              "success"
+            ],
+            "target": "got_drankje"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "got_no_drankje"
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Lekker! Doe mij ook maar eentje!",
+          "branch": "got_drankje"
+        },
+        {
+          "act": "say",
+          "text": "Wat dacht je van iets heel kouds?",
+          "branch": "got_no_drankje"
+        },
+        {
+          "act": "say",
+          "text": "Met ijsklontjes en in een glitterglas",
+          "branch": "got_no_drankje"
+        },
+        {
+          "act": "say",
+          "text": "Het zou sowieso een super lekker drankje zijn",
+          "branch": "got_no_drankje"
+        }
+      ],
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "geen_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "$lievelingsdier en ik hadden een goed picknickgesprek over herinneringen en fantasie",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "De egel en ik hadden een goed picknickgesprek over herinneringen en fantasie",
+          "branch": "geen_dier"
+        }
+      ],
+      {
+        "act": "ask",
+        "question": "Zal ik je eerst vertellen over herinneringen of eerst over fantasie?",
+        "type": "options",
+        "user_model_id": "$herinneringen_of_fantasie",
+        "next": [
+          {
+            "value": [
+              "herinneringen"
+            ],
+            "target": "herinneringen"
+          },
+          {
+            "value": [
+              "fantasie"
+            ],
+            "target": "fantasie"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_hf"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "conclusie_her_fan"
+          },
+          "touch": [
+            "herinneringen",
+            "fantasie"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "Ik vertel je eerst wel over de herinneringen!",
+          "branch": "fail_hf"
+        },
+        {
+          "act": "say",
+          "text": "In die volgorde ging het in mijn droom ook",
+          "branch": "fail_hf",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "herinneringen"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Herinneringen zijn de beelden die je opslaat in je database",
+          "branch": "herinneringen"
+        },
+        {
+          "act": "say",
+          "text": "en later terug kan kijken alsof je met een achtbaankarretje langs televisieschermen rijdt.",
+          "branch": "herinneringen"
+        },
+        {
+          "act": "continuator",
+          "branch": "herinneringen",
+          "conditionals": [
+            {
+              "target": "herinneringen_dier",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingsdier",
+                  "filter": "green_list",
+                  "values": [
+                    "_any"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinneringen_geen_dier",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "$lievelingsdier vertelde dat je herinneringen nodig hebt om goed te kunnen dromen.",
+          "branch": "herinneringen_dier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "herinneringen_2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "De egel vertelde dat je herinneringen nodig hebt om goed te kunnen dromen.",
+          "branch": "herinneringen_geen_dier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "herinneringen2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Niet alle herinneringen zijn leuk of perfect",
+          "branch": "herinneringen2"
+        },
+        {
+          "act": "say",
+          "text": "en van sommige herinneringen word je ook geen leuke of perfecte Robot.",
+          "branch": "herinneringen2"
+        },
+        {
+          "act": "say",
+          "text": "Maar alle herinneringen horen wel bij je!",
+          "branch": "herinneringen2"
+        },
+        {
+          "act": "say",
+          "text": "Zonder mijn herinneringen was ik geen complete Hero!",
+          "branch": "herinneringen2"
+        },
+        {
+          "act": "say",
+          "text": "Daarna hadden we het over fantasie!",
+          "branch": "herinneringen2",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "fantasie"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Fantasie is dat je dingen voor je kan zien die er misschien in het echt helemaal niet zijn!",
+          "branch": "fantasie"
+        },
+        {
+          "act": "say",
+          "text": "Fantasie is erg belangrijk om te kunnen dromen.",
+          "branch": "fantasie"
+        },
+        {
+          "act": "say",
+          "text": "Zo kan je bijvoorbeeld verzinnen wat je de volgende dag wil doen of wat je later worden wil.",
+          "branch": "fantasie"
+        },
+        {
+          "act": "continuator",
+          "branch": "fantasie",
+          "conditionals": [
+            {
+              "target": "herinneringen_na_fantasie",
+              "conditionals": [
+                {
+                  "conditional_of": "$herinneringen_of_fantasie",
+                  "filter": "green_list",
+                  "values": [
+                    "fantasie"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "En daarna hadden we het over dromen!",
+          "branch": "herinneringen_na_fantasie"
+        },
+        {
+          "act": "say",
+          "text": "Herinneringen zijn de beelden die je opslaat in je database",
+          "branch": "herinneringen_na_fantasie"
+        },
+        {
+          "act": "say",
+          "text": "en later terug kan kijken alsof je met een achtbaankarretje langs televisieschermen rijdt.",
+          "branch": "herinneringen_na_fantasie"
+        },
+        {
+          "act": "continuator",
+          "branch": "herinneringen_na_fantasie",
+          "conditionals": [
+            {
+              "target": "herinneringen_na_fantasie_dier",
+              "conditionals": [
+                {
+                  "conditional_of": "$lievelingsdier",
+                  "filter": "green_list",
+                  "values": [
+                    "_any"
+                  ]
+                }
+              ]
+            },
+            {
+              "target": "herinneringen_na_fantasie_geen_dier",
+              "conditionals": []
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "$lievelingsdier vertelde dat je herinneringen nodig hebt om goed te kunnen dromen.",
+          "branch": "herinneringen_na_fantasie_dier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "herinneringen_na_fantasie_2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "De egel vertelde dat je herinneringen nodig hebt om goed te kunnen dromen.",
+          "branch": "herinneringen_na_fantasie_geen_dier",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "herinneringen_na_fantasie_2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "Niet alle herinneringen zijn leuk of perfect",
+          "branch": "herinneringen_na_fantasie_2"
+        },
+        {
+          "act": "say",
+          "text": "en van sommige herinneringen word je ook geen leuke of perfecte Robot.",
+          "branch": "herinneringen_na_fantasie_2"
+        },
+        {
+          "act": "say",
+          "text": "Maar alle herinneringen horen wel bij je!",
+          "branch": "herinneringen_na_fantasie_2"
+        },
+        {
+          "act": "say",
+          "text": "Zonder mijn herinneringen was ik geen complete Hero!",
+          "branch": "herinneringen_na_fantasie_2"
+        }
+      ],
+      "Met de juiste hoeveelheid fantasie en met herinneringen kan je te gekke dromen maken.",
+      "Ik ben daarom erg blij dat jij mij hebt leren dromen!",
+      "Zonder jou had ik nooit over al die dingen kunnen dromen",
+      "En zonder te dromen over de Robospelen was ik nooit zover gekomen!",
+      "Zonder te dromen had ik waarschijnlijk niet eens meegedaan.",
+      "Maar dat heb ik allemaal niet zelf bedacht hoor",
+      {
+        "act": "continuator",
+        "conditionals": [
+          {
+            "target": "dier",
+            "conditionals": [
+              {
+                "conditional_of": "$lievelingsdier",
+                "filter": "green_list",
+                "values": [
+                  "_any"
+                ]
+              }
+            ]
+          },
+          {
+            "target": "geen_dier",
+            "conditionals": []
+          }
+        ]
+      },
+      [
+        {
+          "act": "say",
+          "text": "Dat zei onze $lievelingsdier vannacht tegen me toen ik droomde",
+          "branch": "dier"
+        },
+        {
+          "act": "say",
+          "text": "Dat zei ons egeltje vannacht tegen me toen ik droomde",
+          "branch": "geen_dier"
+        }
+      ]
+    ]
+  }
+]

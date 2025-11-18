@@ -1,0 +1,211 @@
+[
+  {
+    "mini-dialog": "chitchat",
+    "id": "plaats_in_de_natuur",
+    "theme": "natuur",
+    "topic": "plaats",
+    "dependencies": null,
+    "speech_acts": [
+      {
+        "act": "say",
+        "video_probe": "start"
+      },
+        "By the way,",
+        "Do you know what I read?",
+        "Apparently, people get happy from being in nature.",
+        "From swimming in the sea,",
+        "or taking a walk in the forest,",
+        "or climbing in the mountains,",
+        "or lazing on the beach.",
+        "Which place in nature would you most like to go to right now?",
+      {
+        "act": "say",
+        "video_probe": "stop"
+      },
+      {
+        "act": "ask",
+          "question": "The sea, the forest, the mountains, or the beach?",
+        "type": "options",
+        "user_model_id": "$plaats_in_de_natuur",
+        "next": [
+          {
+            "value": [
+              "zee"
+            ],
+            "target": "zee"
+          },
+          {
+            "value": [
+              "bos"
+            ],
+            "target": "bos"
+          },
+          {
+            "value": [
+              "bergen"
+            ],
+            "target": "bergen"
+          },
+          {
+            "value": [
+              "strand"
+            ],
+            "target": "strand"
+          },
+          {
+            "value": [
+              "fail"
+            ],
+            "target": "fail_plaats"
+          }
+        ],
+        "answer": {
+          "speech": {
+            "context": "zee_bos_bergen_strand"
+          },
+          "touch": [
+            "zee",
+            "bos",
+            "bergen",
+            "strand"
+          ]
+        }
+      },
+      [
+        {
+          "act": "say",
+          "text": "I think I'd most like to go to the sea.",
+          "branch": "fail_plaats",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "zee2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "I also really love the sea!",
+          "branch": "zee",
+          "next": [
+            {
+              "value": [
+                "true"
+              ],
+              "target": "zee2"
+            }
+          ]
+        },
+        {
+          "act": "say",
+          "text": "I'm a little jealous of you.",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "If you hold a seashell to your ear,",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "it sounds like you're hearing the sea.",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "That doesn't work for me,",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "I don't hear anything at all.",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "But I can play the sound of the sea:",
+          "branch": "zee2"
+        },
+        {
+          "act": "play",
+          "audio": "waves.wav",
+          "branch": "zee2"
+        },
+        {
+          "act": "say",
+          "text": "I also like going to the forest!",
+          "branch": "bos"
+        },
+        {
+          "act": "say",
+          "text": "Although you'd have to pick me up during a walk,",
+          "branch": "bos"
+        },
+        {
+          "act": "say",
+          "text": "because I'm not as good as you at jumping over tree roots!",
+          "branch": "bos"
+        },
+        {
+          "act": "say",
+          "text": "How exciting!",
+          "branch": "bergen"
+        },
+        {
+          "act": "say",
+          "text": "Through my cable I've already seen",
+          "branch": "bergen"
+        },
+        {
+          "act": "say",
+          "text": "that from a mountain top",
+          "branch": "bergen"
+        },
+        {
+          "act": "say",
+          "text": "you have the most beautiful view over the world",
+          "branch": "bergen"
+        },
+        {
+          "act": "say",
+          "text": "So I get that!",
+          "branch": "bergen"
+        },
+        {
+          "act": "say",
+          "text": "I'd really love to go there for real someday!",
+          "branch": "strand"
+        },
+        {
+          "act": "say",
+          "text": "I've never built a sandcastle.",
+          "branch": "strand"
+        },
+        {
+          "act": "say",
+          "text": "I do build castles,",
+          "branch": "strand"
+        },
+        {
+          "act": "say",
+          "text": "but they're always made of air!",
+          "branch": "strand"
+        },
+        {
+          "act": "say",
+          "text": "Or of code,",
+          "branch": "strand"
+        },
+        {
+          "act": "say",
+          "text": "which is kind of the same.",
+          "branch": "strand"
+        }
+      ]
+    ],
+    "theme_en": "nature",
+    "topic_en": "place"
+  }
+]

@@ -1,0 +1,356 @@
+[
+  {
+    "id": "greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hello! How are you today?" },
+      { "type": "ask_open", "text": "What would you like to talk about?" }
+    ]
+  },
+  {
+    "id": "greeting_2",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hi! Nice to meet you." }
+    ]
+  },
+  {
+    "id": "greeting_3",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hello, this is greeting 3." }
+    ]
+  },
+  {
+    "id": "greeting_4",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hi! This is greeting 4." }
+    ]
+  },
+  {
+    "id": "goodbye",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "It was nice talking to you. Goodbye!" }
+    ]
+  },
+  {
+    "id": "goodbye_2",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "Goodbye! Have a great day!" }
+    ]
+  },
+  {
+    "id": "goodbye_3",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "Goodbye! Have a great day!GOODBYE 3" }
+    ]
+  },
+  {
+    "id": "goodbye_4",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "Goodbye! Have a great day!GOODBYE 4" }
+    ]
+  },
+
+  {
+    "id": "hero_can_dream_1",
+    "type": "narrative",
+    "thread": "dreams",
+    "position": 1,
+    "moves": [
+      { "type": "say", "text": "Sometimes I make up entire stories when I'm turned off." },
+      {
+        "type": "ask_options",
+        "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
+        "options": ["dreaming", "sleeping", "resting"],
+        "set_variable": "what_is_dreaming",
+        "next": {
+          "dreaming": "correct",
+          "sleeping": "incorrect",
+          "resting": "incorrect",
+          "fail": "incorrect"
+        }
+      },
+      { "type": "say", "text": "This is called dreaming!", "branch": "incorrect" },
+      { "type": "say", "text": "Indeed, dreaming.", "branch": "correct" },
+      { "type": "say", "text": "I sometimes dream of being a robot dog with four legs." },
+      { "type": "say", "text": "I can fetch and deliver letters." },
+      { "type": "say", "text": "What do you dream about?" },
+      {
+        "type": "ask_yesno",
+        "text": "Do you remember any of your dreams?",
+        "set_variable": "remembered_dream",
+        "next": {
+          "yes": "dream_mem_yes",
+          "no": "dream_mem_no",
+          "dontknow": "dream_mem_no",
+          "fail": "dream_mem_no"
+        }
+      },
+      { "type": "ask_open", "text": "What was it about?", "branch": "dream_mem_yes" },
+      { "type": "say", "text": "That's something!", "branch": "dream_mem_yes" },
+      { "type": "say", "text": "I have that sometimes too!", "branch": "dream_mem_no" },
+      { "type": "say", "text": "Then you dream something and afterwards it's gone!", "branch": "dream_mem_no" }
+    ]
+  },
+  {
+    "id": "dream_on_demand_2",
+    "type": "narrative",
+    "thread": "dreams",
+    "position": 2,
+    "dependencies": ["hero_can_dream_1"],
+    "moves": [
+      { "type": "say", "text": "Last night, when I was powered off," },
+      { "type": "say", "text": "I dreamed I was standing in an empty field." },
+      { "type": "say", "text": "I was dreaming, but nothing happened." }
+    ]
+  },
+  {
+    "id": "dreams_about_clouds",
+    "type": "narrative",
+    "thread": "dreams",
+    "position": 3,
+    "dependencies": ["hero_can_dream_1", "dream_on_demand_2"],
+    "moves": [
+      { "type": "say", "text": "Did you know some people dream about clouds?" },
+      { "type": "ask_open", "text": "Have you ever dreamed about clouds?" }
+    ]
+  },
+  {
+    "id": "dream12",
+    "type": "narrative",
+    "thread": "dreams",
+    "position": 4,
+    "dependencies": ["hero_can_dream_1", "dream_on_demand_2", "dreams_about_clouds"],
+    "moves": [
+      { "type": "say", "text": "Did you know I can sleep?" },
+      { "type": "say", "text": "Sometimes I get so tired I just shut down." },
+      { "type": "ask_open", "text": "Have you ever fallen asleep suddenly?" }
+    ]
+  },
+
+  {
+    "id": "pineapple_on_pizza",
+    "type": "chitchat",
+    "theme": "food",
+    "topics": ["pizza", "pineapple", "food"],
+    "moves": [
+      { "type": "say", "text": "Do you like pineapple on pizza?" },
+      {
+        "type": "ask_yesno",
+        "text": "Yes or no?",
+        "add_interest": "pizza",
+        "set_variable": "likes_pineapple_pizza"
+      }
+    ]
+  },
+  {
+    "id": "place_in_nature",
+    "type": "chitchat",
+    "theme": "nature",
+    "topics": ["sea", "forest", "mountains", "beach", "nature"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "say", "text": "By the way, do you know what I’ve read?" },
+      { "type": "say", "text": "Apparently people get happy from nature." },
+      { "type": "say", "text": "From swimming in the sea, or taking a walk in the forest, or climbing in the mountains, or lounging on the beach." },
+      {
+        "type": "ask_options",
+        "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
+        "options": ["sea", "forest", "mountains", "beach"],
+        "next": {
+          "sea": "sea",
+          "forest": "forest",
+          "mountains": "mountains",
+          "beach": "beach",
+          "fail": "fail_place"
+        },
+        "set_variable": "favorite_nature_place",
+        "add_interest_from_variable": true
+      },
+      { "type": "say", "text": "I also really love the sea!", "branch": "sea" },
+      { "type": "say", "text": "If you hold a shell to your ear, it’s just like you hear the sea.", "branch": "sea" },
+      { "type": "say", "text": "I also really like going to the forest!", "branch": "forest" },
+      { "type": "say", "text": "How exciting! From the top of a mountain you have the most beautiful view over the world.", "branch": "mountains" },
+      { "type": "say", "text": "I’d really like to go there for real sometime!", "branch": "beach" },
+      { "type": "say", "text": "I think I would most like to go to the sea.", "branch": "fail_place" },
+      { "type": "say", "text": "Okay, let’s talk about something else!", "branch": null }
+    ]
+  },
+  {
+    "id": "talk_about_sea",
+    "type": "chitchat",
+    "theme": "nature",
+    "topics": ["sea", "ocean", "beach", "water", "nature"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "say", "text": "The sea can be so calming." },
+      {
+        "type": "ask_open",
+        "text": "What do you like most about the sea?",
+        "set_variable": "favorite_sea_thing",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_sea_thing", "fail": "no_sea_thing" }
+      },
+      { "type": "say", "text": "%favorite_sea_thing% are great!", "branch": "has_sea_thing" },
+      { "type": "say", "text": "No worries, maybe we’ll find something you like next time.", "branch": "no_sea_thing" },
+      { "type": "say", "text": "That’s okay, maybe mountains or forests are more your thing.", "branch": "no_sea" }
+    ]
+  },
+  {
+    "id": "favorite_tree",
+    "type": "chitchat",
+    "theme": "nature",
+    "topics": ["nature", "trees", "forest"],
+    "moves": [
+      { "type": "say", "text": "There are so many kinds of trees in nature." },
+      {
+        "type": "ask_open",
+        "text": "Do you have a favorite tree?",
+        "set_variable": "favorite_tree",
+        "add_interest_from_answer": true
+      }
+    ]
+  },
+  {
+    "id": "nature_sounds",
+    "type": "chitchat",
+    "theme": "nature",
+    "topics": ["nature", "sounds"],
+    "moves": [
+      { "type": "say", "text": "I love listening to the sounds of nature." },
+      {
+        "type": "ask_open",
+        "text": "What is your favorite sound in nature?",
+        "set_variable": "favorite_nature_sound",
+        "add_interest_from_answer": true
+      }
+    ]
+  },
+  {
+    "id": "robot_want_to_be",
+    "type": "chitchat",
+    "theme": "robots",
+    "topics": ["robots", "identity"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "say", "text": "You know, first_name." },
+      { "type": "say", "text": "Yesterday I was thinking about seeing you again today." },
+      { "type": "say", "text": "And that today I get to learn from you again about human things." },
+      { "type": "say", "text": "And then I suddenly wondered:" },
+      {
+        "type": "ask_yesno",
+        "text": "Would you ever want to be a robot?",
+        "next": { "yes": "yes", "no": "no", "dontknow": "dontknow", "fail": "no" },
+        "set_variable": "wants_to_be_robot",
+        "add_interest": "robots"
+      },
+      { "type": "say", "text": "Bizarre!", "branch": "yes" },
+      { "type": "ask_open", "text": "Why would you want to be a robot?", "branch": "yes", "next": { "success": "open_answer", "fail": "dontknow" } },
+      { "type": "say", "text": "That’s okay, sometimes I don’t know either.", "branch": "dontknow" },
+      { "type": "say", "text": "I really like hearing that!", "branch": "open_answer" },
+      { "type": "ask_yesno", "text": "May I also tell other robots about that?", "branch": "open_answer", "next": { "yes": "yes2", "no": "no2", "dontknow": "no2", "fail": "no2" } },
+      { "type": "say", "text": "Hooray! Just a moment.", "branch": "yes2" },
+      { "type": "say", "text": "I passed it on to them via wifi.", "branch": "yes2" },
+      { "type": "say", "text": "And lots of robots say thank you, dear first_name.", "branch": "yes2" },
+      { "type": "say", "text": "Alright, then I’ll keep your sweet words just for myself.", "branch": "no2" },
+      { "type": "say", "text": "Thank you, dear first_name.", "branch": "no2" },
+      { "type": "say", "text": "Well, you don’t know what you’re missing!", "branch": "no" },
+      { "type": "say", "text": "But of course, I don’t know what it’s like to be human either.", "branch": "no" },
+      { "type": "say", "text": "Maybe that actually is more fun.", "branch": "no" },
+      { "type": "say", "text": "But I don’t think I’ll ever find out!", "branch": "no" }
+    ]
+  },
+  {
+    "id": "robot_favorite_feature",
+    "type": "chitchat",
+    "theme": "robots",
+    "topics": ["robots", "features", "abilities"],
+    "dependencies": ["robot_want_to_be"],
+    "moves": [
+      { "type": "ask_open", "text": "I wonder: If you could have any robot feature, what would it be?", "set_variable": "desired_robot_feature", "add_interest_from_answer": true },
+      { "type": "say", "text": "Wow, that's a cool feature! I wish I had that too." }
+    ]
+  },
+  {
+    "id": "ask_favorite_animal",
+    "type": "chitchat",
+    "theme": "animals",
+    "topics": ["animals", "pets"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "ask_open", "text": "What is your favorite animal?", "set_variable": "favorite_animal", "add_interest_from_answer": true },
+      { "type": "say", "text": "Wow, I like %favorite_animal% too!" }
+    ]
+  },
+  {
+    "id": "favorite_animal_fact",
+    "type": "chitchat",
+    "theme": "animals",
+    "topics": ["animals"],
+    "dependencies": ["greeting"],
+    "variable_dependencies": [ { "variable": "favorite_animal", "required": true } ],
+    "moves": [
+      { "type": "say", "text": "Did you know that i once saw at the zoo a %favorite_animal%?" }
+    ]
+  },
+  {
+    "id": "likes_dogs",
+    "type": "chitchat",
+    "theme": "animals",
+    "topics": ["animals","dogs"],
+    "moves": [
+      { "type": "ask_yesno", "text": "Do you like dogs?",
+        "next": { "yes": "yes", "no": "no", "dontknow": "no", "fail": "no" },
+        "set_variable": "likes_dogs",
+        "add_interest": "dogs" },
+      { "type": "say", "text": "Nice! Dogs are great.", "branch": "yes" },
+      { "type": "say", "text": "No problem, different tastes!", "branch": "no" }
+    ]
+  },
+  {
+    "id": "dogs",
+    "type": "chitchat",
+    "theme": "animals",
+    "topics": ["animals", "dogs", "pets"],
+    "dependencies": ["likes_dogs"],
+    "variable_dependencies": [ { "variable": "likes_dogs", "required": true } ],
+    "moves": [
+      { "type": "say", "text": "You said earlier that you like dogs!" },
+      { "type": "ask_open", "text": "What is your favorite dog breed?", "branch": "likes_yes", "set_variable": "favorite_dog_breed", "add_interest_from_answer": true, "next": { "success": "got_breed", "fail": "no_breed" } },
+      { "type": "say", "text": "%favorite_dog_breed% are awesome!", "branch": "got_breed" },
+      { "type": "say", "text": "That's okay, there are so many breeds!", "branch": "no_breed" }
+    ]
+  },
+  {
+    "id": "personalization_test",
+    "type": "chitchat",
+    "theme": "nature",
+    "topics": ["test", "personalization", "nature"],
+    "dependencies": ["greeting"],
+    "moves": [
+      { "type": "say", "text": "Let's try a small personalized follow-up." },
+      {
+        "type": "ask_open",
+        "text": "What's something fun you did today?",
+        "set_variable": "today_fun",
+        "add_interest_from_answer": true,
+        "personalize_followup": true
+      },
+      { "type": "say", "text": "Thanks for telling me!" }
+    ]
+  }
+]

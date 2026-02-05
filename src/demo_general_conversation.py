@@ -620,7 +620,7 @@ if __name__ == '__main__':
         pass
 
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
-    dialogs_json_path = abspath(join("conf", "dialogs", "dialogs.json"))
+    dialogs_json_path = abspath(join("assets", "dialogs", "dialogs.json"))
     try:
         all_dialogs_loaded, load_errs = load_dialogs(dialogs_json_path)
         if load_errs:

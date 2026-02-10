@@ -70,7 +70,6 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-
     def run(self, conversation_demo, session_history=None, user_model=None, topics_of_interest=None): 
         # Execute mini dialogs, sending speech/asks to the device and logging events.
         idx = 0
@@ -208,11 +207,13 @@ class MiniDialog:
                 return i
         return len(self.moves)  # End if not found
 
+
 class FunctionalDialog(MiniDialog):
     def __init__(self, dialog_id, moves, type, dependencies=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         self.type = type
+
 
 class NarrativeDialog(MiniDialog):
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
@@ -221,12 +222,14 @@ class NarrativeDialog(MiniDialog):
         self.thread = thread
         self.position = position  
 
+
 class ChitchatDialog(MiniDialog):  
     def __init__(self, dialog_id, moves, theme,  topics=None, dependencies=None, variable_dependencies=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
         self.topics = topics or []
+
 
 # NOT CORRECT/IMPLEMENTED YET
 class MoveSay:
@@ -235,19 +238,24 @@ class MoveSay:
         self.type = "say"
         self.text = text
         self.branch = branch
+
     def as_dict(self) -> Dict[str, Any]:
         d = {"type": "say", "text": self.text}
         if self.branch is not None:
             d["branch"] = self.branch
         return d
+
     def __repr__(self) -> str:
         return f"MoveSay(text={self.text!r}, branch={self.branch!r})"
+
     def __str__(self) -> str:
-        return self.text    
+        return self.text
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MoveSay):
             return False
         return self.text == other.text and self.branch == other.branch
+
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
@@ -265,6 +273,7 @@ class MoveAskYesNo:
         self.set_variable = set_variable
         self.add_interest = add_interest
         self.branch = branch
+
     def as_dict(self) -> Dict[str, Any]:
         d = {"type": "ask_yesno", "text": self.text}
         if self.next:
@@ -276,10 +285,13 @@ class MoveAskYesNo:
         if self.branch is not None:
             d["branch"] = self.branch
         return d
+
     def __repr__(self) -> str:
         return f"MoveAskYesNo(text={self.text!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest={self.add_interest!r}, branch={self.branch!r})"
+
     def __str__(self) -> str:
         return self.text
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MoveAskYesNo):
             return False
@@ -288,11 +300,11 @@ class MoveAskYesNo:
                 self.set_variable == other.set_variable and
                 self.add_interest == other.add_interest and
                 self.branch == other.branch)
+
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
     
 
-    
 class MoveAskOpen:
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None,
@@ -309,6 +321,7 @@ class MoveAskOpen:
         self.add_interest_from_answer = add_interest_from_answer
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+
     def as_dict(self) -> Dict[str, Any]:
         d = {"type": "ask_open", "text": self.text}
         if self.next:
@@ -322,10 +335,13 @@ class MoveAskOpen:
         if self.branch is not None:
             d["branch"] = self.branch
         return d
+
     def __repr__(self) -> str:
         return f"MoveAskOpen(text={self.text!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest_from_answer={self.add_interest_from_answer!r}, add_interest_from_variable={self.add_interest_from_variable!r}, branch={self.branch!r})"
+
     def __str__(self) -> str:
         return self.text
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MoveAskOpen):
             return False
@@ -335,8 +351,10 @@ class MoveAskOpen:
                 self.add_interest_from_answer == other.add_interest_from_answer and
                 self.add_interest_from_variable == other.add_interest_from_variable and
                 self.branch == other.branch)
+
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
+
 
 class MoveAskOptions:
     def __init__(self, text: str, options: List[str],
@@ -354,6 +372,7 @@ class MoveAskOptions:
         self.set_variable = set_variable
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+
     def as_dict(self) -> Dict[str, Any]:
         d = {"type": "ask_options", "text": self.text, "options": self.options}
         if self.next:
@@ -365,10 +384,13 @@ class MoveAskOptions:
         if self.branch is not None:
             d["branch"] = self.branch
         return d
+
     def __repr__(self) -> str:
         return f"MoveAskOptions(text={self.text!r}, options={self.options!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest_from_variable={self.add_interest_from_variable!r}, branch={self.branch!r})"
+
     def __str__(self) -> str:
         return self.text
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MoveAskOptions):
             return False
@@ -378,11 +400,11 @@ class MoveAskOptions:
                 self.set_variable == other.set_variable and
                 self.add_interest_from_variable == other.add_interest_from_variable and
                 self.branch == other.branch)
+
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
-    
-    
+
 # Automatically determine the next position for NarrativeDialogs
 next_pos = 0
 _mini = globals().get("mini_dialogs")

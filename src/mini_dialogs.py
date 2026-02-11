@@ -127,7 +127,6 @@ class MiniDialog:
                     idx = self._find_branch_start(branch)
                 else:
                     idx += 1
-
             elif move_type == 'ask_open':
                 answer = conversation_demo.ask_open(self._get(move, 'text'))
                 session_history.append({"role": "robot", "type": "ask_open", "text": self._get(move, 'text')})
@@ -169,7 +168,6 @@ class MiniDialog:
                 else:
                     # No next mapping - just continue to next move (preserve current branch)
                     idx += 1
-
             elif move_type == 'ask_options':
                 answer = conversation_demo.ask_options(self._get(move, 'text'), self._get(move, 'options', []) or [])
                 session_history.append({"role": "robot", "type": "ask_options", "text": self._get(move, 'text'), "options": self._get(move, 'options', []) or []})

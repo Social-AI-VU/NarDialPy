@@ -64,7 +64,7 @@ Forth, the redis server, Dialogflow, Google TTS and OpenAI gpt service need to b
 """
 
 
-class ConversationAgent:  # renamed from ConversationDemo
+class ConversationAgent:
     def __init__(self, device_info: dict, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
                  google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
                  openai_key_path=None):
@@ -97,7 +97,7 @@ class ConversationAgent:  # renamed from ConversationDemo
 
         print("Device connected")
 
-                # set up the config for dialogflow
+        # set up the config for dialogflow
         dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
                                          sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
 
@@ -148,6 +148,7 @@ class ConversationAgent:  # renamed from ConversationDemo
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
+            # TODO: Wrap this listening logic in reusable `listen()` function(s).
             reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
 
             print("The detected intent:", reply.intent)
@@ -174,6 +175,7 @@ class ConversationAgent:  # renamed from ConversationDemo
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
+            # TODO: Wrap this listening logic in reusable `listen()` function(s).
             reply = self.dialogflow.request(GetIntentRequest(self.request_id, context))
 
             print("The detected intent:", reply.intent)
@@ -197,6 +199,7 @@ class ConversationAgent:  # renamed from ConversationDemo
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
+            # TODO: Wrap this listening logic in reusable `listen()` function(s).
             reply = self.dialogflow.request(GetIntentRequest(self.request_id))
 
             print("The detected intent:", reply.intent)
@@ -206,8 +209,6 @@ class ConversationAgent:  # renamed from ConversationDemo
                 return reply.response.query_result.query_text
             attempts += 1
         return None
-
-# ADD LISTEN DEFINITION
 
     def ask_options(self, question, options, max_attempts=2):
         """
@@ -279,19 +280,6 @@ class ConversationAgent:  # renamed from ConversationDemo
         except Exception:
             return _heuristic(raw_topics)
 
-    # def personalize(self, robot_input, user_age, user_input):
-    # gpt_response = self.gpt.request(
-    #     GPTRequest(
-    #         f'Je bent een sociale robot die praat met een kind van {str(user_age)} jaar oud.'
-    #         f'Het kind ligt in het ziekenhuis.'
-    #         f'Jij bent daar om het kind af te leiden met een leuk gesprek.'
-    #         f'Als robot heb je zojuist het volgende gevraagd: {robot_input}'
-    #         f'Het kind reageerde met het volgende: "{user_input}"'
-    #         f'Genereer nu een passende reactie in 1 zin.'
-    #     )
-    # )
-    # return gpt_response.response
-
     def personalize(self, robot_input: str, user_age: int | str, user_input: str, language: str = "en") -> str:
         """
         Generate a short, supportive, age-aware follow-up line based on the robot's last question and the user's reply.
@@ -337,16 +325,9 @@ class ConversationAgent:  # renamed from ConversationDemo
 
     def run(self):
         self.say("Hello, I am your companion robot")
-        # Example usage of personalize (pseudo-flow):
-        # question = "What is your favorite animal?"
-        # user_answer = self.ask_open(question)
-        # if user_answer:
-        #     follow_up = self.personalize(question, user_age=9, user_input=user_answer, language="en")
-        #     self.say(follow_up)
 
 
-# NEW LOGIC FOR NARRATIVE AND CHITCHAT DIALOGS
-class DialogLogic:  # this is a new change
+class DialogLogic:  
     @staticmethod
     def can_run(dialog, completed_ids, user_model, all_dialogs=None):
         # check if dialog can be run based on dependencies and user model variables
@@ -381,8 +362,7 @@ class DialogLogic:  # this is a new change
 
     @staticmethod
     def topic_match(dialog, topics_of_interest):
-        # choose a dialog that matches the user's topics of interest list and it is prioritized for selection.
-        # work in progress ; it needs testing
+        # checks if the dialog has at least one topic that matches the user’s topics of interest
         if not topics_of_interest:
             return True
         interests = [str(t).lower() for t in topics_of_interest]
@@ -410,10 +390,10 @@ class DialogLogic:  # this is a new change
         except Exception:
             return set(), []
 
-    @staticmethod  # this is a new change
+    @staticmethod  
     def prioritized_chitchat(pool, theme=None, topics_of_interest=None):
         """
-        NEW: prioritize chitchat candidates by deps∧interests > interests > deps > others
+        Prioritize chitchat candidates by deps∧interests > interests > deps > others
         """
         cands = [d for d in pool if isinstance(d, ChitchatDialog) and (theme is None or d.theme == theme)]
         if not cands:
@@ -421,12 +401,12 @@ class DialogLogic:  # this is a new change
         random.shuffle(cands)  # randomize within same priority
         def score(d):
             has_deps = 1 if getattr(d, "dependencies", []) else 0
-            has_interest = 1 if (topics_of_interest and DialogLogic.topic_match(d, topics_of_interest)) else 0  # this is a new change
+            has_interest = 1 if (topics_of_interest and DialogLogic.topic_match(d, topics_of_interest)) else 0  
             # tuple sorted descending: (deps&interest, interest, deps)
             return (has_deps & has_interest, has_interest, has_deps)
         return sorted(cands, key=score, reverse=True)
 
-    @staticmethod  # this is a new change
+    @staticmethod  
     def auto_select_thread(mini_dialogs, preferred_thread, completed_ids, user_model):
         """
         Pick a narrative thread that still has a runnable next dialog.
@@ -437,7 +417,7 @@ class DialogLogic:  # this is a new change
         pool = list(mini_dialogs)
         # Try preferred first
         if preferred_thread:
-            if DialogLogic.pick_next_narrative(pool, preferred_thread, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):  # this is a new change
+            if DialogLogic.pick_next_narrative(pool, preferred_thread, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):  
                 return preferred_thread
         # Try any other thread
         threads = []
@@ -449,11 +429,11 @@ class DialogLogic:  # this is a new change
         for t in threads:
             if t == preferred_thread:
                 continue
-            if DialogLogic.pick_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):  # this is a new change
+            if DialogLogic.pick_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):  
                 return t
         return None
 
-    @staticmethod  # this is a new change
+    @staticmethod  
     def schedule_chitchat(session, pool, theme=None, topics_of_interest=None, all_dialogs=None, completed_ids=None):
         """
         Try to schedule one chitchat into session from pool.
@@ -463,7 +443,7 @@ class DialogLogic:  # this is a new change
           isn't scheduled in this session because it was done in a previous run.
         """
         all_dialogs = all_dialogs or []
-        cands = DialogLogic.prioritized_chitchat(pool, theme=theme, topics_of_interest=topics_of_interest)  # this is a new change
+        cands = DialogLogic.prioritized_chitchat(pool, theme=theme, topics_of_interest=topics_of_interest)  
         if not cands:
             return False
         for c in cands:
@@ -477,7 +457,7 @@ class DialogLogic:  # this is a new change
             if greeted:
                 effective_completed.add("greeting")
 
-            if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):  # this is a new change
+            if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):  
                 session.append(c); pool.remove(c)
                 return True
             # try to insert one runnable dependency first, then the candidate
@@ -485,16 +465,16 @@ class DialogLogic:  # this is a new change
                 dep = next((d for d in pool if d.dialog_id == dep_id), None)
                 if not dep:
                     continue
-                if DialogLogic.can_run(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):  # this is a new change
+                if DialogLogic.can_run(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):  
                     session.append(dep); pool.remove(dep)
                     effective_completed.add(dep.dialog_id)
-                    if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):  # this is a new change
+                    if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):  
                         session.append(c); pool.remove(c)
                         return True
                     # if still not runnable, continue trying other candidates
         return False
 
-    @staticmethod  # this is a new change
+    @staticmethod  
     def pick_next_narrative(pool, thread, completed_ids, user_model, all_dialogs):
         """
         Pick the next runnable narrative in thread (lowest position not yet completed).
@@ -503,13 +483,12 @@ class DialogLogic:  # this is a new change
         candidates = [d for d in pool if isinstance(d, NarrativeDialog) and d.thread == thread]
         candidates.sort(key=lambda d: d.position)
         for d in candidates:
-            if DialogLogic.can_run(d, completed_ids, user_model, all_dialogs=all_dialogs):  # this is a new change
+            if DialogLogic.can_run(d, completed_ids, user_model, all_dialogs=all_dialogs):  
                 return d
         return None
 
-    @staticmethod  # this is a new change
+    @staticmethod  
     def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
-        # we need to use the pick_next_narrative and pick_chitchat functions here
         session = []
         pool = list(mini_dialogs)
         completed_ids = set(completed_ids or set())
@@ -521,26 +500,26 @@ class DialogLogic:  # this is a new change
             session.append(greeting)
             pool.remove(greeting)
         # 2) First narrative in thread
-        n1 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids, user_model={}, all_dialogs=mini_dialogs)  # this is a new change
+        n1 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids, user_model={}, all_dialogs=mini_dialogs)  
         if n1:
             session.append(n1)
             pool.remove(n1)
         # 3) One themed chitchat (use continuity-aware scheduling); if none runnable, print notice
-        added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  # this is a new change
+        added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  
         if not added_c1:
             # Try relaxing theme once before giving up for this slot
-            added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=None, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  # this is a new change
+            added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=None, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  
         if not added_c1:
             print("[INFO] Chitchats not available for this participant (after narrative 1).")
         # 4) Next narrative in same thread
-        n2 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids.union({d.dialog_id for d in session}), user_model={}, all_dialogs=mini_dialogs)  # this is a new change
+        n2 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids.union({d.dialog_id for d in session}), user_model={}, all_dialogs=mini_dialogs)  
         if n2:
             session.append(n2)
             pool.remove(n2)
         # 5) Another themed chitchat; if none runnable, print notice
-        added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=None if topics_of_interest else theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  # this is a new change
+        added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=None if topics_of_interest else theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  
         if not added_c2:
-            added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  # this is a new change
+            added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)  
         if not added_c2:
             print("[INFO] Chitchats not available for this participant (after narrative 2).")
 
@@ -595,7 +574,7 @@ if __name__ == '__main__':
 
     # Override continuity per participant if an ID is provided
     if participant_id:
-        pid_completed, pid_topics = DialogLogic.load_participant_continuity(participant_id)  # this is a new change
+        pid_completed, pid_topics = DialogLogic.load_participant_continuity(participant_id)  
         # For a new participant (no file), this will be empty -> fresh run
         completed_dialogs = pid_completed or set()
         topics_of_interest = pid_topics or []
@@ -636,12 +615,12 @@ if __name__ == '__main__':
     # Build a session plan (greeting → narrative → chitchat → narrative → chitchat → farewell)
     # Auto-pick a thread if the preferred one has no pending narratives
     preferred_thread = "dreams"
-    chosen_thread = DialogLogic.auto_select_thread(all_dialogs, preferred_thread, completed_ids=completed_dialogs, user_model=user_model)  # this is a new change
+    chosen_thread = DialogLogic.auto_select_thread(all_dialogs, preferred_thread, completed_ids=completed_dialogs, user_model=user_model)  
     try:
         print(f"[DEBUG] Narrative thread chosen: {chosen_thread}")
     except Exception:
         pass
-    session_block = DialogLogic.select_session_block(all_dialogs, thread=chosen_thread, theme="nature", topics_of_interest=topics_of_interest, completed_ids=completed_dialogs)  # this is a new change
+    session_block = DialogLogic.select_session_block(all_dialogs, thread=chosen_thread, theme="nature", topics_of_interest=topics_of_interest, completed_ids=completed_dialogs)  
     # Debug: show planned dialogs
     try:
         print("[DEBUG] Planned session block:", [d.dialog_id for d in session_block])
@@ -649,7 +628,7 @@ if __name__ == '__main__':
         pass
 
     for dialog in session_block:
-        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):  # this is a new change
+        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):  
             # record which dialog runs
             history.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history

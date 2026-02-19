@@ -66,13 +66,13 @@ if __name__ == '__main__':
     #     "ip": "xxx.xxx.xxx.xxx"
     # }
 
-    demo = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
-                            openai_key_path=abspath(join("conf", "openai", ".openai_env")))
+    agent = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
+                              openai_key_path=abspath(join("conf", "openai", ".openai_env")))
 
     history = ConversationState()
     history.load()
     session_history = []
-    demo.run()
+    agent.run()
 
     # Seed from persisted continuity
     completed_dialogs = set(history.completed_dialogs)
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
     session_id = history.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id, run_id=run_id)
     # Ensure Dialogflow uses a fresh request id per session
-    demo.start_new_session()
+    agent.start_new_session()
     try:
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
     except Exception:
@@ -149,7 +149,7 @@ if __name__ == '__main__':
             history.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history
             session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-            dialog.run(demo, session_history, user_model, topics_of_interest)
+            dialog.run(agent, session_history, user_model, topics_of_interest)
             session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
             completed_dialogs.add(dialog.dialog_id)
         else:
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     # Condense topics_of_interest into single-word keywords via GPT (with a simple fallback)
     try:
         original_topics = list(topics_of_interest)
-        condensed = demo.extract_topics_with_gpt(original_topics)
+        condensed = agent.extract_topics_with_gpt(original_topics)
         topics_of_interest = condensed
         print(f"[DEBUG] Condensed topics: {topics_of_interest}")
     except Exception as e:

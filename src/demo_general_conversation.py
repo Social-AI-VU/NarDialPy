@@ -104,7 +104,7 @@ if __name__ == '__main__':
     run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
     session_id = conversation_state.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id, run_id=run_id)
     # Ensure Dialogflow uses a fresh request id per session
-    agent.start_new_session()
+    agent.generate_new_diaologflow_request_id()
     try:
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
     except Exception:

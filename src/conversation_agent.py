@@ -63,7 +63,7 @@ class ConversationAgent:
         self.request_id = np.random.randint(10000)
         print("Dialogflow Ready")
 
-    def start_new_session(self):
+    def generate_new_diaologflow_request_id(self):
         """Generate a fresh Dialogflow request_id for a new session/run."""
         self.request_id = np.random.randint(1000000)
         try:

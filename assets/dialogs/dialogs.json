@@ -247,7 +247,7 @@
     "topics": ["robots", "identity"],
     "dependencies": ["greeting"],
     "moves": [
-      { "type": "say", "text": "You know, first_name." },
+      { "type": "say", "text": "You know, %first_name%." },
       { "type": "say", "text": "Yesterday I was thinking about seeing you again today." },
       { "type": "say", "text": "And that today I get to learn from you again about human things." },
       { "type": "say", "text": "And then I suddenly wondered:" },

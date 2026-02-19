@@ -1,8 +1,4 @@
 import json
-import wave
-import sys
-from os import environ
-from os.path import abspath, join
 import os
 import random
 from mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
@@ -16,12 +12,6 @@ class DialogLogic:
         # Block any dialog that is already completed (including greeting/farewell)
         if dialog.dialog_id in completed_ids:
             return False
-                                # COMMENT ABOVE LINE TO
-                            # Allow greeting/farewell every session even if seen before
-            # if isinstance(dialog, FunctionalDialog) and getattr(dialog, "type", None) in {"greeting", "farewell"}:
-            #     pass  # don't block functional open/close
-            # else:
-            #     return False
         for dep in getattr(dialog, "dependencies", []):
             if dep not in completed_ids:
                 return False
@@ -35,9 +25,9 @@ class DialogLogic:
                 all_dialogs = []
             for d in all_dialogs:
                 if (isinstance(d, NarrativeDialog) and
-                    d.thread == dialog.thread and
-                    d.position < dialog.position and
-                    d.dialog_id not in completed_ids):
+                        d.thread == dialog.thread and
+                        d.position < dialog.position and
+                        d.dialog_id not in completed_ids):
                     return False
         return True
 
@@ -80,11 +70,13 @@ class DialogLogic:
         if not cands:
             return []
         random.shuffle(cands)  # randomize within same priority
+
         def score(d):
             has_deps = 1 if getattr(d, "dependencies", []) else 0
             has_interest = 1 if (topics_of_interest and DialogLogic.topic_match(d, topics_of_interest)) else 0
             # tuple sorted descending: (deps&interest, interest, deps)
             return (has_deps & has_interest, has_interest, has_deps)
+
         return sorted(cands, key=score, reverse=True)
 
     @staticmethod
@@ -98,7 +90,8 @@ class DialogLogic:
         pool = list(mini_dialogs)
         # Try preferred first
         if preferred_thread:
-            if DialogLogic.pick_next_narrative(pool, preferred_thread, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):
+            if DialogLogic.pick_next_narrative(pool, preferred_thread, completed_ids=completed_ids,
+                                               user_model=user_model, all_dialogs=mini_dialogs):
                 return preferred_thread
         # Try any other thread
         threads = []
@@ -110,7 +103,8 @@ class DialogLogic:
         for t in threads:
             if t == preferred_thread:
                 continue
-            if DialogLogic.pick_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model, all_dialogs=mini_dialogs):
+            if DialogLogic.pick_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model,
+                                               all_dialogs=mini_dialogs):
                 return t
         return None
 
@@ -139,7 +133,8 @@ class DialogLogic:
                 effective_completed.add("greeting")
 
             if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
-                session.append(c); pool.remove(c)
+                session.append(c);
+                pool.remove(c)
                 return True
             # try to insert one runnable dependency first, then the candidate
             for dep_id in getattr(c, "dependencies", []):
@@ -147,10 +142,12 @@ class DialogLogic:
                 if not dep:
                     continue
                 if DialogLogic.can_run(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):
-                    session.append(dep); pool.remove(dep)
+                    session.append(dep);
+                    pool.remove(dep)
                     effective_completed.add(dep.dialog_id)
                     if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
-                        session.append(c); pool.remove(c)
+                        session.append(c);
+                        pool.remove(c)
                         return True
                     # if still not runnable, continue trying other candidates
         return False
@@ -174,38 +171,50 @@ class DialogLogic:
         pool = list(mini_dialogs)
         completed_ids = set(completed_ids or set())
         # 1) Greeting: prefer a not-yet-used variant; otherwise include any greeting variant so we always greet
-        greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "greeting" and d.dialog_id not in completed_ids), None)
+        greeting = next((d for d in pool if
+                         isinstance(d, FunctionalDialog) and d.type == "greeting" and d.dialog_id not in completed_ids),
+                        None)
         if not greeting:
             greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "greeting"), None)
         if greeting:
             session.append(greeting)
             pool.remove(greeting)
         # 2) First narrative in thread
-        n1 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids, user_model={}, all_dialogs=mini_dialogs)
+        n1 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids, user_model={},
+                                             all_dialogs=mini_dialogs)
         if n1:
             session.append(n1)
             pool.remove(n1)
         # 3) One themed chitchat (use continuity-aware scheduling); if none runnable, print notice
-        added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)
+        added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest,
+                                                 all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c1:
             # Try relaxing theme once before giving up for this slot
-            added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=None, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)
+            added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=None, topics_of_interest=topics_of_interest,
+                                                     all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c1:
             print("[INFO] Chitchats not available for this participant (after narrative 1).")
         # 4) Next narrative in same thread
-        n2 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids.union({d.dialog_id for d in session}), user_model={}, all_dialogs=mini_dialogs)
+        n2 = DialogLogic.pick_next_narrative(pool, thread,
+                                             completed_ids=completed_ids.union({d.dialog_id for d in session}),
+                                             user_model={}, all_dialogs=mini_dialogs)
         if n2:
             session.append(n2)
             pool.remove(n2)
         # 5) Another themed chitchat; if none runnable, print notice
-        added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=None if topics_of_interest else theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)
+        added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=None if topics_of_interest else theme,
+                                                 topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs,
+                                                 completed_ids=completed_ids)
         if not added_c2:
-            added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs, completed_ids=completed_ids)
+            added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest,
+                                                     all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c2:
             print("[INFO] Chitchats not available for this participant (after narrative 2).")
 
         # 6) Goodbye: prefer a not-yet-used variant; otherwise include any farewell variant so we always close politely
-        goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "farewell" and d.dialog_id not in completed_ids), None)
+        goodbye = next((d for d in pool if
+                        isinstance(d, FunctionalDialog) and d.type == "farewell" and d.dialog_id not in completed_ids),
+                       None)
         if not goodbye:
             goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "farewell"), None)
         if goodbye:

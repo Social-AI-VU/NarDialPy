@@ -2,7 +2,7 @@
 Export dialogs.json to a readable HTML report for reviews/printing.
 
 Usage:
-  - Default input: conf/dialogs/dialogs.json
+  - Default input: assets/dialogs/dialogs.json
   - Default output: web/authoring/dialogs_report.html
 
   python src/authoring/export_html.py
@@ -196,7 +196,7 @@ def build_html(dialogs: list[dict]) -> str:
 
 def main(argv: list[str]) -> int:
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    default_in = os.path.join(repo_root, "conf", "dialogs", "dialogs.json")
+    default_in = os.path.join(repo_root, "assets", "dialogs", "dialogs.json")
     default_out = os.path.join(repo_root, "web", "authoring", "dialogs_report.html")
 
     in_path = argv[1] if len(argv) > 1 else default_in

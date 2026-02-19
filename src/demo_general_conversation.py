@@ -106,6 +106,7 @@ class ConversationAgent:  # renamed from ConversationDemo
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
         print("Dialogflow Ready")
+
     def start_new_session(self):
         """Generate a fresh Dialogflow request_id for a new session/run."""
         self.request_id = np.random.randint(1000000)
@@ -560,12 +561,6 @@ if os.path.exists(ALL_HISTORY_FILE):
 else:
     all_sessions_history = []
 
-
-
-
-
-
-
 if __name__ == '__main__':
     # Select your device
     device = {
@@ -576,7 +571,7 @@ if __name__ == '__main__':
     #     "ip": "xxx.xxx.xxx.xxx"
     # }
 
-    demo = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),  # updated class name
+    demo = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
                             openai_key_path=abspath(join("conf", "openai", ".openai_env")))
 
     history = ConversationState()
@@ -609,6 +604,7 @@ if __name__ == '__main__':
             print(f"[DEBUG] Loaded participant continuity: completed={sorted(list(completed_dialogs))}, topics={topics_of_interest}")
         except Exception:
             pass
+
     # Create a run_id to group sessions that belong to a single experimental run
     run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
     session_id = history.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id, run_id=run_id)
@@ -620,7 +616,7 @@ if __name__ == '__main__':
         pass
 
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
-    dialogs_json_path = abspath(join("conf", "dialogs", "dialogs.json"))
+    dialogs_json_path = abspath(join("assets", "dialogs", "dialogs.json"))
     try:
         all_dialogs_loaded, load_errs = load_dialogs(dialogs_json_path)
         if load_errs:

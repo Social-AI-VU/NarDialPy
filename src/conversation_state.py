@@ -124,7 +124,8 @@ class ConversationState:
                 self.topics_of_interest.append(t)
                 seen.add(k)
 
-    def _derive_dialog_ids_from_events(self, sess: Dict[str, Any]) -> None:
+    @staticmethod
+    def _derive_dialog_ids_from_events(sess: Dict[str, Any]) -> None:
         """Build ordered unique dialog_ids from system events in the session history."""
         ids: List[str] = []
         seen = set()
@@ -192,7 +193,8 @@ class ConversationState:
         return topics
 
     # ---------- safe write ----------
-    def _atomic_write_json(self, path: str, data: Dict[str, Any]) -> None:
+    @staticmethod
+    def _atomic_write_json(path: str, data: Dict[str, Any]) -> None:
         tmp_path = f"{path}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)

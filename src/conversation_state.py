@@ -4,6 +4,7 @@ import os
 import json
 import re
 
+
 class ConversationState:
     """
     Minimal conversation history manager with per-participant transcripts:

@@ -113,13 +113,12 @@ if __name__ == '__main__':
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
     dialogs_json_path = abspath(join("assets", "dialogs", "dialogs.json"))
     try:
-        all_dialogs_loaded, load_errs = load_dialogs(dialogs_json_path)
+        all_dialogs, load_errs = load_dialogs(dialogs_json_path)
         if load_errs:
             print("[WARN] Issues while loading dialogs.json:")
             for e in load_errs:
                 print(" -", e)
-        if all_dialogs_loaded:
-            all_dialogs = all_dialogs_loaded
+        if all_dialogs:
             print(f"[INFO] Loaded {len(all_dialogs)} dialogs from {dialogs_json_path}")
         else:
             all_dialogs = []

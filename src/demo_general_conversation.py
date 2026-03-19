@@ -148,8 +148,7 @@ if __name__ == '__main__':
             conversation_state.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history
             session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-            dialog.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-            dialog.run()
+            dialog.run(agent, session_history, topics_of_interest, user_model)
             session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
             completed_dialogs.add(dialog.dialog_id)
         else:

@@ -150,7 +150,7 @@ class MiniDialog:
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
         self.conversation_agent.say(text)
-        self.session_history.append({"role": "robot", "type": "say", "text": text})
+        self.session_history.append({"role": "robot", "type": MOVE_SAY, "text": text})
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
@@ -231,6 +231,7 @@ class MiniDialog:
     def handle_move_play_audio(self, move):
         move = MovePlayAudio.from_dict(move)
         self.conversation_agent.play_audio(move.audio_file)
+        self.session_history.append({"role": "robot", "type": MOVE_PLAY_AUDIO, "audio_file": move.audio_file})
 
 
 class FunctionalType(Enum):

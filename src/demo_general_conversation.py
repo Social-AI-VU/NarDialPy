@@ -3,6 +3,8 @@ import sys
 from os.path import abspath, join
 import os
 import numpy as np
+from sic_framework.devices import Pepper
+from sic_framework.devices.desktop import Desktop
 
 from authoring.loader import load_dialogs
 from conversation_state import ConversationState
@@ -13,14 +15,6 @@ from src.dialog import DialogLogic
 # setup key files paths
 google_keyfile_path = abspath(join("conf", "dialogflow", "google_keyfile.json"))
 openai_key_path = abspath(join("conf", "openai", ".openai_env"))
-
-
-def desktop_device():
-    return {"type": "desktop"}
-
-
-def nao_device():
-    return {"type": "nao", "ip": "xxx.xxx.xxx.xxx"}
 
 
 def load_dialogs_from_json():
@@ -103,8 +97,8 @@ class ConversationContext:
 
 if __name__ == '__main__':
     # Select device
-    device = desktop_device()
-    #device = nao_device()
+    device = Desktop()
+    # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
     agent = ConversationAgent(device, google_keyfile_path=google_keyfile_path, openai_key_path=openai_key_path)

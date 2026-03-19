@@ -143,12 +143,13 @@ if __name__ == '__main__':
         pass
 
     for dialog in session_block:
-        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):  
+        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):
             # record which dialog runs
             conversation_state.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history
             session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-            dialog.run(agent, session_history, user_model, topics_of_interest)
+            dialog.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+            dialog.run()
             session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
             completed_dialogs.add(dialog.dialog_id)
         else:

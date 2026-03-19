@@ -128,7 +128,7 @@ class DialogLogic:
             if completed_ids:
                 effective_completed |= set(completed_ids)
             # If any greeting variant ran in-session, satisfy generic "greeting" deps
-            greeted = any(isinstance(d, FunctionalDialog) and getattr(d, "type", None) == "greeting" for d in session)
+            greeted = any(isinstance(d, FunctionalDialog) and d.is_greeting_dialog() for d in session)
             if greeted:
                 effective_completed.add("greeting")
 
@@ -175,7 +175,7 @@ class DialogLogic:
                          isinstance(d, FunctionalDialog) and d.type == "greeting" and d.dialog_id not in completed_ids),
                         None)
         if not greeting:
-            greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "greeting"), None)
+            greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.is_greeting_dialog()), None)
         if greeting:
             session.append(greeting)
             pool.remove(greeting)
@@ -213,10 +213,10 @@ class DialogLogic:
 
         # 6) Goodbye: prefer a not-yet-used variant; otherwise include any farewell variant so we always close politely
         goodbye = next((d for d in pool if
-                        isinstance(d, FunctionalDialog) and d.type == "farewell" and d.dialog_id not in completed_ids),
+                        isinstance(d, FunctionalDialog) and d.is_farewell_dialog() and d.dialog_id not in completed_ids),
                        None)
         if not goodbye:
-            goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.type == "farewell"), None)
+            goodbye = next((d for d in pool if isinstance(d, FunctionalDialog) and d.is_farewell_dialog()), None)
         if goodbye:
             session.append(goodbye)
         return session

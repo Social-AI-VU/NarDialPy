@@ -7,6 +7,8 @@ import re
 import numpy as np
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
+from sic_framework.devices.alphamini import Alphamini
+from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.services.llm.openai_gpt import GPT
@@ -22,17 +24,19 @@ from sic_framework.services.dialogflow.dialogflow import (
 
 
 class ConversationAgent:
-    def __init__(self, device_info: dict, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
+    def __init__(self, device_manager: SICDeviceManager, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
                  google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
                  openai_key_path=None):
 
         if openai_key_path:
             load_dotenv(openai_key_path)
+
         # Setup GPT client
         conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
         self.gpt = GPT(conf=conf)
         print("OpenAI GPT4 Ready")
-        # Initialize TTS
+
+        # Setup TTS
         self.google_tts_voice_name = google_tts_voice_name
         self.google_tts_voice_gender = google_tts_voice_gender
         self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=json.load(open(google_keyfile_path)),
@@ -43,25 +47,21 @@ class ConversationAgent:
         self.tts_sample_rate = init_reply.sample_rate
         print("Google TTS ready")
 
-        # Placeholder for the selected device
-        if "type" in device_info and device_info["type"] == "nao":
-            self.device = Nao(ip=device_info["ip"])
-            self.speaker = self.device.speaker
-        elif "type" in device_info and device_info["type"] == "pepper":
-            self.device = Pepper(device_info["ip"])
-            self.speaker = self.device.speaker
-        else:
+        # Setup Device Manager
+        if isinstance(device_manager, Pepper) or isinstance(device_manager, Nao):
+            self.device = device_manager
+            self.speaker = device_manager.speaker
+        elif isinstance(device_manager, Desktop):
             self.device = Desktop(speakers_conf=SpeakersConf(sample_rate=self.tts_sample_rate))
             self.speaker = self.device.speakers
+        else:
+            raise ValueError(f"DeviceManager {device_manager} is currently not supported")
         self.mic = self.device.mic
-
         print("Device connected")
 
-        # set up the config for dialogflow
+        # Set up Dialogflow
         dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
                                          sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
-
-        # initiate Dialogflow object
         self.dialogflow = Dialogflow(ip="localhost", conf=dialogflow_conf, input_source=self.mic)
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)

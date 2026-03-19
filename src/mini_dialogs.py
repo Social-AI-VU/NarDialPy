@@ -1,6 +1,10 @@
 from typing import Optional
-from typing import Dict, Any, List
 import re
+
+from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MoveAskYesNo, MoveAskOpen, \
+    MoveAskOptions, MovePlayAudio
+
+from enum import Enum
 
 
 class MiniDialog:
@@ -15,6 +19,17 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
 
+        self.conversation_agent = None
+        self.session_history = []
+        self.topics_of_interest = []
+        self.user_model = {}
+
+    def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
+        self.conversation_agent = agent
+        self.session_history = session_history if session_history is not None else []
+        self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
+        self.user_model = user_model if user_model is not None else {}
+
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod
     def _get(move, key, default=None):
@@ -26,28 +41,28 @@ class MiniDialog:
         except Exception:
             return default
 
-    @staticmethod  
-    def _extract_interest_token(answer: str) -> Optional[str]:  
+    @staticmethod
+    def _extract_interest_token(answer: str) -> Optional[str]:
         # Simple heuristic: extract the first noun-like token from the answer  
-        tokens = re.findall(r'\b\w+\b', answer)  
-        if not tokens:  
-            return None  
-        for tok in tokens:  
-            if len(tok) > 2:  
-                return tok  
-        if len(tokens) < 2:  
-            return tokens[0]  
+        tokens = re.findall(r'\b\w+\b', answer)
+        if not tokens:
+            return None
+        for tok in tokens:
+            if len(tok) > 2:
+                return tok
+        if len(tokens) < 2:
+            return tokens[0]
 
-    @staticmethod  
-    def add_interest(topics_of_interest, topic):  
-        if topics_of_interest is None or not topic:  
-            return  
-        t = str(topic).strip()  
-        if not t:  
-            return  
-        low = t.lower()  
-        if all(low != str(x).lower() for x in topics_of_interest):  
-            topics_of_interest.append(t)  
+    @staticmethod
+    def add_interest(topics_of_interest, topic):
+        if topics_of_interest is None or not topic:
+            return
+        t = str(topic).strip()
+        if not t:
+            return
+        low = t.lower()
+        if all(low != str(x).lower() for x in topics_of_interest):
+            topics_of_interest.append(t)
 
     @staticmethod
     def extract_open_value(answer: str) -> str:
@@ -71,140 +86,157 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-    def run(self, conversation_demo, session_history=None, user_model=None, topics_of_interest=None): 
-        # Execute mini dialogs, sending speech/asks to the device and logging events.
+    def run(self, agent, session_history, topics_of_interest, user_model):
+        # Execute mini dialogs, sending speech to the device and logging events.
+        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
         idx = 0
         branch = None
-        if session_history is None:
-            session_history = []
-        if user_model is None:
-            user_model = {}
+
         while idx < len(self.moves):
             move = self.moves[idx]
             move_type = self._get(move, 'type')
-            move_branch = self._get(move, 'branch')  # <-- NEW: get the branch for this move
-            if move_branch is not None:
-                if move_branch == branch:
-                    pass  
-                else:
-                    idx += 1
-                    continue
-            if branch is not None:
-                if move_branch == branch:
-                    pass  
-                elif move_branch is None:
+            move_branch = self._get(move, 'branch')
+            if move_branch != branch:
+                if branch is not None and move_branch is None:
                     branch = None
                 else:
                     idx += 1
-                    continue 
-            #If we're in a branch, only process moves with the same branch or None, wrap-up
+                    continue
 
-            if move_type == 'say':
-                text = self._get(move, 'text')
-                for var, value in user_model.items():
-                    text = text.replace(f"%{var}%", str(value))
-                conversation_demo.say(text)
-                session_history.append({"role": "robot", "type": "say", "text": text})
+            if move_type == MOVE_SAY:
+                self.handle_move_say(move)
                 idx += 1
-            elif move_type == 'ask_yesno':
-                answer = conversation_demo.ask_yesno(self._get(move, 'text'))
-                session_history.append({"role": "robot", "type": "ask_yesno", "text": self._get(move, 'text')})
-                session_history.append({"role": "user", "type": "answer_yesno", "text": answer})
-                print(f"User answered: {answer}")
-                # do i need to normalize the answer?   norm = (answer or "").strip().lower()
-
-                # new interest part 1. store answer if requested 2. add interest only on YES if configured
-                if self._get(move, "set_variable"):
-                    user_model[self._get(move, "set_variable")] = answer
-                if answer == "yes" and self._get(move, "add_interest"):  
-                    self.add_interest(topics_of_interest, self._get(move, "add_interest"))  
-                # new for branching logic
-                next_map = self._get(move, 'next', {}) or {}
-                if answer and answer in next_map:
-                    branch = next_map[answer]
-                else:
-                    branch = next_map.get('fail', None)  # default to 'fail' branch if no answer
-                if branch:
-                    idx = self._find_branch_start(branch)
-                else:
-                    idx += 1
-            elif move_type == 'ask_open':
-                answer = conversation_demo.ask_open(self._get(move, 'text'))
-                session_history.append({"role": "robot", "type": "ask_open", "text": self._get(move, 'text')})
-                session_history.append({"role": "user", "type": "answer_open", "text": answer})
-                print(f"User answered: {answer}")
-                if self._get(move, "set_variable") and answer:
-                    var_name = self._get(move, "set_variable")
-                    user_model[var_name] = self.extract_open_value(answer)
-                # Optional automatic personalized follow-up
-                if self._get(move, "personalize_followup"):
-                    try:
-                        age_val = user_model.get('user_age', user_model.get('age', 9))
-                        follow = conversation_demo.personalize(robot_input=self._get(move, 'text'), user_age=age_val, user_input=(answer or ""), language="en")
-                        if follow:
-                            conversation_demo.say(follow)
-                            session_history.append({"role": "robot", "type": "personalize", "text": follow, "source_question": self._get(move, 'text')})
-                    except Exception as e:
-                        # Log but do not break dialog flow
-                        session_history.append({"role": "system", "type": "error", "stage": "personalize_followup", "error": str(e)})
-                                
-                # NEW INTEREST PART: add interest from answer and/or from variable
-                if answer and self._get(move, "add_interest_from_answer"):  
-                    self.add_interest(topics_of_interest, answer)  
-                if self._get(move, "add_interest_from_variable"):  
-                    val = user_model.get(self._get(move, "add_interest_from_variable"))  
-                    if val:  
-                        self.add_interest(topics_of_interest, val)  
-
-                next_map = self._get(move, 'next', {}) or {}
-                if next_map:  # Only change branch if next mapping is specified
-                    if answer:
-                        branch = next_map.get("success", None)
-                    else:
-                        branch = next_map.get("fail", None)
-                    if branch:
-                        idx = self._find_branch_start(branch)
-                    else:
-                        idx += 1
-                else:
-                    # No next mapping - just continue to next move (preserve current branch)
-                    idx += 1
-            elif move_type == 'ask_options':
-                answer = conversation_demo.ask_options(self._get(move, 'text'), self._get(move, 'options', []) or [])
-                session_history.append({"role": "robot", "type": "ask_options", "text": self._get(move, 'text'), "options": self._get(move, 'options', []) or []})
-                session_history.append({"role": "user", "type": "answer_options", "text": answer})
-                print(f"User answered: {answer}")
-                # do i need this?
-                if self._get(move, "set_variable") and answer:    
-                    user_model[self._get(move, "set_variable")] = answer
-                # NEW INTEREST PART: add interest from answer and/or from variable
-                if answer and self._get(move, "add_interest_from_variable"):  
-                    self.add_interest(topics_of_interest, answer)  
-                if self._get(move, "add_interest_from_variable"):  
-                    val = user_model.get(self._get(move, "add_interest_from_variable"))  
-                    if val:  
-                       self.add_interest(topics_of_interest, val)  
-                next_map = self._get(move, 'next', {}) or {}
-                if answer and answer in next_map:
-                    branch = next_map[answer]
-                else:
-                    branch = next_map.get('fail', None)
-                if branch:
-                    idx = self._find_branch_start(branch)
-                else:
-                    idx += 1
-            elif move_type == 'play':
-                conversation_demo.play_audio(self._get(move, 'audio'))
+            elif move_type == MOVE_ASK_YESNO:
+                answer = self.handle_move_ask_yesno(move)
+                branch = self.find_next_branch(branch, move, answer)
+                idx = self.find_branch_start(branch, idx)
+            elif move_type == MOVE_ASK_OPEN:
+                answer = self.handle_move_ask_open(move)
+                branch = self.find_next_branch(branch, move, answer)
+                idx = self.find_branch_start(branch, idx)
+            elif move_type == MOVE_ASK_OPTIONS:
+                answer = self.handle_move_ask_options(move)
+                branch = self.find_next_branch(branch, move, answer)
+                idx = self.find_branch_start(branch, idx)
+            elif move_type == MOVE_PLAY_AUDIO:
+                self.handle_move_play_audio(move)
                 idx += 1
             else:
                 idx += 1
 
-    def _find_branch_start(self, branch):
+    def find_next_branch(self, branch, move, answer):
+        next_map = self._get(move, 'next', {}) or {}
+        if next_map:
+            if answer:
+                branch = next_map.get("success", None)
+            else:
+                branch = next_map.get("fail", None)
+        return branch
+
+    def find_branch_start(self, branch, idx):
+        if branch is None:  # continue to next move
+            return idx + 1
+
         # Find the jump target for a branch; if it doesn’t exist, end the dialog.
         for i, move in enumerate(self.moves):
             if self._get(move, 'branch') == branch:
                 return i
+
         return len(self.moves)  # End if not found
+
+    def handle_move_say(self, move):
+        text = self._get(move, 'text')
+        for var, value in self.user_model.items():
+            text = text.replace(f"%{var}%", str(value))
+        self.conversation_agent.say(text)
+        self.session_history.append({"role": "robot", "type": "say", "text": text})
+
+    def handle_move_ask_yesno(self, move):
+        move = MoveAskYesNo.from_dict(move)
+        answer = self.conversation_agent.say(move.text)
+        self.session_history.append({"role": "robot", "type": "ask_yesno", "text": move.text})
+        self.session_history.append({"role": "user", "type": "answer_yesno", "text": answer})
+        print(f"User answered: {answer}")
+
+        # store answer and interest if configured
+        if move.set_variable:
+            self.user_model[move.set_variable] = answer
+
+        if answer == "yes" and move.add_interest:
+            self.add_interest(self.topics_of_interest, move.add_interest)
+
+        return answer
+
+    def handle_move_ask_open(self, move):
+        move = MoveAskOpen.from_dict(move)
+        answer = self.conversation_agent.ask_open(move.text)
+        self.session_history.append({"role": "robot", "type": "ask_open", "text": move.text})
+        self.session_history.append({"role": "user", "type": "answer_open", "text": answer})
+        print(f"User answered: {answer}")
+
+        # store answer if configured
+        if move.set_variable and answer:
+            self.user_model[move.set_variable] = self.extract_open_value(answer)
+
+        # Optional automatic personalized follow-up
+        if move.personalize_followup:
+            try:
+                age_val = self.user_model.get('user_age', self.user_model.get('age', 9))
+                follow = self.conversation_agent.personalize(
+                    robot_input=move.text,
+                    user_age=age_val,
+                    user_input=(answer or ""),
+                    language="en"
+                )
+                if follow:
+                    self.conversation_agent.say(follow)
+                    self.session_history.append(
+                        {"role": "robot", "type": "personalize", "text": follow, "source_question": move.text})
+            except Exception as e:
+                self.session_history.append(
+                    {"role": "system", "type": "error", "stage": "personalize_followup", "error": str(e)})
+
+        # store interest if configured
+        if answer and move.add_interest_from_answer:
+            self.add_interest(self.topics_of_interest, answer)
+        if move.add_interest_from_variable:
+            val = self.user_model.get(move.add_interest_from_variable)
+            if val:
+                self.add_interest(self.topics_of_interest, val)
+
+        return answer
+
+    def handle_move_ask_options(self, move):
+        move = MoveAskOptions.from_dict(move)
+        answer = self.conversation_agent.ask_options(move.text, move.options)
+        self.session_history.append(
+            {"role": "robot", "type": "ask_options", "text": move.text, "options": move.options})
+        self.session_history.append({"role": "user", "type": "answer_options", "text": answer})
+        print(f"User answered: {answer}")
+
+        # store answer if configured
+        if move.set_variable and answer:
+            self.user_model[move.set_variable] = answer
+
+        # store interest if configured
+        if answer and move.add_interest_from_variable:
+            self.add_interest(self.topics_of_interest, answer)
+        if move.add_interest_from_variable:
+            val = self.user_model.get(move.add_interest_from_variable)
+            if val:
+                self.add_interest(self.topics_of_interest, val)
+
+        return answer
+
+    def handle_move_play_audio(self, move):
+        move = MovePlayAudio.from_dict(move)
+        self.conversation_agent.play_audio(move.audio_file)
+
+
+class FunctionalType(Enum):
+    GREETING = "greeting"
+    FAREWELL = "farewell"
 
 
 class FunctionalDialog(MiniDialog):
@@ -213,21 +245,24 @@ class FunctionalDialog(MiniDialog):
         super().__init__(dialog_id, moves, dependencies)
         self.type = type
 
+    def is_greeting_dialog(self):
+        return self.type == FunctionalType.GREETING
+
+    def is_farewell_dialog(self):
+        return self.type == FunctionalType.FAREWELL
+
 
 class NarrativeDialog(MiniDialog):
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.thread = thread
-        self.position = position  
+        self.position = position
 
 
-class ChitchatDialog(MiniDialog):  
-    def __init__(self, dialog_id, moves, theme,  topics=None, dependencies=None, variable_dependencies=None):
+class ChitchatDialog(MiniDialog):
+    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
         self.topics = topics or []
-
-
-

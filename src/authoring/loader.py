@@ -2,8 +2,8 @@ import json
 import os
 from typing import Any, Dict, List, Tuple
 
-from mini_dialogs import MiniDialog
-from authoring.factory import DialogFactory
+from src.authoring.factory import DialogFactory
+from src.mini_dialogs import MiniDialog
 
 
 def _load_json_file(path: str) -> List[Dict[str, Any]]:

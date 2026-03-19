@@ -66,18 +66,18 @@ if __name__ == '__main__':
     #     "ip": "xxx.xxx.xxx.xxx"
     # }
 
-    demo = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
-                            openai_key_path=abspath(join("conf", "openai", ".openai_env")))
+    agent = ConversationAgent(device, google_keyfile_path=abspath(join("conf", "dialogflow", "google_keyfile.json")),
+                              openai_key_path=abspath(join("conf", "openai", ".openai_env")))
 
-    history = ConversationState()
-    history.load()
+    conversation_state = ConversationState()
+    conversation_state.load()
     session_history = []
-    demo.run()
+    agent.run()
 
     # Seed from persisted continuity
-    completed_dialogs = set(history.completed_dialogs)
-    user_model = dict(history.user_model)
-    topics_of_interest = list(history.topics_of_interest)
+    completed_dialogs = set(conversation_state.completed_dialogs)
+    user_model = dict(conversation_state.user_model)
+    topics_of_interest = list(conversation_state.topics_of_interest)
 
     # Start new history session (store thread/theme if you like)
     # Participant ID: set via environment variable PARTICIPANT_ID (optional)
@@ -102,9 +102,9 @@ if __name__ == '__main__':
 
     # Create a run_id to group sessions that belong to a single experimental run
     run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
-    session_id = history.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id, run_id=run_id)
+    session_id = conversation_state.start_session(metadata={"thread": "dreams", "theme": "nature"}, participant_id=participant_id, run_id=run_id)
     # Ensure Dialogflow uses a fresh request id per session
-    demo.start_new_session()
+    agent.generate_new_diaologflow_request_id()
     try:
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
     except Exception:
@@ -113,13 +113,12 @@ if __name__ == '__main__':
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
     dialogs_json_path = abspath(join("assets", "dialogs", "dialogs.json"))
     try:
-        all_dialogs_loaded, load_errs = load_dialogs(dialogs_json_path)
+        all_dialogs, load_errs = load_dialogs(dialogs_json_path)
         if load_errs:
             print("[WARN] Issues while loading dialogs.json:")
             for e in load_errs:
                 print(" -", e)
-        if all_dialogs_loaded:
-            all_dialogs = all_dialogs_loaded
+        if all_dialogs:
             print(f"[INFO] Loaded {len(all_dialogs)} dialogs from {dialogs_json_path}")
         else:
             all_dialogs = []
@@ -144,12 +143,12 @@ if __name__ == '__main__':
         pass
 
     for dialog in session_block:
-        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):  
+        if DialogLogic.can_run(dialog, completed_dialogs, user_model, all_dialogs=all_dialogs):
             # record which dialog runs
-            history.add_dialog_id(session_id, dialog.dialog_id)
+            conversation_state.add_dialog_id(session_id, dialog.dialog_id)
             # optional lightweight markers in session_history
             session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-            dialog.run(demo, session_history, user_model, topics_of_interest)
+            dialog.run(agent, session_history, topics_of_interest, user_model)
             session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
             completed_dialogs.add(dialog.dialog_id)
         else:
@@ -161,7 +160,7 @@ if __name__ == '__main__':
     # Condense topics_of_interest into single-word keywords via GPT (with a simple fallback)
     try:
         original_topics = list(topics_of_interest)
-        condensed = demo.extract_topics_with_gpt(original_topics)
+        condensed = agent.extract_topics_with_gpt(original_topics)
         topics_of_interest = condensed
         print(f"[DEBUG] Condensed topics: {topics_of_interest}")
     except Exception as e:
@@ -174,12 +173,12 @@ if __name__ == '__main__':
     print(f"All sessions history saved to {ALL_HISTORY_FILE}")
 
     # Persist via the new class
-    history.add_events(session_id, session_history)
-    history.end_session(session_id,
-                        completed_ids=completed_dialogs,
-                        user_model=user_model,
-                        topics_of_interest=topics_of_interest)
-    history.save()
+    conversation_state.add_events(session_id, session_history)
+    conversation_state.end_session(session_id,
+                                   completed_ids=completed_dialogs,
+                                   user_model=user_model,
+                                   topics_of_interest=topics_of_interest)
+    conversation_state.save()
     print("Conversation state saved.")
 
     sys.exit()

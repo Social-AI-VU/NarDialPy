@@ -1,41 +1,38 @@
 from typing import Optional
 from typing import Dict, Any, List
+from abc import abstractmethod
+
+MOVE_SAY = "say"
+MOVE_ASK_YESNO = "ask_yesno"
+MOVE_ASK_OPEN = "ask_open"
+MOVE_ASK_OPTIONS = "ask_options"
+MOVE_PLAY_AUDIO = "play"
 
 
-class MoveSay:
-    def __init__(self, text: str, branch: Optional[str] = None):
-        # Basic move for saying a line. Matches schema: {"type":"say","text":..., "branch"?: str|null}
-        self.type = "say"
+class Move:
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def get_type(self):
+        pass
+
+
+class MoveSay(Move):
+    def __init__(self, text: str):
+        super().__init__()
+        self.type = MOVE_SAY
         self.text = text
-        self.branch = branch
 
-    def as_dict(self) -> Dict[str, Any]:
-        d = {"type": "say", "text": self.text}
-        if self.branch is not None:
-            d["branch"] = self.branch
-        return d
-
-    def __repr__(self) -> str:
-        return f"MoveSay(text={self.text!r}, branch={self.branch!r})"
-
-    def __str__(self) -> str:
-        return self.text
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MoveSay):
-            return False
-        return self.text == other.text and self.branch == other.branch
-
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
+    def get_type(self):
+        return self.type
 
 
-class MoveAskYesNo:
+class MoveAskYesNo(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest: Optional[str] = None,
-                 branch: Optional[str] = None):
-        # Ensure compatibility with MiniDialog.run accessor expectations
-        self.type = "ask_yesno"
+                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_ASK_YESNO
         self.text = text
         # Engine reads 'next'; we also keep 'next_map' as an alias for convenience
         self.next = dict(next_map or {})
@@ -44,45 +41,27 @@ class MoveAskYesNo:
         self.add_interest = add_interest
         self.branch = branch
 
-    def as_dict(self) -> Dict[str, Any]:
-        d = {"type": "ask_yesno", "text": self.text}
-        if self.next:
-            d["next"] = self.next
-        if self.set_variable is not None:
-            d["set_variable"] = self.set_variable
-        if self.add_interest is not None:
-            d["add_interest"] = self.add_interest
-        if self.branch is not None:
-            d["branch"] = self.branch
-        return d
+    def get_type(self):
+        return self.type
 
-    def __repr__(self) -> str:
-        return f"MoveAskYesNo(text={self.text!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest={self.add_interest!r}, branch={self.branch!r})"
-
-    def __str__(self) -> str:
-        return self.text
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MoveAskYesNo):
-            return False
-        return (self.text == other.text and
-                self.next == other.next and
-                self.set_variable == other.set_variable and
-                self.add_interest == other.add_interest and
-                self.branch == other.branch)
-
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            text=data.get("text"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            add_interest=data.get("add_interest"),
+            branch=data.get("branch"),
+        )
 
 
-class MoveAskOpen:
+class MoveAskOpen(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None,
-                 add_interest_from_answer: Optional[bool] = None,
-                 add_interest_from_variable: Optional[str] = None,
-                 branch: Optional[str] = None):
-        # Ensure compatibility with MiniDialog.run accessor expectations
-        self.type = "ask_open"
+                 set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
+                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+                 personalize_followup: Optional[bool] = None):
+        super().__init__()
+        self.type = MOVE_ASK_OPEN
         self.text = text
         # Engine reads 'next'; keep 'next_map' as alias for convenience
         self.next = dict(next_map or {})
@@ -91,51 +70,31 @@ class MoveAskOpen:
         self.add_interest_from_answer = add_interest_from_answer
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+        self.personalize_followup = personalize_followup
 
-    def as_dict(self) -> Dict[str, Any]:
-        d = {"type": "ask_open", "text": self.text}
-        if self.next:
-            d["next"] = self.next
-        if self.set_variable is not None:
-            d["set_variable"] = self.set_variable
-        if self.add_interest_from_answer is not None:
-            d["add_interest_from_answer"] = self.add_interest_from_answer
-        if self.add_interest_from_variable is not None:
-            d["add_interest_from_variable"] = self.add_interest_from_variable
-        if self.branch is not None:
-            d["branch"] = self.branch
-        return d
+    def get_type(self):
+        return self.type
 
-    def __repr__(self) -> str:
-        return f"MoveAskOpen(text={self.text!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest_from_answer={self.add_interest_from_answer!r}, add_interest_from_variable={self.add_interest_from_variable!r}, branch={self.branch!r})"
-
-    def __str__(self) -> str:
-        return self.text
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MoveAskOpen):
-            return False
-        return (self.text == other.text and
-                self.next == other.next and
-                self.set_variable == other.set_variable and
-                self.add_interest_from_answer == other.add_interest_from_answer and
-                self.add_interest_from_variable == other.add_interest_from_variable and
-                self.branch == other.branch)
-
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            text=data.get("text"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            add_interest_from_variable=data.get("add_interest_from_variable"),
+            add_interest_from_answer=data.get("add_interest_from_answer"),
+            branch=data.get("branch"),
+            personalize_followup=data.get("personalize_followup"),
+        )
 
 
-class MoveAskOptions:
-    def __init__(self, text: str, options: List[str],
-                 next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None,
-                 add_interest_from_variable: Optional[str] = None,
-                 branch: Optional[str] = None):
-        # Ensure compatibility with MiniDialog.run accessor expectations
-        self.type = "ask_options"
+class MoveAskOptions(Move):
+    def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None, set_variable: Optional[str] = None,
+                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_ASK_OPTIONS
         self.text = text
-        self.options = options
+        self.options = options or []
         # Engine reads 'next'; keep 'next_map' as alias for convenience
         self.next = dict(next_map or {})
         self.next_map = self.next
@@ -143,33 +102,32 @@ class MoveAskOptions:
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
 
-    def as_dict(self) -> Dict[str, Any]:
-        d = {"type": "ask_options", "text": self.text, "options": self.options}
-        if self.next:
-            d["next"] = self.next
-        if self.set_variable is not None:
-            d["set_variable"] = self.set_variable
-        if self.add_interest_from_variable is not None:
-            d["add_interest_from_variable"] = self.add_interest_from_variable
-        if self.branch is not None:
-            d["branch"] = self.branch
-        return d
+    def get_type(self):
+        return self.type
 
-    def __repr__(self) -> str:
-        return f"MoveAskOptions(text={self.text!r}, options={self.options!r}, next={self.next!r}, set_variable={self.set_variable!r}, add_interest_from_variable={self.add_interest_from_variable!r}, branch={self.branch!r})"
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            text=data.get("text"),
+            options=data.get("options"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            add_interest_from_variable=data.get("add_interest_from_variable"),
+            branch=data.get("branch")
+        )
 
-    def __str__(self) -> str:
-        return self.text
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, MoveAskOptions):
-            return False
-        return (self.text == other.text and
-                self.options == other.options and
-                self.next == other.next and
-                self.set_variable == other.set_variable and
-                self.add_interest_from_variable == other.add_interest_from_variable and
-                self.branch == other.branch)
+class MovePlayAudio(Move):
+    def __init__(self, audio_file: str):
+        super().__init__()
+        self.type = MOVE_PLAY_AUDIO
+        self.audio_file = audio_file
 
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            audio_file=data.get("audio"),
+        )

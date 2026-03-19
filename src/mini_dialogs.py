@@ -2,7 +2,7 @@ from typing import Optional
 import re
 
 from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MoveAskYesNo, MoveAskOpen, \
-    MoveAskOptions, MovePlayAudio, MOVE_ANSWER_OPEN
+    MoveAskOptions, MovePlayAudio, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 from enum import Enum
 
@@ -156,7 +156,7 @@ class MiniDialog:
         move = MoveAskYesNo.from_dict(move)
         answer = self.conversation_agent.say(move.text)
         self.session_history.append({"role": "robot", "type": MOVE_ASK_YESNO, "text": move.text})
-        self.session_history.append({"role": "user", "type": MOVE_ASK_YESNO, "text": answer})
+        self.session_history.append({"role": "user", "type": MOVE_ANSWER_YESNO, "text": answer})
         print(f"User answered: {answer}")
 
         # store answer and interest if configured
@@ -211,7 +211,7 @@ class MiniDialog:
         move = MoveAskOptions.from_dict(move)
         answer = self.conversation_agent.ask_options(move.text, move.options)
         self.session_history.append({"role": "robot", "type": MOVE_ASK_OPTIONS, "text": move.text, "options": move.options})
-        self.session_history.append({"role": "user", "type": "answer_options", "text": answer})
+        self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPTIONS, "text": answer})
         print(f"User answered: {answer}")
 
         # store answer if configured

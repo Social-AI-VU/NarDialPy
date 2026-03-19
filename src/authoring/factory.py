@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-from mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog
 
 
 ALLOWED_MOVE_TYPES = {"say", "ask_yesno", "ask_open", "ask_options", "play"}

@@ -9,7 +9,8 @@ from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.services.openai_gpt.gpt import GPT, GPTConf, GPTRequest
+from sic_framework.services.llm.openai_gpt import GPT
+from sic_framework.services.llm import GPTConf, GPTRequest
 from dotenv import load_dotenv
 
 from sic_framework.devices.desktop import Desktop

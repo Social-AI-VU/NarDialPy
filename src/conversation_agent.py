@@ -279,5 +279,5 @@ class ConversationAgent:
         except Exception:
             return "Thanks for sharing. Would you like to tell me a bit more?"
 
-    def run(self):
+    def greet(self):
         self.say("Hello, I am your companion robot")

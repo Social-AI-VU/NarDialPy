@@ -8,6 +8,10 @@ MOVE_ASK_OPEN = "ask_open"
 MOVE_ASK_OPTIONS = "ask_options"
 MOVE_PLAY_AUDIO = "play"
 
+MOVE_ANSWER_OPEN = "answer_open"
+MOVE_ANSWER_YESNO = "answer_yesno"
+MOVE_ANSWER_OPTIONS = "answer_options"
+
 
 class Move:
     def __init__(self):

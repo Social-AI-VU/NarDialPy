@@ -6,10 +6,11 @@ import re
 
 import numpy as np
 from sic_framework.core.message_python2 import AudioRequest
-from sic_framework.devices import Nao
+from sic_framework.devices import Nao, Pepper
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.services.openai_gpt.gpt import GPT, GPTConf, GPTRequest
+from sic_framework.services.llm.openai_gpt import GPT
+from sic_framework.services.llm import GPTConf, GPTRequest
 from dotenv import load_dotenv
 
 from sic_framework.devices.desktop import Desktop
@@ -45,6 +46,9 @@ class ConversationAgent:
         # Placeholder for the selected device
         if "type" in device_info and device_info["type"] == "nao":
             self.device = Nao(ip=device_info["ip"])
+            self.speaker = self.device.speaker
+        elif "type" in device_info and device_info["type"] == "pepper":
+            self.device = Pepper(device_info["ip"])
             self.speaker = self.device.speaker
         else:
             self.device = Desktop(speakers_conf=SpeakersConf(sample_rate=self.tts_sample_rate))
@@ -92,7 +96,8 @@ class ConversationAgent:
             if sample_width != 2:
                 raise ValueError("WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width))
 
-            self.speaker.request(AudioRequest(wf.readframes(n_frames), framerate))
+            audio = wf.readframes(n_frames)
+            self.speaker.request(AudioRequest(audio, framerate))
 
     def ask_yesno(self, question, max_attempts=2):
         attempts = 0

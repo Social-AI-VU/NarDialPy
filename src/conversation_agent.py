@@ -7,7 +7,6 @@ import re
 import numpy as np
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.alphamini import Alphamini
 from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf

@@ -51,7 +51,7 @@ class ConversationAgent:
             self.device = Pepper(device_info["ip"])
             self.speaker = self.device.speaker
         else:
-            self.device = Desktop(speakers_conf=SpeakersConf(self.tts_sample_rate))
+            self.device = Desktop(speakers_conf=SpeakersConf(sample_rate=self.tts_sample_rate))
             self.speaker = self.device.speakers
         self.mic = self.device.mic
 

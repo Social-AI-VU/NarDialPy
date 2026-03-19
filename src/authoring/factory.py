@@ -1,9 +1,10 @@
 from typing import Any, Dict, List
 
 from src.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
 
 
-ALLOWED_MOVE_TYPES = {"say", "ask_yesno", "ask_open", "ask_options", "play"}
+ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO}
 
 
 class MoveFactory:
@@ -18,7 +19,7 @@ class MoveFactory:
         if mt in {"say"}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for say")
-        if mt in {"ask_yesno", "ask_open", "ask_options"}:
+        if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for {mt}")
         if mt == "ask_options":

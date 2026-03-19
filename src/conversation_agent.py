@@ -7,6 +7,7 @@ import re
 import numpy as np
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
+from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
@@ -97,6 +98,15 @@ class ConversationAgent:
 
             audio = wf.readframes(n_frames)
             self.speaker.request(AudioRequest(audio, framerate))
+
+    def play_motion_sequence(self, motion_sequence_file):
+        if isinstance(self.device, Desktop):
+            return
+        try:
+            recording = NaoqiMotionRecording.load(motion_sequence_file)
+            self.device.motion_record.request(PlayRecording(recording))
+        except Exception as e:
+            print(f"Exception: {e}")
 
     def ask_yesno(self, question, max_attempts=2):
         attempts = 0

@@ -7,6 +7,7 @@ MOVE_ASK_YESNO = "ask_yesno"
 MOVE_ASK_OPEN = "ask_open"
 MOVE_ASK_OPTIONS = "ask_options"
 MOVE_PLAY_AUDIO = "play"
+MOVE_MOTION_SEQUENCE = "motion_sequence"
 
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
@@ -93,7 +94,8 @@ class MoveAskOpen(Move):
 
 
 class MoveAskOptions(Move):
-    def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None, set_variable: Optional[str] = None,
+    def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None,
+                 set_variable: Optional[str] = None,
                  add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
@@ -134,4 +136,20 @@ class MovePlayAudio(Move):
     def from_dict(cls, data: dict):
         return cls(
             audio_file=data.get("audio"),
+        )
+
+
+class MoveMotionSequence(Move):
+    def __init__(self, sequence_file: str):
+        super().__init__()
+        self.type = MOVE_MOTION_SEQUENCE
+        self.sequence_file = sequence_file
+
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            sequence_file=data.get("motion_sequence"),
         )

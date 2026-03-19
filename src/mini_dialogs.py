@@ -1,8 +1,9 @@
 from typing import Optional
 import re
 
-from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MoveAskYesNo, MoveAskOpen, \
-    MoveAskOptions, MovePlayAudio, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
+from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
+    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, \
+    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 from enum import Enum
 
@@ -122,6 +123,9 @@ class MiniDialog:
             elif move_type == MOVE_PLAY_AUDIO:
                 self.handle_move_play_audio(move)
                 idx += 1
+            elif move_type == MOVE_MOTION_SEQUENCE:
+                self.handle_move_motion_sequence(move)
+                idx += 1
             else:
                 idx += 1
 
@@ -232,6 +236,11 @@ class MiniDialog:
         move = MovePlayAudio.from_dict(move)
         self.conversation_agent.play_audio(move.audio_file)
         self.session_history.append({"role": "robot", "type": MOVE_PLAY_AUDIO, "audio_file": move.audio_file})
+
+    def handle_move_motion_sequence(self, move):
+        move = MoveMotionSequence.from_dict(move)
+        self.conversation_agent.play_motion_sequence(move.sequence_file)
+        self.session_history.append({"role": "robot", "type": MOVE_MOTION_SEQUENCE, "motion_sequence_file": move.sequence_file})
 
 
 class FunctionalType(Enum):

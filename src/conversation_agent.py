@@ -7,6 +7,7 @@ import re
 import numpy as np
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
+from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
@@ -107,6 +108,14 @@ class ConversationAgent:
             self.device.motion_record.request(PlayRecording(recording))
         except Exception as e:
             print(f"Exception: {e}")
+
+    def play_animation(self, animation_name):
+        if isinstance(self.device, Desktop):
+            return
+        try:
+            self.device.motion.request(NaoqiAnimationRequest(animation_name), block=True)
+        except Exception as e:
+            print(f"Failed to play animation: {animation_name}", e)
 
     def ask_yesno(self, question, max_attempts=2):
         attempts = 0

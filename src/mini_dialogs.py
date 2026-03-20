@@ -1,7 +1,7 @@
 from typing import Optional
 import re
 
-from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, MOVE_ANIMATION, \
+from src.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
@@ -87,7 +87,7 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-    def run(self, agent, session_history, topics_of_interest, user_model):
+    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
@@ -161,7 +161,7 @@ class MiniDialog:
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
-        answer = self.conversation_agent.say(move.text)
+        answer = self.conversation_agent.ask_yesno(move.text)
         self.session_history.append({"role": "robot", "type": MOVE_ASK_YESNO, "text": move.text})
         self.session_history.append({"role": "user", "type": MOVE_ANSWER_YESNO, "text": answer})
         print(f"User answered: {answer}")

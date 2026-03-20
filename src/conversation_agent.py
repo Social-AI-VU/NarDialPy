@@ -302,5 +302,12 @@ class ConversationAgent:
         except Exception:
             return "Thanks for sharing. Would you like to tell me a bit more?"
 
+    def ask_llm(self, prompt, context_messages, system_message):
+        try:
+            return self.gpt.request(GPTRequest(prompt=prompt, context_messages=context_messages, system_message=system_message))
+        except Exception as e:
+            print(f"Exception: {e}")
+            return None
+
     def greet(self):
         self.say("Hello, I am your companion robot")

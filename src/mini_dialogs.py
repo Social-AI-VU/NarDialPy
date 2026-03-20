@@ -1,11 +1,22 @@
 from typing import Optional
 import re
 
-from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, MOVE_ANIMATION, \
+from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
+    MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 from enum import Enum
+
+
+class DialogType(Enum):
+    NARRATIVE = "narrative"
+    CHITCHAT = "chitchat"
+    FUNCTIONAL = "functional"
+    LLM_BASED = "llm_based"
+
+
+MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
@@ -217,7 +228,8 @@ class MiniDialog:
     def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         answer = self.conversation_agent.ask_options(move.text, move.options)
-        self.session_history.append({"role": "robot", "type": MOVE_ASK_OPTIONS, "text": move.text, "options": move.options})
+        self.session_history.append(
+            {"role": "robot", "type": MOVE_ASK_OPTIONS, "text": move.text, "options": move.options})
         self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPTIONS, "text": answer})
         print(f"User answered: {answer}")
 
@@ -243,7 +255,8 @@ class MiniDialog:
     def handle_move_motion_sequence(self, move):
         move = MoveMotionSequence.from_dict(move)
         self.conversation_agent.play_motion_sequence(move.sequence_file)
-        self.session_history.append({"role": "robot", "type": MOVE_MOTION_SEQUENCE, "motion_sequence_file": move.sequence_file})
+        self.session_history.append(
+            {"role": "robot", "type": MOVE_MOTION_SEQUENCE, "motion_sequence_file": move.sequence_file})
 
     def handle_move_animation(self, move):
         move = MoveAnimation.from_dict(move)
@@ -283,3 +296,32 @@ class ChitchatDialog(MiniDialog):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
         self.topics = topics or []
+
+
+class LLMDialog(MiniDialog):
+    def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
+                 variable_dependencies=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        self.prompt = prompt
+        self.max_turns = max_turns or MAX_LLM_TURNS
+
+    def run(self, agent, session_history, topics_of_interest, user_model):
+        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+        dialog_history = []
+
+        user_input = ""
+        while len(dialog_history) < self.max_turns:
+            llm_text = self.conversation_agent.ask_llm(prompt=user_input, context_messages=dialog_history, system_message=self.prompt)
+            if llm_text is None:
+                continue
+
+            user_input = self.conversation_agent.ask_open(llm_text)
+            if not user_input:
+                user_input = ""
+
+            self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": llm_text})
+            self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPEN, "text": user_input})
+            dialog_history.append(user_input)
+
+

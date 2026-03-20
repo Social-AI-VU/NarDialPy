@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from src.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
 from src.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
 
 
@@ -112,7 +112,7 @@ class DialogFactory:
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
 
-        if dtype == "narrative":
+        if dtype == DialogType.NARRATIVE:
             return NarrativeDialog(
                 dialog_id=did,
                 moves=moves,
@@ -121,7 +121,7 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
-        if dtype == "chitchat":
+        if dtype == DialogType.CHITCHAT:
             return ChitchatDialog(
                 dialog_id=did,
                 moves=moves,
@@ -130,12 +130,21 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
-        if dtype == "functional":
+        if dtype == DialogType.FUNCTIONAL:
             return FunctionalDialog(
                 dialog_id=did,
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+            )
+        if dtype == DialogType.LLM_BASED:
+            return LLMDialog(
+                dialog_id=did,
+                moves=moves,
+                prompt=doc["prompt"],
+                max_turns=doc["max_turns"],
+                dependencies=deps,
+                variable_dependencies=vdeps,
             )
         return MiniDialog(did, moves, deps, vdeps)
 

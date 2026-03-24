@@ -115,7 +115,7 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-    def run(self, agent, session_history, topics_of_interest, user_model):
+    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 

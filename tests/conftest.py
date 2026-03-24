@@ -28,11 +28,30 @@ def make_mock_agent():
 
     Usage:
         agent = make_mock_agent(ask_llm_side_effect=[...], ask_open_side_effect=[...])
+    The side-effect lists are wrapped so that if the mock is called more times than the
+    provided sequence length, the last value is returned repeatedly instead of raising StopIteration.
     """
+    def _wrap_side_effect(seq):
+        if seq is None:
+            return None
+        seq_list = list(seq)
+        if not seq_list:
+            return lambda *a, **k: None
+        last = seq_list[-1]
+
+        def fn(*a, **k):
+            if seq_list:
+                return seq_list.pop(0)
+            return last
+
+        return fn
+
     def _make(ask_llm_side_effect=None, ask_open_side_effect=None):
         agent = type('Agent', (), {})()
-        agent.ask_llm = Mock(side_effect=ask_llm_side_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
-        agent.ask_open = Mock(side_effect=ask_open_side_effect) if ask_open_side_effect is not None else Mock(return_value=None)
+        llm_effect = _wrap_side_effect(ask_llm_side_effect)
+        open_effect = _wrap_side_effect(ask_open_side_effect)
+        agent.ask_llm = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
+        agent.ask_open = Mock(side_effect=open_effect) if ask_open_side_effect is not None else Mock(return_value=None)
         agent.ask_yes_no = Mock(return_value='no')
         agent.ask_options = Mock(return_value=None)
         agent.say = Mock()

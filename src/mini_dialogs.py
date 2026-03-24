@@ -265,7 +265,6 @@ class MiniDialog:
             quit_signal=move.quit_signal,
         )
 
-    # Shared helper used for both MoveAskLLM moves and full LLMDialog runs
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         dialog_history = []
@@ -357,7 +356,6 @@ class LLMDialog(MiniDialog):
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-        # Reuse the shared LLM exchange helper. For full-dialog LLMs we record as ask_open/answer_open
         self._run_llm_exchange(
             prompt=self.prompt,
             max_turns=self.max_turns,

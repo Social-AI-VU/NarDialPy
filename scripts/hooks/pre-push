@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Pre-push git hook to run pytest and block push if tests fail
+
+echo "Running test suite before push..."
+# Run pytest quietly
+pytest -q
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo "\nTests failed. Aborting push. Fix tests or run 'git push --no-verify' to bypass."
+  exit $STATUS
+fi
+
+echo "Tests passed. Proceeding with push."

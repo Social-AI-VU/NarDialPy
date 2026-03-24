@@ -54,3 +54,27 @@ run-gpt
 13. Run [this script](./src/demo_general_conversation.py) in  a new terminal. 
 
 ---
+
+## Continuous Integration and Local Git Hooks
+
+This repository includes a GitHub Actions workflow that runs the test suite with pytest on push and pull requests. The workflow file is at `.github/workflows/pytest.yml`.
+
+To block local pushes when tests fail, a `pre-push` hook is provided under `scripts/hooks/pre-push`. To install it into your local repo's Git hooks directory run:
+
+```bash
+# from the project root
+bash scripts/install-hooks.sh
+```
+
+The install script copies the hook into `.git/hooks` and makes it executable. If you need to bypass local hooks for an urgent push, use:
+
+```bash
+git push --no-verify
+```
+
+CI notes:
+- The workflow installs dependencies from `requirements.txt` if present, otherwise it only installs `pytest`.
+- You can add a `requirements.txt` to pin dependencies used by tests.
+
+---
+

@@ -6,6 +6,7 @@ MOVE_SAY = "say"
 MOVE_ASK_YESNO = "ask_yesno"
 MOVE_ASK_OPEN = "ask_open"
 MOVE_ASK_OPTIONS = "ask_options"
+MOVE_ASK_LLM = "ask_llm"
 MOVE_PLAY_AUDIO = "play"
 MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
@@ -13,6 +14,7 @@ MOVE_ANIMATION = "animation"
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
+MOVE_ANSWER_LLM = "answer_llm"
 
 
 class Move:
@@ -124,6 +126,39 @@ class MoveAskOptions(Move):
         )
 
 
+class MoveAskLLM(Move):
+    def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
+                 set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
+                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+                 max_turns: Optional[int] = None):
+        super().__init__()
+        self.type = MOVE_ASK_LLM
+        self.prompt = prompt
+        # Engine reads 'next'; keep 'next_map' as alias for convenience
+        self.next = dict(next_map or {})
+        self.next_map = self.next
+        self.set_variable = set_variable
+        self.add_interest_from_answer = add_interest_from_answer
+        self.add_interest_from_variable = add_interest_from_variable
+        self.branch = branch
+        self.max_turns = max_turns
+
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            prompt=data.get("prompt"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            add_interest_from_variable=data.get("add_interest_from_variable"),
+            add_interest_from_answer=data.get("add_interest_from_answer"),
+            branch=data.get("branch"),
+            max_turns=data.get("max_turns"),
+        )
+
+
 class MovePlayAudio(Move):
     def __init__(self, audio_file: str):
         super().__init__()
@@ -170,4 +205,5 @@ class MoveAnimation(Move):
         return cls(
             animation_name=data.get("animation_name"),
         )
+
 

@@ -4,7 +4,7 @@ import re
 from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
-    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
+    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 from enum import Enum
 
@@ -263,6 +263,26 @@ class MiniDialog:
         self.conversation_agent.play_animation(move.animation_name)
         self.session_history.append({"role": "robot", "type": MOVE_ANIMATION, "animation_name": move.animation_name})
 
+    def handle_move_ask_llm(self, move):
+        move = MoveAskLLM.from_dict(move)
+        prompt = move.prompt
+        max_turns = move.max_turns or MAX_LLM_TURNS
+
+        dialog_history = []
+        user_input = ""
+        for _ in range(max_turns):
+            llm_text = self.conversation_agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=prompt)
+            if llm_text is None:
+                continue
+
+            user_input = self.conversation_agent.ask_open(llm_text)
+            if not user_input:
+                user_input = ""
+
+            self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": llm_text})
+            self.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
+            dialog_history.append(user_input)
+
 
 class FunctionalType(Enum):
     GREETING = "greeting"
@@ -312,7 +332,7 @@ class LLMDialog(MiniDialog):
 
         user_input = ""
         while len(dialog_history) < self.max_turns:
-            llm_text = self.conversation_agent.ask_llm(prompt=user_input, context_messages=dialog_history, system_message=self.prompt)
+            llm_text = self.conversation_agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=self.prompt)
             if llm_text is None:
                 continue
 

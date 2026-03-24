@@ -378,7 +378,6 @@ class LLMDialog(MiniDialog):
                 if not qp:
                     continue
                 if qp.lower() in user_input.lower():
-                    self.session_history.append({"role": "system", "type": "user_quit", "phrase": qp})
                     quit_happened = True
                     break
             if quit_happened:

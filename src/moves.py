@@ -155,8 +155,6 @@ class MoveAskLLM(Move):
             prompt=data.get("prompt"),
             next_map=data.get("next"),
             set_variable=data.get("set_variable"),
-            add_interest_from_variable=data.get("add_interest_from_variable"),
-            add_interest_from_answer=data.get("add_interest_from_answer"),
             branch=data.get("branch"),
             max_turns=data.get("max_turns"),
             quit_phrases=data.get("quit_phrases"),

@@ -294,6 +294,11 @@ class MiniDialog:
             self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": llm_text})
             self.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
 
+            # store answer if configured on the move (keeps parity with other handlers)
+            if move.set_variable and user_input:
+                # reuse extract_open_value heuristic
+                self.user_model[move.set_variable] = self.extract_open_value(user_input)
+
             # If the user said a quit phrase, stop early
             quit_happened = False
             for qp in (move.quit_phrases or []):

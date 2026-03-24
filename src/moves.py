@@ -129,8 +129,7 @@ class MoveAskOptions(Move):
 
 class MoveAskLLM(Move):
     def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
-                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+                 set_variable: Optional[str] = None, branch: Optional[str] = None,
                  max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_LLM
@@ -139,8 +138,6 @@ class MoveAskLLM(Move):
         self.next = dict(next_map or {})
         self.next_map = self.next
         self.set_variable = set_variable
-        self.add_interest_from_answer = add_interest_from_answer
-        self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
         # Max turns limits the number of back-and-forth exchanges with the LLM for this move
         self.max_turns = max_turns

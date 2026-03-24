@@ -1,11 +1,12 @@
 from typing import Optional
-from typing import Dict, Any, List
+from typing import Dict, List
 from abc import abstractmethod
 
 MOVE_SAY = "say"
 MOVE_ASK_YESNO = "ask_yesno"
 MOVE_ASK_OPEN = "ask_open"
 MOVE_ASK_OPTIONS = "ask_options"
+MOVE_ASK_LLM = "ask_llm"
 MOVE_PLAY_AUDIO = "play"
 MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
@@ -13,7 +14,9 @@ MOVE_ANIMATION = "animation"
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
+MOVE_ANSWER_LLM = "answer_llm"
 
+LLM_QUIT_SIGNAL = "<<QUIT>>"
 
 class Move:
     def __init__(self):
@@ -124,6 +127,41 @@ class MoveAskOptions(Move):
         )
 
 
+class MoveAskLLM(Move):
+    def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
+                 set_variable: Optional[str] = None, branch: Optional[str] = None,
+                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_ASK_LLM
+        self.prompt = prompt
+        # Engine reads 'next'; keep 'next_map' as alias for convenience
+        self.next = dict(next_map or {})
+        self.next_map = self.next
+        self.set_variable = set_variable
+        self.branch = branch
+        # Max turns limits the number of back-and-forth exchanges with the LLM for this move
+        self.max_turns = max_turns
+        # Quit phrases are user utterances that should end the LLM-driven exchange
+        self.quit_phrases = [p for p in (quit_phrases or []) if p]
+        # Quit signal is an optional token that the LLM can include in its response to signal termination
+        self.quit_signal = quit_signal if quit_signal is not None else LLM_QUIT_SIGNAL
+
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            prompt=data.get("prompt"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            branch=data.get("branch"),
+            max_turns=data.get("max_turns"),
+            quit_phrases=data.get("quit_phrases"),
+            quit_signal=data.get("quit_signal"),
+        )
+
+
 class MovePlayAudio(Move):
     def __init__(self, audio_file: str):
         super().__init__()
@@ -170,4 +208,5 @@ class MoveAnimation(Move):
         return cls(
             animation_name=data.get("animation_name"),
         )
+
 

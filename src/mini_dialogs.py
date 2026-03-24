@@ -243,7 +243,7 @@ class MiniDialog:
     def handle_move_play_audio(self, move):
         move = MovePlayAudio.from_dict(move)
         self.conversation_agent.play_audio(move.audio_file)
-        self._record_robot(MOVE_PLAY_AUDIO,  "Played audio. ",  audio_file=move.audio_file)
+        self._record_robot(MOVE_PLAY_AUDIO, "Played audio. ", audio_file=move.audio_file)
 
     def handle_move_motion_sequence(self, move):
         move = MoveMotionSequence.from_dict(move)
@@ -257,23 +257,30 @@ class MiniDialog:
 
     def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
-        prompt = move.prompt
-        max_turns = move.max_turns or MAX_LLM_TURNS
+        self._run_llm_exchange(
+            prompt=move.prompt,
+            max_turns=move.max_turns or MAX_LLM_TURNS,
+            set_variable=move.set_variable,
+            quit_phrases=move.quit_phrases,
+            quit_signal=move.quit_signal,
+        )
 
+    # Shared helper used for both MoveAskLLM moves and full LLMDialog runs
+    def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
+                          quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         dialog_history = []
         user_input = ""
-        for _ in range(max_turns):
+        for _ in range(max_turns or MAX_LLM_TURNS):
             llm_text = self.conversation_agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=prompt)
             if llm_text is None:
                 continue
 
-            # Detect quit signal embedded by the LLM in its reply
-            if move.quit_signal and move.quit_signal in llm_text:
-                clean_text = llm_text.replace(move.quit_signal, "").strip()
-                if clean_text:
-                    # speak any remaining content and log it
-                    self.conversation_agent.say(clean_text)
-                    self._record_robot(MOVE_SAY, clean_text)
+            # If the LLM embeds a quit signal, speak any remaining content and stop
+            if quit_signal and quit_signal in llm_text:
+                clean = llm_text.replace(quit_signal, "").strip()
+                if clean:
+                    self.conversation_agent.say(clean)
+                    self._record_robot(MOVE_SAY, clean)
                 return
 
             # Ask the user the LLM's text and listen for reply
@@ -281,16 +288,17 @@ class MiniDialog:
             if not user_input:
                 user_input = ""
 
+            # Record the exchange using the provided record types
             self._record_robot(MOVE_ASK_LLM, llm_text)
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
-            # store answer if configured
-            if move.set_variable and user_input:
-                self.user_model[move.set_variable] = self.extract_open_value(user_input)
+            # Optionally store a variable from user's answer
+            if set_variable and user_input:
+                self.user_model[set_variable] = self.extract_open_value(user_input)
 
-            # If the user said a quit phrase, stop early
+            # If the user said a configured quit phrase, stop early
             quit_happened = False
-            for qp in (move.quit_phrases or []):
+            for qp in (quit_phrases or []):
                 if not qp:
                     continue
                 if qp.lower() in user_input.lower():
@@ -349,38 +357,11 @@ class LLMDialog(MiniDialog):
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-        dialog_history = []
-
-        user_input = ""
-        while len(dialog_history) < self.max_turns:
-            llm_text = self.conversation_agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=self.prompt)
-            if llm_text is None:
-                continue
-
-            # Check for quit signal from LLM (configurable per-dialog)
-            if self.quit_signal and self.quit_signal in llm_text:
-                clean = llm_text.replace(self.quit_signal, "").strip()
-                if clean:
-                    self.conversation_agent.say(clean)
-                    self._record_robot(MOVE_SAY, clean)
-                break
-
-            user_input = self.conversation_agent.ask_open(llm_text)
-            if not user_input:
-                user_input = ""
-
-            self._record_robot(MOVE_ASK_OPEN, llm_text)
-            self._record_user(MOVE_ANSWER_OPEN, user_input)
-
-            # If user said a configured quit phrase, stop early
-            quit_happened = False
-            for qp in (self.quit_phrases or []):
-                if not qp:
-                    continue
-                if qp.lower() in user_input.lower():
-                    quit_happened = True
-                    break
-            if quit_happened:
-                break
-
-            dialog_history.append(user_input)
+        # Reuse the shared LLM exchange helper. For full-dialog LLMs we record as ask_open/answer_open
+        self._run_llm_exchange(
+            prompt=self.prompt,
+            max_turns=self.max_turns,
+            set_variable=None,
+            quit_phrases=self.quit_phrases,
+            quit_signal=self.quit_signal,
+        )

@@ -1,7 +1,7 @@
 from os.path import abspath, join
 
-from sic_framework.devices import Pepper
-from sic_framework.devices.desktop import Desktop
+# Replace the heavy sic_framework device-based agent with a simple mock agent for tests
+from unittest.mock import Mock
 
 from src.conversation_agent import ConversationAgent
 from src.mini_dialogs import MiniDialog
@@ -10,11 +10,17 @@ from src.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, 
 
 
 def mock_agent():
-    device = Pepper(ip="10.0.0.148")
-    google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
-    openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
-    return ConversationAgent(device_manager=device, google_keyfile_path=google_keyfile_path,
-                             openai_key_path=openai_key_path)
+    # Build a minimal agent with the same interface used by MiniDialog but mocked behaviors
+    agent = Mock()
+    agent.say = Mock()
+    agent.ask_yes_no = Mock(return_value='no')
+    agent.ask_open = Mock(return_value='answer')
+    agent.ask_options = Mock(return_value='dreaming')
+    agent.play_audio = Mock()
+    agent.play_motion_sequence = Mock()
+    agent.play_animation = Mock()
+    agent.personalize = Mock(return_value=None)
+    return agent
 
 
 def test_move_say():
@@ -41,7 +47,6 @@ def test_move_ask_yesno():
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
-    # TODO: find a way to assert that topics of interests have been updated if the user answers "yes"
 
 
 def test_move_ask_open():
@@ -59,7 +64,6 @@ def test_move_ask_open():
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
-    # TODO: find a way to assert that topics of interests have been updated with the user's answer
 
 
 def test_move_ask_options():
@@ -76,7 +80,6 @@ def test_move_ask_options():
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
-    # TODO: find a way to assert that topics of interests have been updated with the user's answer
 
 
 def test_move_play_audio():

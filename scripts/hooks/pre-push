@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 # Pre-push git hook to run pytest and block push if tests fail
+set -euo pipefail
 
 echo "Running test suite before push..."
-# Run pytest quietly
-pytest -q
-STATUS=$?
-if [ $STATUS -ne 0 ]; then
-  echo "\nTests failed. Aborting push. Fix tests or run 'git push --no-verify' to bypass."
+
+# Allow overriding interpreter with PYTHON env var
+PYTHON="${PYTHON:-}"
+if [ -z "$PYTHON" ]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON=python3
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON=python
+  else
+    echo "No python executable found in PATH. Please install Python or set PYTHON env var to your interpreter."
+    exit 1
+  fi
+fi
+
+# Run tests via the interpreter to ensure virtualenvs are respected
+echo "Using interpreter: $PYTHON"
+
+# Run pytest via the interpreter so the venv's pytest is used (if any)
+if ! $PYTHON -m pytest -q; then
+  STATUS=$?
+  echo "\nTests failed (exit code $STATUS). Aborting push. To bypass local hook: git push --no-verify"
   exit $STATUS
 fi
 
 echo "Tests passed. Proceeding with push."
+exit 0

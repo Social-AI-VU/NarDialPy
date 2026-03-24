@@ -1,5 +1,5 @@
 from typing import Optional
-from typing import Dict, Any, List
+from typing import Dict, List
 from abc import abstractmethod
 
 MOVE_SAY = "say"
@@ -16,6 +16,7 @@ MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
 MOVE_ANSWER_LLM = "answer_llm"
 
+LLM_QUIT_SIGNAL = "<<QUIT>>"
 
 class Move:
     def __init__(self):
@@ -130,7 +131,7 @@ class MoveAskLLM(Move):
     def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
                  add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
-                 max_turns: Optional[int] = None):
+                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_LLM
         self.prompt = prompt
@@ -141,7 +142,12 @@ class MoveAskLLM(Move):
         self.add_interest_from_answer = add_interest_from_answer
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+        # Max turns limits the number of back-and-forth exchanges with the LLM for this move
         self.max_turns = max_turns
+        # Quit phrases are user utterances that should end the LLM-driven exchange
+        self.quit_phrases = [p for p in (quit_phrases or []) if p]
+        # Quit signal is an optional token that the LLM can include in its response to signal termination
+        self.quit_signal = quit_signal if quit_signal is not None else LLM_QUIT_SIGNAL
 
     def get_type(self):
         return self.type
@@ -156,6 +162,8 @@ class MoveAskLLM(Move):
             add_interest_from_answer=data.get("add_interest_from_answer"),
             branch=data.get("branch"),
             max_turns=data.get("max_turns"),
+            quit_phrases=data.get("quit_phrases"),
+            quit_signal=data.get("quit_signal"),
         )
 
 

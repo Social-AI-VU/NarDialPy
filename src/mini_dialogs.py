@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 import re
 
 from moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
@@ -275,12 +275,37 @@ class MiniDialog:
             if llm_text is None:
                 continue
 
+            # Detect quit signal embedded by the LLM in its reply
+            if move.quit_signal and move.quit_signal in llm_text:
+                clean_text = llm_text.replace(move.quit_signal, "").strip()
+                if clean_text:
+                    # speak any remaining content and log it
+                    self.conversation_agent.say(clean_text)
+                    self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": clean_text})
+                # record that LLM requested termination
+                self.session_history.append({"role": "system", "type": "llm_quit", "signal": move.quit_signal})
+                return  # End the LLM move early
+
+            # Ask the user the LLM's text and listen for reply
             user_input = self.conversation_agent.ask_open(llm_text)
             if not user_input:
                 user_input = ""
 
             self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": llm_text})
             self.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
+
+            # If the user said a quit phrase, stop early
+            quit_happened = False
+            for qp in (move.quit_phrases or []):
+                if not qp:
+                    continue
+                if qp.lower() in user_input.lower():
+                    self.session_history.append({"role": "system", "type": "user_quit", "phrase": qp})
+                    quit_happened = True
+                    break
+            if quit_happened:
+                return
+
             dialog_history.append(user_input)
 
 
@@ -320,10 +345,13 @@ class ChitchatDialog(MiniDialog):
 
 class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
-                 variable_dependencies=None):
+                 variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
+        # Quit phrases (user utterances) and quit signal (LLM-inserted token)
+        self.quit_phrases = [p for p in (quit_phrases or []) if p]
+        self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -336,12 +364,32 @@ class LLMDialog(MiniDialog):
             if llm_text is None:
                 continue
 
+            # Check for quit signal from LLM (configurable per-dialog)
+            if self.quit_signal and self.quit_signal in llm_text:
+                clean = llm_text.replace(self.quit_signal, "").strip()
+                if clean:
+                    self.conversation_agent.say(clean)
+                    self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": clean})
+                self.session_history.append({"role": "system", "type": "llm_quit", "signal": self.quit_signal})
+                break
+
             user_input = self.conversation_agent.ask_open(llm_text)
             if not user_input:
                 user_input = ""
 
             self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": llm_text})
             self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPEN, "text": user_input})
+
+            # If user said a configured quit phrase, stop early
+            quit_happened = False
+            for qp in (self.quit_phrases or []):
+                if not qp:
+                    continue
+                if qp.lower() in user_input.lower():
+                    self.session_history.append({"role": "system", "type": "user_quit", "phrase": qp})
+                    quit_happened = True
+                    break
+            if quit_happened:
+                break
+
             dialog_history.append(user_input)
-
-

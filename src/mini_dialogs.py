@@ -54,18 +54,6 @@ class MiniDialog:
             return default
 
     @staticmethod
-    def _extract_interest_token(answer: str) -> Optional[str]:
-        # Simple heuristic: extract the first noun-like token from the answer  
-        tokens = re.findall(r'\b\w+\b', answer)
-        if not tokens:
-            return None
-        for tok in tokens:
-            if len(tok) > 2:
-                return tok
-        if len(tokens) < 2:
-            return tokens[0]
-
-    @staticmethod
     def add_interest(topics_of_interest, topic):
         if topics_of_interest is None or not topic:
             return
@@ -75,6 +63,35 @@ class MiniDialog:
         low = t.lower()
         if all(low != str(x).lower() for x in topics_of_interest):
             topics_of_interest.append(t)
+
+    def _record_robot(self, type_name: str, text: str, **extra):
+        entry = {"role": "robot", "type": type_name, "text": text}
+        entry.update(extra)
+        self.session_history.append(entry)
+
+    def _record_user(self, type_name: str, text: str, **extra):
+        entry = {"role": "user", "type": type_name, "text": text}
+        entry.update(extra)
+        self.session_history.append(entry)
+
+    def _record_system(self, type_name: str, text: str, **extra):
+        entry = {"role": "system", "type": type_name, "text": text}
+        entry.update(extra)
+        self.session_history.append(entry)
+
+    def _store_set_variable(self, move, answer: str):
+        if not answer:
+            return
+        if getattr(move, 'set_variable', None):
+            self.user_model[move.set_variable] = self.extract_open_value(answer)
+
+    def _store_interests(self, move, answer: str):
+        if answer and getattr(move, 'add_interest_from_answer', False):
+            self.add_interest(self.topics_of_interest, answer)
+        if getattr(move, 'add_interest_from_variable', None):
+            val = self.user_model.get(move.add_interest_from_variable)
+            if val:
+                self.add_interest(self.topics_of_interest, val)
 
     @staticmethod
     def extract_open_value(answer: str) -> str:
@@ -168,20 +185,18 @@ class MiniDialog:
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
         self.conversation_agent.say(text)
-        self.session_history.append({"role": "robot", "type": MOVE_SAY, "text": text})
+        self._record_robot(MOVE_SAY, text)
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
         answer = self.conversation_agent.ask_yes_no(move.text)
-        self.session_history.append({"role": "robot", "type": MOVE_ASK_YESNO, "text": move.text})
-        self.session_history.append({"role": "user", "type": MOVE_ANSWER_YESNO, "text": answer})
+        self._record_robot(MOVE_ASK_YESNO, move.text)
+        self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
 
         # store answer and interest if configured
-        if move.set_variable:
-            self.user_model[move.set_variable] = answer
-
-        if answer == "yes" and move.add_interest:
+        self._store_set_variable(move, answer)
+        if answer == "yes" and getattr(move, 'add_interest', None):
             self.add_interest(self.topics_of_interest, move.add_interest)
 
         return answer
@@ -189,79 +204,56 @@ class MiniDialog:
     def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
         answer = self.conversation_agent.ask_open(move.text)
-        self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": move.text})
-        self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPEN, "text": answer})
+        self._record_robot(MOVE_ASK_OPEN, move.text)
+        self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
-        # store answer if configured
-        if move.set_variable and answer:
-            self.user_model[move.set_variable] = self.extract_open_value(answer)
+        # store answer and interests if configured
+        self._store_set_variable(move, answer)
+        self._store_interests(move, answer)
 
         # Optional automatic personalized follow-up
-        if move.personalize_followup:
-            try:
-                age_val = self.user_model.get('user_age', self.user_model.get('age', 9))
-                follow = self.conversation_agent.personalize(
-                    robot_input=move.text,
-                    user_age=age_val,
-                    user_input=(answer or ""),
-                    language="en"
-                )
-                if follow:
-                    self.conversation_agent.say(follow)
-                    self.session_history.append(
-                        {"role": "robot", "type": "personalize", "text": follow, "source_question": move.text})
-            except Exception as e:
-                self.session_history.append(
-                    {"role": "system", "type": "error", "stage": "personalize_followup", "error": str(e)})
+        if not move.personalize_followup:
+            return answer
 
-        # store interest if configured
-        if answer and move.add_interest_from_answer:
-            self.add_interest(self.topics_of_interest, answer)
-        if move.add_interest_from_variable:
-            val = self.user_model.get(move.add_interest_from_variable)
-            if val:
-                self.add_interest(self.topics_of_interest, val)
+        try:
+            age_val = self.user_model.get('user_age', self.user_model.get('age', 9))
+            follow = self.conversation_agent.personalize(robot_input=move.text, user_age=age_val, user_input=(answer or ""), language="en")
+            if follow:
+                self.conversation_agent.say(follow)
+                self._record_robot("personalize_followup", follow, source_question=move.text)
+        except Exception as e:
+            self._record_system("error", "Error during personalize follow-up", stage="personalize_followup", error=str(e))
 
         return answer
 
     def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         answer = self.conversation_agent.ask_options(move.text, move.options)
-        self.session_history.append(
-            {"role": "robot", "type": MOVE_ASK_OPTIONS, "text": move.text, "options": move.options})
-        self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPTIONS, "text": answer})
+        self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
+        self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
 
         # store answer if configured
-        if move.set_variable and answer:
-            self.user_model[move.set_variable] = answer
-
-        # store interest if configured
-        if answer and move.add_interest_from_variable:
-            self.add_interest(self.topics_of_interest, answer)
-        if move.add_interest_from_variable:
-            val = self.user_model.get(move.add_interest_from_variable)
-            if val:
-                self.add_interest(self.topics_of_interest, val)
+        self._store_set_variable(move, answer)
+        self._store_interests(move, answer)
 
         return answer
 
     def handle_move_play_audio(self, move):
         move = MovePlayAudio.from_dict(move)
         self.conversation_agent.play_audio(move.audio_file)
-        self.session_history.append({"role": "robot", "type": MOVE_PLAY_AUDIO, "audio_file": move.audio_file})
+        self._record_robot(MOVE_PLAY_AUDIO,  "Played audio. ",  audio_file=move.audio_file)
 
     def handle_move_motion_sequence(self, move):
         move = MoveMotionSequence.from_dict(move)
         self.conversation_agent.play_motion_sequence(move.sequence_file)
-        self.session_history.append(
-            {"role": "robot", "type": MOVE_MOTION_SEQUENCE, "motion_sequence_file": move.sequence_file})
+        self._record_robot(MOVE_MOTION_SEQUENCE, "Played motion sequence.", motion_sequence_file=move.sequence_file)
 
     def handle_move_animation(self, move):
         move = MoveAnimation.from_dict(move)
         self.conversation_agent.play_animation(move.animation_name)
-        self.session_history.append({"role": "robot", "type": MOVE_ANIMATION, "animation_name": move.animation_name})
+        self._record_robot(MOVE_ANIMATION, "Played animation. ", animation_name=move.animation_name)
 
     def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
@@ -281,22 +273,19 @@ class MiniDialog:
                 if clean_text:
                     # speak any remaining content and log it
                     self.conversation_agent.say(clean_text)
-                    self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": clean_text})
-                # record that LLM requested termination
-                self.session_history.append({"role": "system", "type": "llm_quit", "signal": move.quit_signal})
-                return  # End the LLM move early
+                    self._record_robot(MOVE_SAY, clean_text)
+                return
 
             # Ask the user the LLM's text and listen for reply
             user_input = self.conversation_agent.ask_open(llm_text)
             if not user_input:
                 user_input = ""
 
-            self.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": llm_text})
-            self.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
+            self._record_robot(MOVE_ASK_LLM, llm_text)
+            self._record_user(MOVE_ANSWER_LLM, user_input)
 
-            # store answer if configured on the move (keeps parity with other handlers)
+            # store answer if configured
             if move.set_variable and user_input:
-                # reuse extract_open_value heuristic
                 self.user_model[move.set_variable] = self.extract_open_value(user_input)
 
             # If the user said a quit phrase, stop early
@@ -305,7 +294,6 @@ class MiniDialog:
                 if not qp:
                     continue
                 if qp.lower() in user_input.lower():
-                    self.session_history.append({"role": "system", "type": "user_quit", "phrase": qp})
                     quit_happened = True
                     break
             if quit_happened:
@@ -374,16 +362,15 @@ class LLMDialog(MiniDialog):
                 clean = llm_text.replace(self.quit_signal, "").strip()
                 if clean:
                     self.conversation_agent.say(clean)
-                    self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": clean})
-                self.session_history.append({"role": "system", "type": "llm_quit", "signal": self.quit_signal})
+                    self._record_robot(MOVE_SAY, clean)
                 break
 
             user_input = self.conversation_agent.ask_open(llm_text)
             if not user_input:
                 user_input = ""
 
-            self.session_history.append({"role": "robot", "type": MOVE_ASK_OPEN, "text": llm_text})
-            self.session_history.append({"role": "user", "type": MOVE_ANSWER_OPEN, "text": user_input})
+            self._record_robot(MOVE_ASK_OPEN, llm_text)
+            self._record_user(MOVE_ANSWER_OPEN, user_input)
 
             # If user said a configured quit phrase, stop early
             quit_happened = False

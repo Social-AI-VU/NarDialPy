@@ -1,12 +1,12 @@
+import re
 import asyncio
 import json
 import wave
-from enum import Enum
 from os import environ
-import re
-from threading import Thread
-
 import numpy as np
+from threading import Thread
+from dotenv import load_dotenv
+
 import mini.mini_sdk as MiniSdk
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
@@ -18,7 +18,7 @@ from sic_framework.services.google_tts.google_tts import Text2Speech, Text2Speec
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.services.llm.openai_gpt import GPT
 from sic_framework.services.llm import GPTConf, GPTRequest
-from dotenv import load_dotenv
+from src.configs import DialogFlowConfig, GoogleTTSConfig, OpenAIConfig
 
 from sic_framework.devices.desktop import Desktop
 from sic_framework.services.dialogflow.dialogflow import (
@@ -29,35 +29,28 @@ from sic_framework.services.dialogflow.dialogflow import (
 
 
 class ConversationAgent:
-    def __init__(self, device_manager: SICDeviceManager, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
-                 google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
-                 openai_key_path=None):
+    def __init__(self, device_manager: SICDeviceManager, dialogflow_config: DialogFlowConfig, google_tts_config: GoogleTTSConfig, openai_config: OpenAIConfig):
+        self.tts = None
+        self.gpt = None
+        self.mic = None
+        self.device = None
+        self.speaker = None
+        self.mini_api = None
+        self.request_id = None
+        self.dialogflow = None
+        self.tts_sample_rate = None
 
-        if openai_key_path:
-            load_dotenv(openai_key_path)
-
-        # Background loop
+        # Background thread and event loop for miniSDK connection (to avoid blocking main thread)
         self.background_loop = asyncio.new_event_loop()
         self.background_thread = Thread(target=self._start_loop, daemon=True)
         self.background_thread.start()
 
-        # Setup GPT client
-        conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
-        self.gpt = GPT(conf=conf)
-        print("OpenAI GPT4 Ready")
+        self.setup_device_manager(device_manager)
+        self.setup_gpt_client(openai_config)
+        self.setup_google_tts_client(google_tts_config)
+        self.setup_dialogflow_client(dialogflow_config)
 
-        # Setup TTS
-        self.google_tts_voice_name = google_tts_voice_name
-        self.google_tts_voice_gender = google_tts_voice_gender
-        self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=json.load(open(google_keyfile_path)),
-                                                    speaking_rate=default_speaking_rate))
-        init_reply = self.tts.request(GetSpeechRequest(text="I am initializing",
-                                                       voice_name=self.google_tts_voice_name,
-                                                       ssml_gender=self.google_tts_voice_gender))
-        self.tts_sample_rate = init_reply.sample_rate
-        print("Google TTS ready")
-
-        # Setup Device Manager
+    def setup_device_manager(self, device_manager):
         if isinstance(device_manager, Pepper) or isinstance(device_manager, Nao):
             self.device = device_manager
             self.speaker = device_manager.speaker
@@ -67,16 +60,35 @@ class ConversationAgent:
         elif isinstance(device_manager, Alphamini):
             self.device = device_manager
             self.speaker = self.device.speaker
-            self.mini_api = None
             self.connect_to_mini_sdk()
         else:
             raise ValueError(f"DeviceManager {device_manager} is currently not supported")
         self.mic = self.device.mic
         print("Device connected")
 
-        # Set up Dialogflow
-        dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
-                                         sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
+    def setup_gpt_client(self, openai_config):
+        if openai_config.openai_key_path:
+            load_dotenv(openai_config.openai_key_path)
+        conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
+        self.gpt = GPT(conf=conf)
+        print("OpenAI GPT4 Ready")
+
+    def setup_google_tts_client(self, google_tts_config):
+        self.tts = Text2Speech(conf=Text2SpeechConf(
+            keyfile_json=json.load(open(google_tts_config.google_keyfile_path)),
+            speaking_rate=google_tts_config.default_speaking_rate)
+        )
+        init_reply = self.tts.request(GetSpeechRequest(
+            text="I am initializing",
+            voice_name=google_tts_config.google_tts_voice_name,
+            ssml_gender=google_tts_config.google_tts_voice_gender)
+        )
+        self.tts_sample_rate = init_reply.sample_rate
+        print("Google TTS ready")
+
+    def setup_dialogflow_client(self, dialogflow_config):
+        dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(dialogflow_config.google_keyfile_path)),
+                                         sample_rate_hertz=dialogflow_config.sample_rate_dialogflow_hertz, language=dialogflow_config.dialogflow_language)
         self.dialogflow = Dialogflow(ip="localhost", conf=dialogflow_conf, input_source=self.mic)
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)

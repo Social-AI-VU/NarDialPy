@@ -8,6 +8,7 @@ from sic_framework.devices.desktop import Desktop
 
 from authoring.loader import load_dialogs
 from conversation_state import ConversationState
+from src.configs import GoogleTTSConfig, OpenAIConfig, DialogFlowConfig
 
 from src.conversation_agent import ConversationAgent
 from src.dialog import DialogLogic
@@ -101,7 +102,10 @@ if __name__ == '__main__':
     # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
-    agent = ConversationAgent(device, google_keyfile_path=google_keyfile_path, openai_key_path=openai_key_path)
+    google_config = GoogleTTSConfig(google_keyfile_path)
+    openai_config = OpenAIConfig(openai_key_path)
+    dialogflow_config = DialogFlowConfig(google_keyfile_path)
+    agent = ConversationAgent(device, dialogflow_config=dialogflow_config, google_tts_config=google_config, openai_config=openai_config)
     agent.greet()
 
     # Define thread and theme for the conversation

@@ -1,12 +1,16 @@
+import asyncio
 import json
 import wave
+from enum import Enum
 from os import environ
 import re
-
+from threading import Thread
 
 import numpy as np
+import mini.mini_sdk as MiniSdk
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
+from sic_framework.devices.alphamini import Alphamini
 from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.device import SICDeviceManager
@@ -32,6 +36,11 @@ class ConversationAgent:
         if openai_key_path:
             load_dotenv(openai_key_path)
 
+        # Background loop
+        self.background_loop = asyncio.new_event_loop()
+        self.background_thread = Thread(target=self._start_loop, daemon=True)
+        self.background_thread.start()
+
         # Setup GPT client
         conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
         self.gpt = GPT(conf=conf)
@@ -55,6 +64,11 @@ class ConversationAgent:
         elif isinstance(device_manager, Desktop):
             self.device = Desktop(speakers_conf=SpeakersConf(sample_rate=self.tts_sample_rate))
             self.speaker = self.device.speakers
+        elif isinstance(device_manager, Alphamini):
+            self.device = device_manager
+            self.speaker = self.device.speaker
+            self.mini_api = None
+            self.connect_to_mini_sdk()
         else:
             raise ValueError(f"DeviceManager {device_manager} is currently not supported")
         self.mic = self.device.mic
@@ -67,6 +81,23 @@ class ConversationAgent:
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
         print("Dialogflow Ready")
+
+    def connect_to_mini_sdk(self):
+        # Create asyncio event loop to keep connection open to miniSDK.
+        connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
+        try:
+            connect_to_mini_sdk_future.result()
+        except Exception as e:
+            print(f"Failed to connect to miniSDK: {e}")
+
+    def _start_loop(self):
+        asyncio.set_event_loop(self.background_loop)
+        self.background_loop.run_forever()
+
+    async def _connect_once(self):
+        if not self.mini_api:
+            self.mini_api = await MiniSdk.get_device_by_name(self.device.mini_id, 10)
+            await MiniSdk.connect(self.mini_api)
 
     def generate_new_diaologflow_request_id(self):
         """Generate a fresh Dialogflow request_id for a new session/run."""
@@ -101,7 +132,7 @@ class ConversationAgent:
             self.speaker.request(AudioRequest(audio, framerate))
 
     def play_motion_sequence(self, motion_sequence_file):
-        if isinstance(self.device, Desktop):
+        if not (isinstance(self.device, Nao) or isinstance(self.device, Pepper)):
             return
         try:
             recording = NaoqiMotionRecording.load(motion_sequence_file)
@@ -110,7 +141,8 @@ class ConversationAgent:
             print(f"Exception: {e}")
 
     def play_animation(self, animation_name):
-        if isinstance(self.device, Desktop):
+        # TODO: support animations on Alphamini via miniSDK
+        if not (isinstance(self.device, Nao) or isinstance(self.device, Pepper)):
             return
         try:
             self.device.motion.request(NaoqiAnimationRequest(animation_name), block=True)
@@ -212,14 +244,15 @@ class ConversationAgent:
         Returns a de-duplicated list preserving order. Falls back to a simple local heuristic
         if the GPT response can't be parsed.
         """
+
         def _heuristic(lines):
             if not lines:
                 return []
             stop = {
-                "the","a","an","and","or","but","if","then","than","that","this","these","those",
-                "i","you","he","she","it","we","they","me","my","mine","your","yours","his","her","its","our","ours","their","theirs",
-                "to","in","on","at","from","for","with","about","as","of","is","are","was","were","be","been","am","do","does","did",
-                "yes","no","maybe","okay","ok","yeah","yep","nope","uh","um","favorite","favourite","because","thing","things","think"
+                "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this", "these", "those",
+                "i", "you", "he", "she", "it", "we", "they", "me", "my", "mine", "your", "yours", "his", "her", "its", "our", "ours", "their", "theirs",
+                "to", "in", "on", "at", "from", "for", "with", "about", "as", "of", "is", "are", "was", "were", "be", "been", "am", "do", "does", "did",
+                "yes", "no", "maybe", "okay", "ok", "yeah", "yep", "nope", "uh", "um", "favorite", "favourite", "because", "thing", "things", "think"
             }
             out, seen = [], set()
             for t in lines:
@@ -230,7 +263,8 @@ class ConversationAgent:
                 # take up to 2 keywords per input line
                 for w in picked[:2]:
                     if w not in seen:
-                        out.append(w); seen.add(w)
+                        out.append(w);
+                        seen.add(w)
             return out
 
         raw_topics = [str(x) for x in (raw_topics or []) if str(x).strip()]
@@ -254,7 +288,8 @@ class ConversationAgent:
                     continue
                 w = re.sub(r"[^A-Za-z]+", "", item.lower())
                 if len(w) > 2 and w not in seen:
-                    out.append(w); seen.add(w)
+                    out.append(w);
+                    seen.add(w)
             return out or _heuristic(raw_topics)
         except Exception:
             return _heuristic(raw_topics)

@@ -121,9 +121,6 @@ if __name__ == '__main__':
     )
     print(f"[INFO] Started session_id={session_id} run_id={run_id}")
 
-    # Ensure Dialogflow uses a fresh request id per session
-    agent.generate_new_diaologflow_request_id()
-
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
     all_dialogs = load_dialogs_from_json()
 

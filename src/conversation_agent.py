@@ -68,14 +68,6 @@ class ConversationAgent:
         self.request_id = np.random.randint(10000)
         print("Dialogflow Ready")
 
-    def generate_new_diaologflow_request_id(self):
-        """Generate a fresh Dialogflow request_id for a new session/run."""
-        self.request_id = np.random.randint(1000000)
-        try:
-            print(f"[DEBUG] New session request_id={self.request_id}")
-        except Exception:
-            pass
-
     def say(self, text, speaking_rate=1.0):
         print('Saying', text)
         reply = self.tts.request(GetSpeechRequest(text=text,

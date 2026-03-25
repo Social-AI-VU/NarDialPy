@@ -112,7 +112,7 @@ class DialogFactory:
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
 
-        if dtype == DialogType.NARRATIVE:
+        if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
                 dialog_id=did,
                 moves=moves,
@@ -121,7 +121,7 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
-        if dtype == DialogType.CHITCHAT:
+        if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
                 dialog_id=did,
                 moves=moves,
@@ -130,14 +130,14 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
-        if dtype == DialogType.FUNCTIONAL:
+        if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
                 dialog_id=did,
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
             )
-        if dtype == DialogType.LLM_BASED:
+        if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
                 dialog_id=did,
                 moves=moves,

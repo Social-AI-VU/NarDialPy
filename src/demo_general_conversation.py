@@ -18,23 +18,20 @@ openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    dialogs_json_path = abspath(join("..", "assets", "dialogs", "dialogs.json"))
-    try:
-        all_dialogs, load_errs = load_dialogs(dialogs_json_path)
-        if load_errs:
-            print("[WARN] Issues while loading dialogs.json:")
-            for e in load_errs:
-                print(" -", e)
-        if all_dialogs:
-            print(f"[INFO] Loaded {len(all_dialogs)} dialogs from {dialogs_json_path}")
-        else:
-            all_dialogs = []
-            print("[WARN] No JSON dialogs loaded and builtin dialogs are unavailable. Proceeding with 0 dialogs.")
-    except Exception as e:
-        all_dialogs = []
-        print(f"[WARN] Falling back to empty dialogs due to error: {e}")
-    return all_dialogs
+    path = abspath(join("..", "assets", "dialogs", "dialogs.json"))
 
+    try:
+        dialogs, errors = load_dialogs(path)
+        if errors:
+            print("[ERROR] Failed to fully load dialogs:", errors)
+            return []
+        if dialogs:
+            print(f"[INFO] Loaded {len(dialogs)} dialogs from {path}")
+            return dialogs
+        return []
+    except Exception as e:
+        print(f"[ERROR] Failed to load dialogs: {e}")
+        return []
 
 def create_run_id():
     return os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
@@ -84,7 +81,8 @@ if __name__ == '__main__':
     thread = "dreams"
     theme = "nature"
 
-    # Load conversation state
+    # Load conversation state from conversation_state.json if it exists
+    # ConversationState can be overwritten with participant info by setting PARTICIPANT_ID env var before running
     conversation_state = ConversationState(overwrite_with_participant_info=True)
 
     # Create a run_id to group sessions that belong to a single experimental run

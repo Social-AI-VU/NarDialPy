@@ -41,27 +41,6 @@ class DialogLogic:
         return any(topic in interests for topic in dialog_topics)
 
     @staticmethod
-    def load_participant_continuity(participant_id: str):
-        """
-        Read participants/{participant_id}.json if present and return:
-        (completed_dialogs_set, topics_of_interest_list).
-        Falls back to empty if no file or unreadable.
-        """
-        try:
-            pid = str(participant_id)
-            path = os.path.join("participants", f"{pid}.json")
-            if not os.path.exists(path):
-                return set(), []
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f) or {}
-            summary = data.get("summary") or {}
-            completed = set(summary.get("dialog_ids_seen") or [])
-            topics = list(summary.get("topics_of_interest") or [])
-            return completed, topics
-        except Exception:
-            return set(), []
-
-    @staticmethod
     def prioritized_chitchat(pool, theme=None, topics_of_interest=None):
         """
         Prioritize chitchat candidates by deps∧interests > interests > deps > others

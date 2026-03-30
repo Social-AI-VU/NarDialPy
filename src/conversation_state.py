@@ -14,7 +14,7 @@ class ConversationState:
     - per-participant transcript files under participants/{participant_id}.json
     """
 
-    def __init__(self, path: str = "conversation_state.json"):
+    def __init__(self, path: str = "conversation_state.json", overwrite_with_participant_info: bool = False) -> None:
         self.path = path
         # continuity
         self.completed_dialogs: List[str] = []
@@ -24,6 +24,50 @@ class ConversationState:
         self.sessions: List[Dict[str, Any]] = []
         # where per-participant files go
         self.participants_dir: str = os.path.join(os.path.dirname(path) or ".", "participants")
+
+        self.load()
+
+        self.participant_id = None
+        if overwrite_with_participant_info:
+            self.overwrite_with_participant_info()
+
+    def overwrite_with_participant_info(self) -> None:
+        self.participant_id = os.environ.get("PARTICIPANT_ID") or None
+        if not self.participant_id:
+            return
+
+        print(f"[INFO] Using participant_id={self.participant_id}")
+        pid_completed, pid_topics = self.load_participant_continuity(self.participant_id)
+
+        # For a new participant (no file), this will be empty -> fresh run
+        self.completed_dialogs = pid_completed or set()
+        self.topics_of_interest = pid_topics or []
+        self.user_model = {}
+
+        print(
+            f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
+            f"topics={self.topics_of_interest}")
+
+    @staticmethod
+    def load_participant_continuity(participant_id: str):
+            """
+            Read participants/{participant_id}.json if present and return:
+            (completed_dialogs_set, topics_of_interest_list).
+            Falls back to empty if no file or unreadable.
+            """
+            try:
+                pid = str(participant_id)
+                path = os.path.join("participants", f"{pid}.json")
+                if not os.path.exists(path):
+                    return set(), []
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f) or {}
+                summary = data.get("summary") or {}
+                completed = set(summary.get("dialog_ids_seen") or [])
+                topics = list(summary.get("topics_of_interest") or [])
+                return completed, topics
+            except Exception:
+                return set(), []
 
     def load(self) -> None:
         if not os.path.exists(self.path):

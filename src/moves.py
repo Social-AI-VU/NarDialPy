@@ -28,18 +28,36 @@ class Move:
 
 
 class MoveSay(Move):
-    def __init__(self, text: str):
+    def __init__(self, text: str, speaking_rate: Optional[float] = None,
+                 pitch: Optional[float] = None, voice: Optional[str] = None,
+                 style: Optional[float] = None):
         super().__init__()
         self.type = MOVE_SAY
         self.text = text
+        self.speaking_rate = speaking_rate
+        self.pitch = pitch
+        self.voice = voice
+        self.style = style
 
     def get_type(self):
         return self.type
 
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            text=data.get("text"),
+            speaking_rate=data.get("speaking_rate"),
+            pitch=data.get("pitch"),
+            voice=data.get("voice"),
+            style=data.get("style"),
+        )
+
 
 class MoveAskYesNo(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None):
+                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None,
+                 speaking_rate: Optional[float] = None, pitch: Optional[float] = None,
+                 voice: Optional[str] = None, style: Optional[float] = None):
         super().__init__()
         self.type = MOVE_ASK_YESNO
         self.text = text
@@ -49,6 +67,10 @@ class MoveAskYesNo(Move):
         self.set_variable = set_variable
         self.add_interest = add_interest
         self.branch = branch
+        self.speaking_rate = speaking_rate
+        self.pitch = pitch
+        self.voice = voice
+        self.style = style
 
     def get_type(self):
         return self.type
@@ -61,6 +83,10 @@ class MoveAskYesNo(Move):
             set_variable=data.get("set_variable"),
             add_interest=data.get("add_interest"),
             branch=data.get("branch"),
+            speaking_rate=data.get("speaking_rate"),
+            pitch=data.get("pitch"),
+            voice=data.get("voice"),
+            style=data.get("style"),
         )
 
 
@@ -68,7 +94,9 @@ class MoveAskOpen(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
                  add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
-                 personalize_followup: Optional[bool] = None):
+                 personalize_followup: Optional[bool] = None,
+                 speaking_rate: Optional[float] = None, pitch: Optional[float] = None,
+                 voice: Optional[str] = None, style: Optional[float] = None):
         super().__init__()
         self.type = MOVE_ASK_OPEN
         self.text = text
@@ -80,6 +108,10 @@ class MoveAskOpen(Move):
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
         self.personalize_followup = personalize_followup
+        self.speaking_rate = speaking_rate
+        self.pitch = pitch
+        self.voice = voice
+        self.style = style
 
     def get_type(self):
         return self.type
@@ -94,13 +126,19 @@ class MoveAskOpen(Move):
             add_interest_from_answer=data.get("add_interest_from_answer"),
             branch=data.get("branch"),
             personalize_followup=data.get("personalize_followup"),
+            speaking_rate=data.get("speaking_rate"),
+            pitch=data.get("pitch"),
+            voice=data.get("voice"),
+            style=data.get("style"),
         )
 
 
 class MoveAskOptions(Move):
     def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None,
-                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None):
+                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+                 speaking_rate: Optional[float] = None, pitch: Optional[float] = None,
+                 voice: Optional[str] = None, style: Optional[float] = None):
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
         self.text = text
@@ -111,6 +149,10 @@ class MoveAskOptions(Move):
         self.set_variable = set_variable
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+        self.speaking_rate = speaking_rate
+        self.pitch = pitch
+        self.voice = voice
+        self.style = style
 
     def get_type(self):
         return self.type
@@ -123,7 +165,11 @@ class MoveAskOptions(Move):
             next_map=data.get("next"),
             set_variable=data.get("set_variable"),
             add_interest_from_variable=data.get("add_interest_from_variable"),
-            branch=data.get("branch")
+            branch=data.get("branch"),
+            speaking_rate=data.get("speaking_rate"),
+            pitch=data.get("pitch"),
+            voice=data.get("voice"),
+            style=data.get("style"),
         )
 
 

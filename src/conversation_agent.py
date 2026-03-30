@@ -27,6 +27,7 @@ from sic_framework.services.dialogflow.dialogflow import (
 class ConversationAgent:
     def __init__(self, device_manager: SICDeviceManager, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
                  google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
+                 default_pitch=0.0, default_style=0.0,
                  openai_key_path=None):
 
         if openai_key_path:
@@ -40,6 +41,9 @@ class ConversationAgent:
         # Setup TTS
         self.google_tts_voice_name = google_tts_voice_name
         self.google_tts_voice_gender = google_tts_voice_gender
+        self.default_speaking_rate = default_speaking_rate
+        self.default_pitch = default_pitch
+        self.default_style = default_style
         self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=json.load(open(google_keyfile_path)),
                                                     speaking_rate=default_speaking_rate))
         init_reply = self.tts.request(GetSpeechRequest(text="I am initializing",
@@ -68,12 +72,16 @@ class ConversationAgent:
         self.request_id = np.random.randint(10000)
         print("Dialogflow Ready")
 
-    def say(self, text, speaking_rate=1.0):
+    def say(self, text, speaking_rate=None, pitch=None, voice=None, style=None):
         print('Saying', text)
+        effective_speaking_rate = speaking_rate if speaking_rate is not None else self.default_speaking_rate
+        effective_pitch = pitch if pitch is not None else self.default_pitch
+        effective_voice = voice if voice is not None else self.google_tts_voice_name
         reply = self.tts.request(GetSpeechRequest(text=text,
-                                                  voice_name=self.google_tts_voice_name,
+                                                  voice_name=effective_voice,
                                                   ssml_gender=self.google_tts_voice_gender,
-                                                  speaking_rate=speaking_rate))
+                                                  speaking_rate=effective_speaking_rate,
+                                                  pitch=effective_pitch))
         print(f'Speech generated with sample rate: {reply.sample_rate}')
         self.speaker.request(AudioRequest(reply.waveform, reply.sample_rate))
         print('Sent to device speaker')
@@ -109,13 +117,18 @@ class ConversationAgent:
         except Exception as e:
             print(f"Failed to play animation: {animation_name}", e)
 
-    def ask_yesno(self, question, max_attempts=2):
+    def ask_yesno(self, question, max_attempts=2, speaking_rate=None, pitch=None, voice=None, style=None):
         attempts = 0
+        effective_speaking_rate = speaking_rate if speaking_rate is not None else self.default_speaking_rate
+        effective_pitch = pitch if pitch is not None else self.default_pitch
+        effective_voice = voice if voice is not None else self.google_tts_voice_name
         while attempts < max_attempts:
             # ask question
             tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
+                                                          voice_name=effective_voice,
+                                                          ssml_gender=self.google_tts_voice_gender,
+                                                          speaking_rate=effective_speaking_rate,
+                                                          pitch=effective_pitch))
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
@@ -135,14 +148,20 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2):
+    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2,
+                   speaking_rate=None, pitch=None, voice=None, style=None):
         attempts = 0
+        effective_speaking_rate = speaking_rate if speaking_rate is not None else self.default_speaking_rate
+        effective_pitch = pitch if pitch is not None else self.default_pitch
+        effective_voice = voice if voice is not None else self.google_tts_voice_name
 
         while attempts < max_attempts:
             # ask question
             tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
+                                                          voice_name=effective_voice,
+                                                          ssml_gender=self.google_tts_voice_gender,
+                                                          speaking_rate=effective_speaking_rate,
+                                                          pitch=effective_pitch))
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
@@ -159,14 +178,19 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
+    def ask_open(self, question, max_attempts=2, speaking_rate=None, pitch=None, voice=None, style=None):
         attempts = 0
+        effective_speaking_rate = speaking_rate if speaking_rate is not None else self.default_speaking_rate
+        effective_pitch = pitch if pitch is not None else self.default_pitch
+        effective_voice = voice if voice is not None else self.google_tts_voice_name
 
         while attempts < max_attempts:
             # ask question
             tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
+                                                          voice_name=effective_voice,
+                                                          ssml_gender=self.google_tts_voice_gender,
+                                                          speaking_rate=effective_speaking_rate,
+                                                          pitch=effective_pitch))
             self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
 
             # listen for answer
@@ -181,7 +205,8 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
+    def ask_options(self, question, options, max_attempts=2,
+                    speaking_rate=None, pitch=None, voice=None, style=None):
         """
         Ask a multiple-choice question and return the chosen option as a string.
         Uses ask_open under the hood and matches the answer to one of the options.
@@ -189,7 +214,7 @@ class ConversationAgent:
         attempts = 0
         options_lower = [opt.lower() for opt in options]
         while attempts < max_attempts:
-            answer = self.ask_open(question)
+            answer = self.ask_open(question, speaking_rate=speaking_rate, pitch=pitch, voice=voice, style=style)
             if answer:
                 answer_lower = answer.lower()
                 for opt in options_lower:

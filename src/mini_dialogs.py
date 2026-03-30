@@ -184,12 +184,22 @@ class MiniDialog:
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
-        self.conversation_agent.say(text)
+        speaking_rate = self._get(move, 'speaking_rate')
+        pitch = self._get(move, 'pitch')
+        voice = self._get(move, 'voice')
+        style = self._get(move, 'style')
+        self.conversation_agent.say(text, speaking_rate=speaking_rate, pitch=pitch, voice=voice, style=style)
         self._record_robot(MOVE_SAY, text)
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
-        answer = self.conversation_agent.ask_yes_no(move.text)
+        answer = self.conversation_agent.ask_yes_no(
+            move.text,
+            speaking_rate=move.speaking_rate,
+            pitch=move.pitch,
+            voice=move.voice,
+            style=move.style,
+        )
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
@@ -203,7 +213,13 @@ class MiniDialog:
 
     def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
-        answer = self.conversation_agent.ask_open(move.text)
+        answer = self.conversation_agent.ask_open(
+            move.text,
+            speaking_rate=move.speaking_rate,
+            pitch=move.pitch,
+            voice=move.voice,
+            style=move.style,
+        )
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
@@ -229,7 +245,14 @@ class MiniDialog:
 
     def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
-        answer = self.conversation_agent.ask_options(move.text, move.options)
+        answer = self.conversation_agent.ask_options(
+            move.text,
+            move.options,
+            speaking_rate=move.speaking_rate,
+            pitch=move.pitch,
+            voice=move.voice,
+            style=move.style,
+        )
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")

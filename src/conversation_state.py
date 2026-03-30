@@ -6,16 +6,19 @@ import re
 
 
 class Session:
-    def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None,
+                 metadata: Optional[Dict[str, Any]] = None, started_at: Optional[str] = None, ended_at: Optional[str] = None,
+                 events: Optional[List[Dict[str, Any]]] = None, dialog_ids: Optional[List[str]] = None,
+                 summary: Optional[Dict[str, Any]] = None) -> None:
         self.session_id = session_id
         self.participant_id = participant_id
         self.run_id = run_id
         self.metadata = metadata or {}
-        self.started_at = datetime.utcnow().isoformat()
-        self.ended_at = None
-        self.events: List[Dict[str, Any]] = []
-        self.dialog_ids: List[str] = []
-        self.summary: Dict[str, Any] = {}
+        self.started_at = started_at or datetime.utcnow().isoformat()
+        self.ended_at = ended_at
+        self.events: List[Dict[str, Any]] = events or []
+        self.dialog_ids: List[str] = dialog_ids or []
+        self.summary: Dict[str, Any] = summary or {}
 
 
 class ConversationState:

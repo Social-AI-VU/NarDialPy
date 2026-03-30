@@ -3,7 +3,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 from src.authoring.factory import DialogFactory
-from src.mini_dialogs import MiniDialog
+from src.dialogs import Dialog
 
 
 def _load_json_file(path: str) -> List[Dict[str, Any]]:
@@ -16,12 +16,12 @@ def _load_json_file(path: str) -> List[Dict[str, Any]]:
     raise ValueError(f"Unsupported JSON root in {path}: {type(data)}")
 
 
-def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
+def load_dialogs(path_or_dir: str) -> Tuple[List[Dialog], List[str]]:
     """Load dialogs from a JSON file or all .json files in a directory.
 
     Returns (dialogs, errors).
     """
-    dialogs: List[MiniDialog] = []
+    dialogs: List[Dialog] = []
     errors: List[str] = []
 
     try:
@@ -47,19 +47,19 @@ def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
     return dialogs, errors
 
 
-def dialog_to_doc(d: MiniDialog) -> Dict[str, Any]:
+def dialog_to_doc(d: Dialog) -> Dict[str, Any]:
     """Serialize a dialog object back to a JSON-ready dict (round-trip)."""
     return DialogFactory.to_json(d)
 
 
-def save_dialogs(path: str, dialogs: List[MiniDialog]) -> None:
+def save_dialogs(path: str, dialogs: List[Dialog]) -> None:
     """Save a list of dialog objects to a single JSON file (array root)."""
     docs = [dialog_to_doc(d) for d in dialogs]
     with open(path, "w", encoding="utf-8") as f:
         json.dump(docs, f, indent=2, ensure_ascii=False)
 
 
-def save_dialogs_to_dir(directory: str, dialogs: List[MiniDialog]) -> None:
+def save_dialogs_to_dir(directory: str, dialogs: List[Dialog]) -> None:
     """Save each dialog to its own JSON file inside directory."""
     os.makedirs(directory, exist_ok=True)
     for d in dialogs:

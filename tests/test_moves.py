@@ -4,7 +4,7 @@ from os.path import abspath, join
 from unittest.mock import Mock
 
 from src.conversation_agent import ConversationAgent
-from src.mini_dialogs import MiniDialog
+from src.dialogs import Dialog
 from src.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
     MOVE_MOTION_SEQUENCE
 
@@ -28,7 +28,7 @@ def test_move_say():
         MoveSay(text="Testing Move Say..."),
         MoveSay(text="Testing Move Say Again..."),
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
 
@@ -43,7 +43,7 @@ def test_move_ask_yesno():
             "set_variable": set_variable
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
@@ -60,7 +60,7 @@ def test_move_ask_open():
             "add_interest_from_answer": add_interest_from_answer
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
@@ -76,7 +76,7 @@ def test_move_ask_options():
             "set_variable": set_variable
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
@@ -89,7 +89,7 @@ def test_move_play_audio():
             "audio": "audio_test.wav"
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
 
@@ -100,7 +100,7 @@ def test_move_play_motion():
             "motion_sequence": "motion_test"
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())
 
 
@@ -111,5 +111,5 @@ def test_move_animation():
             "animation_name": "animations/Stand/Gestures/No_1"
         }
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = Dialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent())

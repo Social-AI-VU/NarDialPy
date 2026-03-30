@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from src.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
+from src.dialogs import Dialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
 from src.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
 
 
@@ -101,7 +101,7 @@ class DialogFactory:
         return errs
 
     @staticmethod
-    def from_json(doc: Dict[str, Any]) -> MiniDialog:
+    def from_json(doc: Dict[str, Any]) -> Dialog:
         errors = DialogFactory.validate_doc(doc)
         if errors:
             raise ValueError("; ".join(errors))
@@ -146,10 +146,10 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
-        return MiniDialog(did, moves, deps, vdeps)
+        return Dialog(did, moves, deps, vdeps)
 
     @staticmethod
-    def to_json(d: MiniDialog) -> Dict[str, Any]:
+    def to_json(d: Dialog) -> Dict[str, Any]:
         base: Dict[str, Any] = {
             "id": getattr(d, "dialog_id", None),
             "dependencies": list(getattr(d, "dependencies", []) or []),

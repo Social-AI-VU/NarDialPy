@@ -19,7 +19,7 @@ class DialogType(Enum):
 MAX_LLM_TURNS = 5
 
 
-class MiniDialog:
+class Dialog:
     def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
@@ -314,7 +314,7 @@ class FunctionalType(Enum):
     FAREWELL = "farewell"
 
 
-class FunctionalDialog(MiniDialog):
+class FunctionalDialog(Dialog):
     def __init__(self, dialog_id, moves, type, dependencies=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
@@ -327,7 +327,7 @@ class FunctionalDialog(MiniDialog):
         return self.type == FunctionalType.FAREWELL
 
 
-class NarrativeDialog(MiniDialog):
+class NarrativeDialog(Dialog):
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
@@ -335,7 +335,7 @@ class NarrativeDialog(MiniDialog):
         self.position = position
 
 
-class ChitchatDialog(MiniDialog):
+class ChitchatDialog(Dialog):
     def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
@@ -343,7 +343,7 @@ class ChitchatDialog(MiniDialog):
         self.topics = topics or []
 
 
-class LLMDialog(MiniDialog):
+class LLMDialog(Dialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)

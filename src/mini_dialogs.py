@@ -2,8 +2,8 @@ from typing import Optional, List
 import re
 
 from src.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
-    MOVE_ANIMATION, \
-    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
+    MOVE_ANIMATION, MOVE_BRANCH, \
+    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 from enum import Enum
@@ -35,6 +35,7 @@ class MiniDialog:
         self.session_history = []
         self.topics_of_interest = []
         self.user_model = {}
+        self.current_outcome = None
 
     def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
         self.conversation_agent = agent
@@ -138,16 +139,31 @@ class MiniDialog:
                 idx += 1
             elif move_type == MOVE_ASK_YESNO:
                 answer = self.handle_move_ask_yesno(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
+                if self._uses_new_branching(move):
+                    self._resolve_outcome(move, answer)
+                    idx += 1
+                else:
+                    branch = self.find_next_branch(branch, move, answer)
+                    idx = self.find_branch_start(branch, idx)
             elif move_type == MOVE_ASK_OPEN:
                 answer = self.handle_move_ask_open(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
+                if self._uses_new_branching(move):
+                    self._resolve_outcome(move, answer)
+                    idx += 1
+                else:
+                    branch = self.find_next_branch(branch, move, answer)
+                    idx = self.find_branch_start(branch, idx)
             elif move_type == MOVE_ASK_OPTIONS:
                 answer = self.handle_move_ask_options(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
+                if self._uses_new_branching(move):
+                    self._resolve_outcome(move, answer)
+                    idx += 1
+                else:
+                    branch = self.find_next_branch(branch, move, answer)
+                    idx = self.find_branch_start(branch, idx)
+            elif move_type == MOVE_BRANCH:
+                self.handle_move_branch(move)
+                idx += 1
             elif move_type == MOVE_PLAY_AUDIO:
                 self.handle_move_play_audio(move)
                 idx += 1
@@ -162,12 +178,71 @@ class MiniDialog:
 
     def find_next_branch(self, branch, move, answer):
         next_map = self._get(move, 'next', {}) or {}
-        if next_map:
-            if answer:
-                branch = next_map.get("success", None)
-            else:
-                branch = next_map.get("fail", None)
-        return branch
+        if not next_map:
+            return branch
+        # Exact match for specific answer values (e.g. "yes", "no", "dreaming")
+        if answer and answer in next_map:
+            return next_map[answer]
+        # success/fail pattern for open answers
+        if answer:
+            candidate = next_map.get("success")
+            if candidate is not None:
+                return candidate
+        # Default to fail
+        return next_map.get("fail", branch)
+
+    def _uses_new_branching(self, move) -> bool:
+        """Return True when a move declares ``outcomes`` or ``default_outcome``."""
+        return (
+            self._get(move, 'outcomes') is not None
+            or self._get(move, 'default_outcome') is not None
+        )
+
+    def _resolve_outcome(self, move, answer) -> None:
+        """Resolve and store ``current_outcome`` from the new declarative fields."""
+        outcomes = self._get(move, 'outcomes') or {}
+        default_outcome = self._get(move, 'default_outcome')
+        if answer and answer in outcomes:
+            self.current_outcome = outcomes[answer]
+        else:
+            self.current_outcome = default_outcome
+
+    def handle_move_branch(self, move) -> None:
+        """Execute the sub-moves for the matching case of a ``branch`` move."""
+        move = MoveBranch.from_dict(move)
+        if move.on == "outcome":
+            key = self.current_outcome
+        else:
+            key = self.user_model.get(move.on)
+        case_moves = move.cases.get(key, [])
+        for sub_move in case_moves:
+            self._dispatch_move(sub_move)
+
+    def _dispatch_move(self, move) -> None:
+        """Execute a single move dict, used for inline sub-moves inside branch cases."""
+        move_type = self._get(move, 'type')
+        if move_type == MOVE_SAY:
+            self.handle_move_say(move)
+        elif move_type == MOVE_ASK_YESNO:
+            answer = self.handle_move_ask_yesno(move)
+            if self._uses_new_branching(move):
+                self._resolve_outcome(move, answer)
+        elif move_type == MOVE_ASK_OPEN:
+            answer = self.handle_move_ask_open(move)
+            if self._uses_new_branching(move):
+                self._resolve_outcome(move, answer)
+        elif move_type == MOVE_ASK_OPTIONS:
+            answer = self.handle_move_ask_options(move)
+            if self._uses_new_branching(move):
+                self._resolve_outcome(move, answer)
+        elif move_type == MOVE_BRANCH:
+            self.handle_move_branch(move)
+        elif move_type == MOVE_PLAY_AUDIO:
+            self.handle_move_play_audio(move)
+        elif move_type == MOVE_MOTION_SEQUENCE:
+            self.handle_move_motion_sequence(move)
+        elif move_type == MOVE_ANIMATION:
+            self.handle_move_animation(move)
 
     def find_branch_start(self, branch, idx):
         if branch is None:  # continue to next move

@@ -77,15 +77,25 @@
         "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
         "options": ["dreaming", "sleeping", "resting"],
         "set_variable": "what_is_dreaming",
-        "next": {
+        "outcomes": {
           "dreaming": "correct",
           "sleeping": "incorrect",
-          "resting": "incorrect",
-          "fail": "incorrect"
+          "resting": "incorrect"
+        },
+        "default_outcome": "incorrect"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "correct": [
+            { "type": "say", "text": "Indeed, dreaming." }
+          ],
+          "incorrect": [
+            { "type": "say", "text": "This is called dreaming!" }
+          ]
         }
       },
-      { "type": "say", "text": "This is called dreaming!", "branch": "incorrect" },
-      { "type": "say", "text": "Indeed, dreaming.", "branch": "correct" },
       { "type": "say", "text": "I sometimes dream of being a robot dog with four legs." },
       { "type": "say", "text": "I can fetch and deliver letters." },
       { "type": "say", "text": "What do you dream about?" },
@@ -93,17 +103,27 @@
         "type": "ask_yesno",
         "text": "Do you remember any of your dreams?",
         "set_variable": "remembered_dream",
-        "next": {
+        "outcomes": {
           "yes": "dream_mem_yes",
           "no": "dream_mem_no",
-          "dontknow": "dream_mem_no",
-          "fail": "dream_mem_no"
-        }
+          "dontknow": "dream_mem_no"
+        },
+        "default_outcome": "dream_mem_no"
       },
-      { "type": "ask_open", "text": "What was it about?", "branch": "dream_mem_yes" },
-      { "type": "say", "text": "That's something!", "branch": "dream_mem_yes" },
-      { "type": "say", "text": "I have that sometimes too!", "branch": "dream_mem_no" },
-      { "type": "say", "text": "Then you dream something and afterwards it's gone!", "branch": "dream_mem_no" }
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "dream_mem_yes": [
+            { "type": "ask_open", "text": "What was it about?" },
+            { "type": "say", "text": "That's something!" }
+          ],
+          "dream_mem_no": [
+            { "type": "say", "text": "I have that sometimes too!" },
+            { "type": "say", "text": "Then you dream something and afterwards it's gone!" }
+          ]
+        }
+      }
     ]
   },
   {

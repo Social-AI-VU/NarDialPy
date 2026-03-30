@@ -5,6 +5,19 @@ import json
 import re
 
 
+class Session:
+    def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> None:
+        self.session_id = session_id
+        self.participant_id = participant_id
+        self.run_id = run_id
+        self.metadata = metadata or {}
+        self.started_at = datetime.utcnow().isoformat()
+        self.ended_at = None
+        self.events: List[Dict[str, Any]] = []
+        self.dialog_ids: List[str] = []
+        self.summary: Dict[str, Any] = {}
+
+
 class ConversationState:
     """
     Minimal conversation history manager with per-participant transcripts:
@@ -21,7 +34,7 @@ class ConversationState:
         self.user_model: Dict[str, Any] = {}
         self.topics_of_interest: List[str] = []
         # all sessions (append-only)
-        self.sessions: List[Dict[str, Any]] = []
+        self.sessions: List[Session] = []
         # where per-participant files go
         self.participants_dir: str = os.path.join(os.path.dirname(path) or ".", "participants")
 
@@ -50,24 +63,24 @@ class ConversationState:
 
     @staticmethod
     def load_participant_continuity(participant_id: str):
-            """
+        """
             Read participants/{participant_id}.json if present and return:
             (completed_dialogs_set, topics_of_interest_list).
             Falls back to empty if no file or unreadable.
             """
-            try:
-                pid = str(participant_id)
-                path = os.path.join("participants", f"{pid}.json")
-                if not os.path.exists(path):
-                    return set(), []
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f) or {}
-                summary = data.get("summary") or {}
-                completed = set(summary.get("dialog_ids_seen") or [])
-                topics = list(summary.get("topics_of_interest") or [])
-                return completed, topics
-            except Exception:
+        try:
+            pid = str(participant_id)
+            path = os.path.join("participants", f"{pid}.json")
+            if not os.path.exists(path):
                 return set(), []
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+            summary = data.get("summary") or {}
+            completed = set(summary.get("dialog_ids_seen") or [])
+            topics = list(summary.get("topics_of_interest") or [])
+            return completed, topics
+        except Exception:
+            return set(), []
 
     def load(self) -> None:
         if not os.path.exists(self.path):
@@ -77,7 +90,7 @@ class ConversationState:
         self.completed_dialogs = data.get("completed_dialogs", [])
         self.user_model = data.get("user_model", {})
         self.topics_of_interest = data.get("topics_of_interest", [])
-        self.sessions = data.get("sessions", [])
+        self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
     def save(self) -> None:
         data = {
@@ -90,30 +103,22 @@ class ConversationState:
 
     # ---------- per-session ----------
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
-        sid = f"sess_{len(self.sessions)+1:04d}"
-        self.sessions.append({
-            "session_id": sid,
-            "participant_id": participant_id,
-            "run_id": run_id,
-            "metadata": metadata or {},
-            "started_at": datetime.utcnow().isoformat(),
-            "ended_at": None,
-            "events": [],
-            "dialog_ids": [],   # you can fill this during run, or it will be derived at end
-            "summary": {},
-        })
+        sid = f"sess_{len(self.sessions) + 1:04d}"
+        session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
+        self.sessions.append(session)
         return sid
 
     def add_events(self, session_id: str, events: List[Dict[str, Any]]) -> None:
         sess = self._get_session(session_id)
-        sess["events"].extend(list(events or []))
+        sess.events.extend(list(events or []))
 
     def add_dialog_id(self, session_id: str, dialog_id: str) -> None:
         """Use this if you want to record dialog IDs during the run."""
         sess = self._get_session(session_id)
-        lst = sess.setdefault("dialog_ids", [])
-        if dialog_id not in lst:
-            lst.append(dialog_id)
+        if sess.dialog_ids is None:
+            sess.dialog_ids = []
+        if dialog_id not in sess.dialog_ids:
+            sess.dialog_ids.append(dialog_id)
 
     def end_session(self,
                     session_id: str,
@@ -150,9 +155,9 @@ class ConversationState:
             self.save_participant_transcript(pid)
 
     # ---------- helpers ----------
-    def _get_session(self, session_id: str) -> Dict[str, Any]:
+    def _get_session(self, session_id: str) -> Session:
         for s in self.sessions:
-            if s.get("session_id") == session_id:
+            if s.session_id == session_id:
                 return s
         raise KeyError(f"Session {session_id} not found")
 
@@ -190,7 +195,7 @@ class ConversationState:
         os.makedirs(self.participants_dir, exist_ok=True)
         safe_id = self._sanitize_participant_id(participant_id)
         path = os.path.join(self.participants_dir, f"{safe_id}.json")
-        sessions = [s for s in self.sessions if s.get("participant_id") == participant_id]
+        sessions = [s for s in self.sessions if s.participant_id == participant_id]
         payload = {
             "participant_id": participant_id,
             "sessions": sessions,
@@ -208,16 +213,16 @@ class ConversationState:
         s = str(participant_id).strip()
         s = re.sub(r"\s+", "_", s)
         s = re.sub(r"[^A-Za-z0-9._-]", "_", s)
-        reserved = {"CON","PRN","AUX","NUL","COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9","LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"}
+        reserved = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
         if s.upper() in reserved:
             s = f"_{s}"
         return s or "participant"
 
     @staticmethod
-    def _collect_dialog_ids(sessions: List[Dict[str, Any]]) -> List[str]:
+    def _collect_dialog_ids(sessions: List[Session]) -> List[str]:
         seen, ids = set(), []
         for s in sessions:
-            for did in s.get("dialog_ids") or []:
+            for did in s.dialog_ids or []:
                 k = str(did).strip()
                 if k and k not in seen:
                     ids.append(k)
@@ -225,10 +230,10 @@ class ConversationState:
         return ids
 
     @staticmethod
-    def _collect_topics_from_summaries(sessions: List[Dict[str, Any]]) -> List[str]:
+    def _collect_topics_from_summaries(sessions: List[Session]) -> List[str]:
         seen, topics = set(), []
         for s in sessions:
-            for t in (s.get("summary") or {}).get("topics_of_interest") or []:
+            for t in (s.summary or {}).get("topics_of_interest") or []:
                 if isinstance(t, str):
                     k = t.strip().lower()
                     if k and k not in seen:

@@ -10,7 +10,7 @@ from authoring.loader import load_dialogs
 from conversation_state import ConversationState
 
 from src.conversation_agent import ConversationAgent
-from src.dialog import DialogLogic
+from src.dialog_logic import DialogLogic
 
 # setup key files paths
 google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))

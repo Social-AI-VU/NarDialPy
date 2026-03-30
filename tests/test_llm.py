@@ -1,4 +1,4 @@
-from mini_dialogs import MiniDialog, LLMDialog
+from dialogs import Dialog, LLMDialog
 from moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 
@@ -8,7 +8,7 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
         ask_open_side_effect=["My favorite is 'pizza'", "I like cats"]
     )
 
-    md = MiniDialog('test', moves=[])
+    md = Dialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
@@ -30,7 +30,7 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
         ask_open_side_effect=["stop please"]
     )
 
-    md = MiniDialog('test', moves=[])
+    md = Dialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
@@ -45,7 +45,7 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
         ask_open_side_effect=[]
     )
 
-    md = MiniDialog('test', moves=[])
+    md = Dialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
@@ -65,7 +65,7 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
 
     move = {'prompt': 'hello', 'max_turns': 1, 'set_variable': 'fav', 'quit_phrases': None, 'quit_signal': None}
 
-    md = MiniDialog('test', moves=[])
+    md = Dialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
     md.handle_move_ask_llm(move)

@@ -39,19 +39,14 @@ class MoveSay(Move):
 
 
 class MoveAskYesNo(Move):
-    def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None,
+    def __init__(self, text: str, set_variable: Optional[str] = None,
+                 add_interest: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_YESNO
         self.text = text
-        # Engine reads 'next'; we also keep 'next_map' as an alias for convenience
-        self.next = dict(next_map or {})
-        self.next_map = self.next
         self.set_variable = set_variable
         self.add_interest = add_interest
-        self.branch = branch
-        # New declarative branching: outcomes maps answer values to outcome labels
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
 
@@ -62,33 +57,26 @@ class MoveAskYesNo(Move):
     def from_dict(cls, data: dict):
         return cls(
             text=data.get("text"),
-            next_map=data.get("next"),
             set_variable=data.get("set_variable"),
             add_interest=data.get("add_interest"),
-            branch=data.get("branch"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
         )
 
 
 class MoveAskOpen(Move):
-    def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
-                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+    def __init__(self, text: str, set_variable: Optional[str] = None,
+                 add_interest_from_answer: Optional[bool] = None,
+                 add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPEN
         self.text = text
-        # Engine reads 'next'; keep 'next_map' as alias for convenience
-        self.next = dict(next_map or {})
-        self.next_map = self.next
         self.set_variable = set_variable
         self.add_interest_from_answer = add_interest_from_answer
         self.add_interest_from_variable = add_interest_from_variable
-        self.branch = branch
         self.personalize_followup = personalize_followup
-        # New declarative branching: outcomes maps answer values to outcome labels
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
 
@@ -99,11 +87,9 @@ class MoveAskOpen(Move):
     def from_dict(cls, data: dict):
         return cls(
             text=data.get("text"),
-            next_map=data.get("next"),
             set_variable=data.get("set_variable"),
             add_interest_from_variable=data.get("add_interest_from_variable"),
             add_interest_from_answer=data.get("add_interest_from_answer"),
-            branch=data.get("branch"),
             personalize_followup=data.get("personalize_followup"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
@@ -111,21 +97,15 @@ class MoveAskOpen(Move):
 
 
 class MoveAskOptions(Move):
-    def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None,
-                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+    def __init__(self, text: str, options: List[str], set_variable: Optional[str] = None,
+                 add_interest_from_variable: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
         self.text = text
         self.options = options or []
-        # Engine reads 'next'; keep 'next_map' as alias for convenience
-        self.next = dict(next_map or {})
-        self.next_map = self.next
         self.set_variable = set_variable
         self.add_interest_from_variable = add_interest_from_variable
-        self.branch = branch
-        # New declarative branching: outcomes maps answer values to outcome labels
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
 
@@ -137,35 +117,28 @@ class MoveAskOptions(Move):
         return cls(
             text=data.get("text"),
             options=data.get("options"),
-            next_map=data.get("next"),
             set_variable=data.get("set_variable"),
             add_interest_from_variable=data.get("add_interest_from_variable"),
-            branch=data.get("branch"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
         )
 
 
 class MoveAskLLM(Move):
-    def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, branch: Optional[str] = None,
-                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
+    def __init__(self, prompt: str, set_variable: Optional[str] = None,
+                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None,
+                 quit_signal: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_LLM
         self.prompt = prompt
-        # Engine reads 'next'; keep 'next_map' as alias for convenience
-        self.next = dict(next_map or {})
-        self.next_map = self.next
         self.set_variable = set_variable
-        self.branch = branch
         # Max turns limits the number of back-and-forth exchanges with the LLM for this move
         self.max_turns = max_turns
         # Quit phrases are user utterances that should end the LLM-driven exchange
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         # Quit signal is an optional token that the LLM can include in its response to signal termination
         self.quit_signal = quit_signal if quit_signal is not None else LLM_QUIT_SIGNAL
-        # New declarative branching: outcomes maps answer values to outcome labels
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
 
@@ -176,9 +149,7 @@ class MoveAskLLM(Move):
     def from_dict(cls, data: dict):
         return cls(
             prompt=data.get("prompt"),
-            next_map=data.get("next"),
             set_variable=data.get("set_variable"),
-            branch=data.get("branch"),
             max_turns=data.get("max_turns"),
             quit_phrases=data.get("quit_phrases"),
             quit_signal=data.get("quit_signal"),

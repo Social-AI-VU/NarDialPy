@@ -269,63 +269,44 @@ def test_branch_on_user_model_variable(session_history, user_model, topics_of_in
     assert "Sorry to hear that." not in texts_spoken
 
 
-# ---------------------------------------------------------------------------
-# Backward-compat: old next/branch format still works
-# ---------------------------------------------------------------------------
+def test_resolve_outcome_wildcard_matches_any_answer(session_history, user_model, topics_of_interest):
+    """The '*' wildcard in outcomes matches any non-empty answer."""
+    agent = _make_mock_agent()
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-def test_old_format_ask_options_specific_values(session_history, user_model, topics_of_interest):
-    """Old next-map format with specific answer values now routes correctly."""
-    agent = _make_mock_agent(ask_options_return='dreaming')
-    moves = [
-        {
-            "type": "ask_options",
-            "text": "What is dreaming?",
-            "options": ["dreaming", "sleeping"],
-            "next": {"dreaming": "correct", "sleeping": "incorrect", "fail": "incorrect"},
-        },
-        {"type": "say", "text": "Correct!", "branch": "correct"},
-        {"type": "say", "text": "Wrong!", "branch": "incorrect"},
-    ]
-    md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    move = {"type": "ask_open", "text": "q",
+            "outcomes": {"*": "has_answer"}, "default_outcome": "no_answer"}
 
-    texts_spoken = [call.args[0] for call in agent.say.call_args_list]
-    assert "Correct!" in texts_spoken
-    assert "Wrong!" not in texts_spoken
+    md._resolve_outcome(move, "some free text")
+    assert md.current_outcome == "has_answer"
+
+    md._resolve_outcome(move, None)
+    assert md.current_outcome == "no_answer"
+
+    md._resolve_outcome(move, "")
+    assert md.current_outcome == "no_answer"
 
 
-def test_old_format_ask_yesno_specific_values(session_history, user_model, topics_of_interest):
-    """Old next-map format on ask_yesno routes by exact answer value."""
-    agent = _make_mock_agent(ask_yesno_return='no')
-    moves = [
-        {
-            "type": "ask_yesno",
-            "text": "Do you like pizza?",
-            "next": {"yes": "likes", "no": "dislikes", "fail": "dislikes"},
-        },
-        {"type": "say", "text": "Nice!", "branch": "likes"},
-        {"type": "say", "text": "No problem.", "branch": "dislikes"},
-    ]
-    md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
-
-    texts_spoken = [call.args[0] for call in agent.say.call_args_list]
-    assert "No problem." in texts_spoken
-    assert "Nice!" not in texts_spoken
-
-
-def test_old_format_ask_open_success_fail(session_history, user_model, topics_of_interest):
-    """Old success/fail pattern for ask_open still works."""
+def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_interest):
+    """End-to-end: ask_open with '*' wildcard routes to the answered case."""
     agent = _make_mock_agent(ask_open_return='swimming')
     moves = [
         {
             "type": "ask_open",
             "text": "What do you like?",
             "set_variable": "fav",
-            "next": {"success": "has_answer", "fail": "no_answer"},
+            "outcomes": {"*": "has_answer"},
+            "default_outcome": "no_answer",
         },
-        {"type": "say", "text": "Cool answer!", "branch": "has_answer"},
-        {"type": "say", "text": "No worries.", "branch": "no_answer"},
+        {
+            "type": "branch",
+            "on": "outcome",
+            "cases": {
+                "has_answer": [{"type": "say", "text": "Cool answer!"}],
+                "no_answer": [{"type": "say", "text": "No worries."}],
+            },
+        },
     ]
     md = MiniDialog('test', moves=moves)
     md.run(agent, session_history, topics_of_interest, user_model)

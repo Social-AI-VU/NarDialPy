@@ -11,6 +11,7 @@ from conversation_state import ConversationState
 
 from src.conversation_agent import ConversationAgent
 from src.dialog import DialogLogic
+from src.session import Session
 
 # setup key files paths
 google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
@@ -38,27 +39,6 @@ def load_dialogs_from_json():
 
 def create_run_id():
     return os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
-
-
-def create_session_block(all_dialogs, thread, theme, conversation_context):
-    # Build a session plan (greeting → narrative → chitchat → narrative → chitchat → farewell)
-    # Auto-pick a thread if the preferred one has no pending narratives
-    chosen_thread = DialogLogic.auto_select_thread(
-        all_dialogs,
-        thread,
-        completed_ids=conversation_context.completed_dialogs,
-        user_model=conversation_context.user_model)
-    print(f"[DEBUG] Narrative thread chosen: {chosen_thread}")
-
-    session_block = DialogLogic.select_session_block(
-        all_dialogs,
-        thread=chosen_thread,
-        theme=theme,
-        topics_of_interest=conversation_context.topics_of_interest,
-        completed_ids=conversation_context.completed_dialogs
-    )
-    print("[DEBUG] Planned session block:", [d.dialog_id for d in session_block])
-    return session_block
 
 
 def condense_topics(agent, topics_of_interest):
@@ -124,34 +104,48 @@ if __name__ == '__main__':
     # Load dialogs from JSON if available, otherwise fall back to builtin Python list
     all_dialogs = load_dialogs_from_json()
 
-    # Build a session block
-    session_block = create_session_block(all_dialogs, thread, theme, conversation_context)
+    # Build a Dialog (greeting → narrative → chitchat → narrative → chitchat → farewell)
+    dialog = DialogLogic.build_dialog(
+        all_dialogs,
+        thread,
+        theme,
+        topics_of_interest=conversation_context.topics_of_interest,
+        completed_ids=conversation_context.completed_dialogs,
+    )
 
-    # Run dialogs
-    session_history = []
-    for dialog in session_block:
-        if not DialogLogic.can_run(dialog, conversation_context.completed_dialogs, conversation_context.user_model,
-                                   all_dialogs):
-            print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
-            continue
-        conversation_state.add_dialog_id(session_id, dialog.dialog_id)
-        session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-        dialog.run(agent, session_history, conversation_context.topics_of_interest, conversation_context.user_model)
-        session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
-        conversation_context.completed_dialogs.add(dialog.dialog_id)
+    # Create and run a Session that executes the Dialog and tracks state
+    session = Session(
+        dialog,
+        completed_dialogs=conversation_context.completed_dialogs,
+        user_model=conversation_context.user_model,
+        topics_of_interest=conversation_context.topics_of_interest,
+    )
+    session_history = session.run(agent, all_dialogs)
+
+    # Reflect updated session state back into the conversation context.
+    # Session.__init__ makes copies of completed_dialogs, user_model, and
+    # topics_of_interest, so mutations inside Session.run() do not propagate to
+    # conversation_context automatically — these assignments are required.
+    conversation_context.completed_dialogs = session.completed_dialogs
+    conversation_context.user_model = session.user_model
+    conversation_context.topics_of_interest = session.topics_of_interest
+
+    # Record each executed dialog ID in the persistent session record
+    for dialog_id in session.executed_dialog_ids:
+        conversation_state.add_dialog_id(session_id, dialog_id)
 
     print(json.dumps(session_history, indent=2))
     print("Topics of interest:", conversation_context.topics_of_interest)
 
     # Condense topics_of_interest into single-word keywords
-    topics_of_interest = condense_topics(agent, conversation_context.topics_of_interest)
+    conversation_context.topics_of_interest = condense_topics(agent, conversation_context.topics_of_interest)
 
     # Persist via the new class
     conversation_state.add_events(session_id, session_history)
     conversation_state.end_session(session_id,
                                    completed_ids=conversation_context.completed_dialogs,
                                    user_model=conversation_context.user_model,
-                                   topics_of_interest=topics_of_interest)
+                                   topics_of_interest=conversation_context.topics_of_interest)
     conversation_state.save()
     print("Conversation state saved.")
 

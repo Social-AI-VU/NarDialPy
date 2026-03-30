@@ -166,6 +166,52 @@ class DialogLogic:
         return None
 
     @staticmethod
+    def build_dialog(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
+        """
+        Build a :class:`~src.session.Dialog` from the available mini-dialogs.
+
+        Combines :meth:`auto_select_thread` and :meth:`select_session_block` so
+        callers get a ready-to-run :class:`~src.session.Dialog` in one call.
+        The narrative thread is automatically chosen when ``thread`` has no
+        pending narratives.
+
+        Args:
+            mini_dialogs: Full catalog of available mini-dialogs.
+            thread: Preferred narrative thread name (auto-selected if ``None``
+                or exhausted).
+            theme: Preferred chitchat theme.
+            topics_of_interest: Participant topics used to bias chitchat
+                selection.
+            completed_ids: Set/list of dialog IDs already completed in previous
+                sessions (continuity).
+
+        Returns:
+            A :class:`~src.session.Dialog` instance whose ``mini_dialogs``
+            follow the standard session structure
+            (greeting → narrative → chitchat → narrative → chitchat → farewell).
+        """
+        # Local import to avoid a circular import between dialog and session.
+        from src.session import Dialog
+
+        completed_ids = set(completed_ids) if completed_ids else set()
+        chosen_thread = DialogLogic.auto_select_thread(
+            mini_dialogs,
+            thread,
+            completed_ids=completed_ids,
+            user_model={},
+        )
+        print(f"[DEBUG] Narrative thread chosen: {chosen_thread}")
+        mini_dialog_list = DialogLogic.select_session_block(
+            mini_dialogs,
+            thread=chosen_thread,
+            theme=theme,
+            topics_of_interest=topics_of_interest,
+            completed_ids=completed_ids,
+        )
+        print("[DEBUG] Planned session block:", [d.dialog_id for d in mini_dialog_list])
+        return Dialog(mini_dialog_list, thread=chosen_thread, theme=theme)
+
+    @staticmethod
     def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
         session = []
         pool = list(mini_dialogs)

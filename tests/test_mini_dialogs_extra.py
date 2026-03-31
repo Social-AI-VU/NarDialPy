@@ -1,5 +1,5 @@
-from mini_dialogs import MiniDialog
-from moves import MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM
+from nardial.mini_dialogs import MiniDialog
+from nardial.moves import MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 
 def test_extract_open_value_quotes_and_tokens():

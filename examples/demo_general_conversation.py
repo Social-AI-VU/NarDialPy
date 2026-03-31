@@ -3,22 +3,20 @@ import sys
 from os.path import abspath, join
 import os
 import numpy as np
-from sic_framework.devices import Pepper
 from sic_framework.devices.desktop import Desktop
 
-from authoring.loader import load_dialogs
-from conversation_state import ConversationState
-
-from src.conversation_agent import ConversationAgent
-from src.dialog_logic import DialogLogic
+from nardial.authoring import load_dialogs
+from nardial.conversation_agent import ConversationAgent
+from nardial.conversation_state import ConversationState
+from nardial.dialog_logic import DialogLogic
 
 # setup key files paths
-google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
-openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
+google_keyfile_path = abspath(join("conf", "dialogflow", "google_keyfile.json"))
+openai_key_path = abspath(join("conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    path = abspath(join("..", "assets", "dialogs", "dialogs.json"))
+    path = abspath(join("examples", "dialogs.json"))
 
     try:
         dialogs, errors = load_dialogs(path)
@@ -111,7 +109,7 @@ if __name__ == '__main__':
         session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
         dialog.run(agent, session_history, conversation_state.topics_of_interest, conversation_state.user_model)
         session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
-        conversation_state.completed_dialogs.add(dialog.dialog_id)
+        conversation_state.completed_dialogs.append(dialog.dialog_id)
 
     print(json.dumps(session_history, indent=2))
     print("Topics of interest:", conversation_state.topics_of_interest)

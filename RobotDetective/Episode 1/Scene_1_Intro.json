@@ -1,0 +1,160 @@
+[
+  {
+    "id": "onderste_steen_boven",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Goedemiddag luistervinkjes en  luisteraars!" },
+      { "type": "say", "text": " Wat is het te gek dat je luistert naar de Onderste Steen Boven" },
+      { "type": "say", "text": " Waarin ik detective S. Tegel antwoorden vind op de grootste mysteries van De Smaragd." },
+      { "type": "say", "text": " Ik ontmasker leugens, ik klaar geheimen op," },
+      { "type": "say", "text": " En ik gebruik mijn uitmuntende speurdersneus om  alles waar een luchtje aan zit op te sporen" },
+      { "type": "say", "text": " Ik sta hier op de zevende en hoogste verdieping van torenflat de Smaragd" },
+      { "type": "say", "text": " en ik kijk uit op de grijze golven van zee in de verte voorbij Donderstad" },
+      { "type": "say", "text": " Onder mijn plateauzolen liggen alle andere verdiepingen van deze ongewone flat." },
+      { "type": "say", "text": " Want dat deze flat een beetje vreemd is, een beetje eigenaardig, dat weet iedereen. " },
+      { "type": "say", "text": " Er gebeuren hier vaak mysterieuze zaken, raadselachtige kwesties, geheimzinnige dingen." },
+     { "type": "say", "text": " Ten eerste zwerven er altijd krokodillen sloffen door het pand en niemand weet van wie ze zijn." },
+      { "type": "say", "text": "Daarnaast wonen er twee jongens zonder ouders die een achtbaan op hun balkon hebben gebouwd." },
+      { "type": "say", "text": " Dit pand kent een stortgat waardoor je helemaal van het dak van de flat naar de kelder kunt glijden. " },
+      { "type": "say", "text": " Er is een leen-auto waarvan mensen beweren dat die ’s nachts wel eens in de lucht is gespot." },
+      { "type": "say", "text": " In deze flat verschijnen er dingen, verdwijnen er dingen of gaan er dingen kapot en niemand weet hoe of door wie of waarom." },
+      { "type": "say", "text": " Dus stel ik die vragen." },
+      { "type": "say", "text": " Ik traceer de sporen, ik graaf door tot de onderste steen boven ligt.  " }
+    ]
+  },
+   {
+    "id": "robot_first_encounter",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Oh hallo daar!" },
+      { "type": "say", "text": "Mijn naam is Robin, de Robotdetective!" },
+      {
+        "type": "ask_open",
+        "text": "En wie zijn jullie?",
+        "set_variable": "name",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_name", "fail": "no_name" }
+      },
+      { "type": "say", "text": "Hoi %name%! ", "branch": "has_name" },
+      { "type": "say", "text": "Wat gezellig dat je-", "branch": "has_name" },
+      { "type": "say", "text": "Ohjee dat verstond ik niet helemaal-", "branch": "no_name" }
+
+    ]
+  },
+  {
+
+    "id": "robot_first_encounter",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Oh hallo daar! " },
+      { "type": "say", "text": "Mijn naam is Robin, de Robotdetective!" },
+      { "type": "say", "text": "En wie zijn jullie?" }
+    ]
+  },
+  {
+    "id": "telefoon_met_Robin",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+
+      { "type": "say", "text": "Robin, mijn favoriete minidetective, luister goed - " },
+      { "type": "say", "text": "Vandaag moet je even bij Toon en Rami op bezoek" },
+      { "type": "say", "text": "Die achtbaan kan echt niet zomaar weggelopen zijn!" },
+      { "type": "say", "text": "Chop chop!" },
+      { "type": "say", "text": "Stoep Uit." }
+    ]
+  },
+
+  {
+    "id": "robin_nerveus",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Dat was mijn detectivebaas" },
+      { "type": "say", "text": "Detective Stoep Tegel." },
+      { "type": "say", "text": "Zij heeft mij uit de vuilnisbelt gered!" },
+      { "type": "say", "text": "En mij geleerd hoe je goede vragen moet stellen enzo" }
+    ]
+  },
+  {
+    "id": "robot_first_question",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Kijk, ik kan het heel goed voordoen!" },
+      { "type": "say", "text": "Eehh jij daar helemaal links!" },
+      {
+        "type": "ask_open",
+        "text": "Wat is jouw lievelingskleur?",
+        "set_variable": "favorite_color",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_color", "fail": "no_color" }
+      },
+      { "type": "say", "text": "%favorite_color% is een super mooie kleur! ", "branch": "has_color" },
+      { "type": "say", "text": "Wat bijzonder!", "branch": "no_color" }
+
+    ]
+  },
+  {
+    "id": "robot_second_question",
+    "type": "functional",
+    "moves": [
+
+
+      { "type": "say", "text": "Dat was een hartstikke informatieve vraag" },
+      { "type": "say", "text": "Door vragen te stellen leren mensen elkaar kennen!" },
+      { "type": "say", "text": "Dat zegt Detective Tegel altijd" },
+      {
+        "type": "ask_open",
+        "text": "Maar misschien kunnen jullie ook wel een vraag aan mij stellen?",
+        "set_variable": "robot_question",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_question", "fail": "no_question" }
+      },
+      { "type": "say", "text": "Top! Ik zou hier graag antwoord op geven maar ik kan nog niet bij mijn taalmodel , sippe robotgeluiden ", "branch": "has_question" },
+      { "type": "say", "text": "Oei die kon ik even niet verstaan", "branch": "no_question" }
+
+    ]
+  },
+  {
+    "id": "tell_secret",
+    "type": "greeting",
+    "moves": [
+      { "type": "ask_yesno", "text": "Weetje, mag ik jullie een geheim vertellen?",
+        "next": { "yes": "ja", "no": "nee", "dontknow": "ja", "fail": "ja" },
+        "set_variable": "say_secret"},
+      { "type": "say", "text": "Ik vind het eigenlijk heel spannend om vragen te stellen", "branch": "ja" },
+      { "type": "say", "text": "Vooral bij volwassenen", "branch": "ja" },
+      { "type": "say", "text": "Bij kinderen gaat het nog wel!", "branch": "ja" },
+      { "type": "say", "text": "Maar volwassenen zijn zo groot!!!", "branch": "ja" },
+      { "type": "say", "text": "Ze kunnen mij zo optillen of omverlopen als ze geen zin hebben in mijn vragen!", "branch": "ja" },
+      { "type": "say", "text": "Maar nu is de achtbaan van Toon en Rami vermist en ik heb ze beloofd om te helpen zoeken", "branch": "ja" },
+      { "type": "say", "text": "Zeg... Ik krijg ineens een idee...", "branch": "ja" }
+    ]
+  },
+  {
+    "id": "ask_help",
+    "type": "greeting",
+    "moves": [
+      { "type": "ask_yesno", "text": "Zouden jullie mij misschien willen helpen met dit mysterie?",
+        "next": { "yes": "ja", "no": "nee", "dontknow": "ja", "fail": "ja" },
+        "set_variable": "help_robot"},
+      { "type": "say", "text": "Joepie!!!!", "branch": "ja" },
+      { "type": "say", "text": "Dat is super lief van jullie!", "branch": "ja" },
+      { "type": "say", "text": "Laten we naar de flat gaan! ", "branch": "ja" },
+      { "type": "say", "text": "Daar zullen we vast veel sporen tegenkomen", "branch": "ja" },
+      { "type": "say", "text": "Oh, jullie mogen er over nadenken hoor!", "branch": "nee" },
+      { "type": "say", "text": "Ik ga naar de flat toe!", "branch": "nee" }
+    ]
+  },
+  {
+    "id": "goodbye",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "Het was leuk jullie te ontmoeten!  Houdoe!" }
+    ]
+  }]

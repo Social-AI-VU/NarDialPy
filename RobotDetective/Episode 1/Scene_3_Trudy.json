@@ -1,0 +1,140 @@
+[
+  {
+    "id": "bij_trudy",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Lalalalaaa" },
+      { "type": "say", "text": "Ooeeeeeehhhooeeee" },
+      { "type": "say", "text": "Oh hallo daar!" },
+      { "type": "say", "text": "He wat hebben jullie leuke detectivehoedjes op!" },
+      { "type": "say", "text": "En - oei wat is dat !" }
+    ]
+  },
+   {
+    "id": "robin_explains",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Beste Trudy" },
+      { "type": "say", "text": "Mijn naam is Robin, en dit zijn mijn detectives in opleiding!" },
+      { "type": "say", "text": "Wij wilden u graag wat vragen stellen als u tijd heeft!" }
+    ]
+  },
+  {
+
+    "id": "trudy_welcome",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Wat bijzonder! Deze stofzuiger kan gewoon praten!" },
+      { "type": "say", "text": "Ik wil best wat vragen beantwoorden , kinders" },
+       { "type": "say", "text": "Maar ik heb eerst een vraag voor jullie" }
+    ]
+  },
+  {
+    "id": "toon_witness",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+
+      { "type": "say", "text": "Goed, wat jullie moeten weten dat ik een kunstenaar ben" },
+      { "type": "say", "text": "En ik had een mega grote achtbaan gebouwd samen met professor Eddy" },
+      { "type": "say", "text": "Een geweldig ding! Hij gaat wel zo hard als de Joris en de Draak" },
+      { "type": "say", "text": "Deze prachtige achtbaan stond altijd op het balkon" },
+      { "type": "say", "text": "Maar nu" },
+      { "type": "say", "text": "Twee dagen geleden" },
+      { "type": "say", "text": "Is hij ineens verdwenen!" },
+      { "type": "say", "text": "Wat denken jullie daarvan?" }
+    ]
+  },
+
+  {
+    "id": "robin_nerveus",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Dat was mijn detectivebaas" },
+      { "type": "say", "text": "Detective Stoep Tegel." },
+      { "type": "say", "text": "Zij heeft mij uit de vuilnisbelt gered!" },
+      { "type": "say", "text": "En mij geleerd hoe je goede vragen moet stellen enzo" }
+    ]
+  },
+  {
+    "id": "robot_first_question",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Kijk, ik kan het heel goed voordoen!" },
+      { "type": "say", "text": "Eehh jij daar helemaal links!" },
+      {
+        "type": "ask_open",
+        "text": "Wat is jouw lievelingskleur?",
+        "set_variable": "favorite_color",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_color", "fail": "no_color" }
+      },
+      { "type": "say", "text": "%favorite_color% is een super mooie kleur! ", "branch": "has_color" },
+      { "type": "say", "text": "Wat bijzonder!", "branch": "no_color" }
+
+    ]
+  },
+  {
+    "id": "robot_second_question",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Dat was een hartstikke informatieve vraag" },
+      { "type": "say", "text": "Door vragen te stellen leren mensen elkaar kennen!" },
+      { "type": "say", "text": "Dat zegt Detective Tegel altijd" },
+      {
+        "type": "ask_open",
+        "text": "Maar misschien kunnen jullie ook wel een vraag aan mij stellen?",
+        "set_variable": "robot_question",
+        "add_interest_from_answer": true,
+        "next": { "success": "has_question", "fail": "no_question" }
+      },
+      { "type": "say", "text": "Top! Ik zou hier graag antwoord op geven maar ik kan nog niet bij mijn taalmodel , sippe robotgeluiden ", "branch": "has_question" },
+      { "type": "say", "text": "Oei die kon ik even niet verstaan", "branch": "no_question" }
+
+    ]
+  },
+  {
+    "id": "tell_secret",
+    "type": "greeting",
+    "moves": [
+      { "type": "ask_yesno", "text": "Weetje, mag ik jullie een geheim vertellen?",
+        "next": { "yes": "ja", "no": "nee", "dontknow": "ja", "fail": "ja" },
+        "set_variable": "say_secret"},
+      { "type": "say", "text": "Ik vind het eigenlijk heel spannend om vragen te stellen", "branch": "ja" },
+      { "type": "say", "text": "Vooral bij volwassenen", "branch": "ja" },
+      { "type": "say", "text": "Bij kinderen gaat het nog wel!", "branch": "ja" },
+      { "type": "say", "text": "Maar volwassenen zijn zo groot!!!", "branch": "ja" },
+      { "type": "say", "text": "Ze kunnen mij zo optillen of omverlopen als ze geen zin hebben in mijn vragen!", "branch": "ja" },
+      { "type": "say", "text": "Maar nu is de achtbaan van Toon en Rami vermist en ik heb ze beloofd om te helpen zoeken", "branch": "ja" },
+      { "type": "say", "text": "Zeg... Ik krijg ineens een idee...", "branch": "ja" }
+    ]
+  },
+  {
+    "id": "ask_help",
+    "type": "greeting",
+    "moves": [
+      { "type": "ask_yesno", "text": "Zouden jullie mij misschien willen helpen met dit mysterie?",
+        "next": { "yes": "ja", "no": "nee", "dontknow": "ja", "fail": "ja" },
+        "set_variable": "help_robot"},
+      { "type": "say", "text": "Joepie!!!!", "branch": "ja" },
+      { "type": "say", "text": "Dat is super lief van jullie!", "branch": "ja" },
+      { "type": "say", "text": "Laten we naar de flat gaan! ", "branch": "ja" },
+      { "type": "say", "text": "Daar zullen we vast veel sporen tegenkomen", "branch": "ja" },
+      { "type": "say", "text": "Oh, jullie mogen er over nadenken hoor!", "branch": "nee" },
+      { "type": "say", "text": "Ik ga naar de flat toe!", "branch": "nee" }
+    ]
+  },
+  {
+    "id": "goodbye",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "Het was leuk jullie te ontmoeten!  Houdoe!" }
+    ]
+  }]

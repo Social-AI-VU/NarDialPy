@@ -1,0 +1,57 @@
+[
+  {
+    "id": "bij_toon_en_rami",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Oh hey!" },
+      { "type": "say", "text": " Wat fijn dat jullie toch gekomen zijn!" },
+      { "type": "say", "text": " Toon en Rami, dit zijn %name%!" }
+    ]
+  },
+   {
+    "id": "toon_rami",
+    "type": "functional",
+    "moves": [
+
+      { "type": "say", "text": "Aha, dus dit zijn je nieuwe hulpjes?" },
+      { "type": "say", "text": "Hoihoi!" }
+    ]
+  },
+  {
+
+    "id": "robot_explain",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Beste junior detectives" },
+      { "type": "say", "text": "Toon wilde net vertellen wat er precies gebeurd is!" }
+    ]
+  },
+  {
+    "id": "toon_witness",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+
+      { "type": "say", "text": "Goed, wat jullie moeten weten dat ik een kunstenaar ben" },
+      { "type": "say", "text": "En ik had een mega grote achtbaan gebouwd samen met professor Eddy" },
+      { "type": "say", "text": "Een geweldig ding! Hij gaat wel zo hard als de Joris en de Draak" },
+      { "type": "say", "text": "Deze prachtige achtbaan stond altijd op het balkon" },
+      { "type": "say", "text": "Maar nu" },
+      { "type": "say", "text": "Twee dagen geleden" },
+      { "type": "say", "text": "Is hij ineens verdwenen!" },
+      { "type": "say", "text": "Wat denken jullie daarvan?" },
+      { "type": "say", "text": "Mega gek toch!" }
+    ]
+  },
+
+  {
+    "id": "robin_nerveus",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Ik geef jullie nu de mogelijkheid om te kiezen wie wie gaat interviewen" },
+       { "type": "say", "text": "Biep boep!" }
+    ]
+  }]

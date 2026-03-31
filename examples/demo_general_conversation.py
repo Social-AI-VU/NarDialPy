@@ -6,10 +6,9 @@ import numpy as np
 from sic_framework.devices.desktop import Desktop
 
 from nardial.authoring import load_dialogs
-from conversation_state import ConversationState
-
-from src.nardial.conversation_agent import ConversationAgent
-from src.nardial.dialog_logic import DialogLogic
+from nardial.conversation_agent import ConversationAgent
+from nardial.conversation_state import ConversationState
+from nardial.dialog_logic import DialogLogic
 
 # setup key files paths
 google_keyfile_path = abspath(join("conf", "dialogflow", "google_keyfile.json"))
@@ -17,7 +16,7 @@ openai_key_path = abspath(join("conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    path = abspath(join("assets", "dialogs", "dialogs.json"))
+    path = abspath(join("examples", "dialogs.json"))
 
     try:
         dialogs, errors = load_dialogs(path)

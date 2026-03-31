@@ -42,6 +42,7 @@ class ConversationState:
 
         # Default file location inside the caller's project
         self.path = Path(path) if path else self.base_dir / "conversation_state.json"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -53,6 +54,7 @@ class ConversationState:
 
         # participants folder inside caller's project
         self.participants_dir = self.base_dir / "participants"
+        self.participants_dir.mkdir(parents=True, exist_ok=True)
 
         self.load()
 

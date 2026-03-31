@@ -24,4 +24,5 @@ src/nardial/conf/dialogflow/*.json
 src/nardial/conf/openai/.openai_env
 
 # Ignore participants data
-src/nardial/participants/*
+participants/*
+conversation_state.json

@@ -52,6 +52,7 @@
     "functional_type": "greeting",
     "moves": [
       { "type": "say", "text": "Ik geef jullie nu de mogelijkheid om te kiezen wie wie gaat interviewen" },
-       { "type": "say", "text": "Biep boep!" }
+      { "type": "say", "text": "En didactische uitleg over het concept van Motivatie!" },
+      { "type": "say", "text": "Biep boep!" }
     ]
   }]

@@ -6,7 +6,7 @@ import numpy as np
 from sic_framework.devices.desktop import Desktop
 
 from nardial.authoring import load_dialogs
-from nardial.conversation_state import ConversationState
+from conversation_state import ConversationState
 
 from src.nardial.conversation_agent import ConversationAgent
 from src.nardial.dialog_logic import DialogLogic

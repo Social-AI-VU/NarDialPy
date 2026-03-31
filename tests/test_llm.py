@@ -1,5 +1,5 @@
-from mini_dialogs import MiniDialog, LLMDialog
-from moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM
+from nardial.mini_dialogs import MiniDialog, LLMDialog
+from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 
 def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):

@@ -68,7 +68,7 @@ class ConversationState:
             return
 
         print(f"[INFO] Using participant_id={self.participant_id}")
-        pid_completed, pid_topics = self.load_participant_continuity(self.participant_id)
+        pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
 
         # For a new participant (no file), this will be empty -> fresh run
         self.completed_dialogs = pid_completed or set()
@@ -79,7 +79,6 @@ class ConversationState:
             f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
             f"topics={self.topics_of_interest}")
 
-    @staticmethod
     def load_participant_continuity(self, participant_id: str):
         try:
             safe_id = self._sanitize_participant_id(participant_id)

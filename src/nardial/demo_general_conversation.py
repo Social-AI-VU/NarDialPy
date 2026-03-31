@@ -5,15 +5,15 @@ import os
 import numpy as np
 from sic_framework.devices.desktop import Desktop
 
-from src.nardial.authoring import load_dialogs
+from nardial.authoring import load_dialogs
 from conversation_state import ConversationState
 
 from src.nardial.conversation_agent import ConversationAgent
 from src.nardial.dialog_logic import DialogLogic
 
 # setup key files paths
-google_keyfile_path = abspath(join("../..", "conf", "dialogflow", "google_keyfile.json"))
-openai_key_path = abspath(join("../..", "conf", "openai", ".openai_env"))
+google_keyfile_path = abspath(join("conf", "dialogflow", "google_keyfile.json"))
+openai_key_path = abspath(join("conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():

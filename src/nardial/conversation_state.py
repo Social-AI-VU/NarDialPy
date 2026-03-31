@@ -80,42 +80,57 @@ class ConversationState:
             f"topics={self.topics_of_interest}")
 
     @staticmethod
-    def load_participant_continuity(participant_id: str):
-        """
-            Read participants/{participant_id}.json if present and return:
-            (completed_dialogs_set, topics_of_interest_list).
-            Falls back to empty if no file or unreadable.
-            """
+    def load_participant_continuity(self, participant_id: str):
         try:
-            pid = str(participant_id)
-            path = os.path.join("participants", f"{pid}.json")
-            if not os.path.exists(path):
+            safe_id = self._sanitize_participant_id(participant_id)
+            path = self.participants_dir / f"{safe_id}.json"
+
+            if not path.exists():
                 return set(), []
+
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
+
             summary = data.get("summary") or {}
             completed = set(summary.get("dialog_ids_seen") or [])
             topics = list(summary.get("topics_of_interest") or [])
+
             return completed, topics
         except Exception:
             return set(), []
 
     def load(self) -> None:
-        if not os.path.exists(self.path):
+        if not self.path.exists():
+            self._initialize_empty_state()
             return
-        with open(self.path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
+
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        except Exception:
+            # corrupted file fallback
+            self._initialize_empty_state()
+            return
+
         self.completed_dialogs = data.get("completed_dialogs", [])
         self.user_model = data.get("user_model", {})
         self.topics_of_interest = data.get("topics_of_interest", [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
+
+    def _initialize_empty_state(self) -> None:
+        self.completed_dialogs = []
+        self.user_model = {}
+        self.topics_of_interest = []
+        self.sessions = []
+
+        self.save()  # create file immediately
 
     def save(self) -> None:
         data = {
             "completed_dialogs": self.completed_dialogs,
             "user_model": self.user_model,
             "topics_of_interest": self.topics_of_interest,
-            "sessions": self.sessions,
+            "sessions": [s.__dict__ for s in self.sessions],
         }
         self._atomic_write_json(self.path, data)
 
@@ -146,29 +161,29 @@ class ConversationState:
                     extra_summary: Optional[Dict[str, Any]] = None) -> None:
         """Finalize a session, merge continuity, and derive dialog_ids if needed."""
         sess = self._get_session(session_id)
-        sess["ended_at"] = datetime.utcnow().isoformat()
-        sess["summary"] = {
+        sess.ended_at = datetime.utcnow().isoformat()
+        sess.summary = {
             "user_model": user_model or {},
             "topics_of_interest": topics_of_interest or [],
             **(extra_summary or {})
         }
 
         # If caller didn't pass completed_ids, derive dialog_ids once from events
-        if not completed_ids and not sess.get("dialog_ids"):
+        if not completed_ids and not sess.dialog_ids:
             self._derive_dialog_ids_from_events(sess)
 
         # Continuity merges
         if completed_ids:
             self._merge_completed(completed_ids)
-        elif sess.get("dialog_ids"):
-            self._merge_completed(sess["dialog_ids"])
+        elif sess.dialog_ids:
+            self._merge_completed(sess.dialog_ids)
         if user_model:
             self.user_model.update(user_model)
         if topics_of_interest:
             self._merge_interests(topics_of_interest)
 
         # Write/update per-participant transcript if participant_id present
-        pid = sess.get("participant_id")
+        pid = sess.participant_id
         if pid:
             self.save_participant_transcript(pid)
 
@@ -192,11 +207,11 @@ class ConversationState:
                 seen.add(k)
 
     @staticmethod
-    def _derive_dialog_ids_from_events(sess: Dict[str, Any]) -> None:
+    def _derive_dialog_ids_from_events(sess: Session) -> None:
         """Build ordered unique dialog_ids from system events in the session history."""
         ids: List[str] = []
         seen = set()
-        for ev in sess.get("events") or []:
+        for ev in sess.events or []:
             if ev.get("type") in {"dialog_start", "dialog_end"}:
                 did = ev.get("dialog_id")
                 if isinstance(did, str):
@@ -205,18 +220,18 @@ class ConversationState:
                         ids.append(k)
                         seen.add(k)
         if ids:
-            sess["dialog_ids"] = ids
+            sess.dialog_ids = ids
 
     # ---------- per-participant transcripts ----------
     def save_participant_transcript(self, participant_id: str) -> None:
-        """Write all sessions for this participant to participants/{participant_id}.json."""
-        os.makedirs(self.participants_dir, exist_ok=True)
         safe_id = self._sanitize_participant_id(participant_id)
-        path = os.path.join(self.participants_dir, f"{safe_id}.json")
+        path = Path(self.participants_dir) / f"{safe_id}.json"
+
         sessions = [s for s in self.sessions if s.participant_id == participant_id]
+
         payload = {
             "participant_id": participant_id,
-            "sessions": sessions,
+            "sessions": [s.__dict__ for s in sessions],
             "summary": {
                 "total_sessions": len(sessions),
                 "dialog_ids_seen": self._collect_dialog_ids(sessions),
@@ -224,6 +239,7 @@ class ConversationState:
                 "last_updated": datetime.utcnow().isoformat(),
             },
         }
+
         self._atomic_write_json(path, payload)
 
     @staticmethod
@@ -261,8 +277,20 @@ class ConversationState:
 
     # ---------- safe write ----------
     @staticmethod
-    def _atomic_write_json(path: str, data: Dict[str, Any]) -> None:
-        tmp_path = f"{path}.tmp"
+    def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+
+        def _serialize(obj):
+            if isinstance(obj, Session):
+                return obj.__dict__
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            raise TypeError(f"Type not serializable: {type(obj)}")
+
         with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False, default=_serialize)
+
         os.replace(tmp_path, path)

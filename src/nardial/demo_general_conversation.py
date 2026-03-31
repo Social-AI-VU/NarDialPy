@@ -17,7 +17,7 @@ openai_key_path = abspath(join("conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    path = abspath(join("../..", "assets", "dialogs", "dialogs.json"))
+    path = abspath(join("assets", "dialogs", "dialogs.json"))
 
     try:
         dialogs, errors = load_dialogs(path)

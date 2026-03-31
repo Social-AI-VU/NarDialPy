@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
 import os
@@ -30,16 +31,28 @@ class ConversationState:
     - per-participant transcript files under participants/{participant_id}.json
     """
 
-    def __init__(self, path: str = "conversation_state.json", overwrite_with_participant_info: bool = False) -> None:
-        self.path = path
+    def __init__(
+            self,
+            path: Optional[str] = None,
+            base_dir: Optional[str] = None,
+            overwrite_with_participant_info: bool = False
+    ) -> None:
+        # Determine base directory
+        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
+
+        # Default file location inside the caller's project
+        self.path = Path(path) if path else self.base_dir / "conversation_state.json"
+
         # continuity
         self.completed_dialogs: List[str] = []
         self.user_model: Dict[str, Any] = {}
         self.topics_of_interest: List[str] = []
+
         # all sessions (append-only)
         self.sessions: List[Session] = []
-        # where per-participant files go
-        self.participants_dir: str = os.path.join(os.path.dirname(path) or ".", "participants")
+
+        # participants folder inside caller's project
+        self.participants_dir = self.base_dir / "participants"
 
         self.load()
 

@@ -1,7 +1,5 @@
-import json
-import os
 import random
-from src.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
 
 
 class DialogLogic:

@@ -5,7 +5,7 @@ Python implementation of the Narrative Dialog Management System.
 
 ## Demo 
 
-[Here](./src/demo_general_conversation.py) is a demo showcasing an agent-driven conversation utilizing Google Dialogflow, Google TTS, and OpenAI's GPT4
+[Here](src/nardial/demo_general_conversation.py) is a demo showcasing an agent-driven conversation utilizing Google Dialogflow, Google TTS, and OpenAI's GPT4
 
 First, you need to set-up Google Cloud Console with dialogflow and Google TTS:
 
@@ -51,6 +51,6 @@ run-google-tts
 run-gpt
 ```
 12. Connect a device e.g. desktop, nao, pepper, alphamini
-13. Run [this script](./src/demo_general_conversation.py) in  a new terminal. 
+13. Run [this script](src/nardial/demo_general_conversation.py) in  a new terminal. 
 
 ---

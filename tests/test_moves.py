@@ -1,11 +1,8 @@
-from os.path import abspath, join
-
 # Replace the heavy sic_framework device-based agent with a simple mock agent for tests
 from unittest.mock import Mock
 
-from src.conversation_agent import ConversationAgent
-from src.mini_dialogs import MiniDialog
-from src.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
+from src.nardial.mini_dialogs import MiniDialog
+from src.nardial.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
     MOVE_MOTION_SEQUENCE
 
 

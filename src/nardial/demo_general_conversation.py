@@ -3,22 +3,21 @@ import sys
 from os.path import abspath, join
 import os
 import numpy as np
-from sic_framework.devices import Pepper
 from sic_framework.devices.desktop import Desktop
 
-from authoring.loader import load_dialogs
+from src.nardial.authoring import load_dialogs
 from conversation_state import ConversationState
 
-from src.conversation_agent import ConversationAgent
-from src.dialog_logic import DialogLogic
+from src.nardial.conversation_agent import ConversationAgent
+from src.nardial.dialog_logic import DialogLogic
 
 # setup key files paths
-google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
-openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
+google_keyfile_path = abspath(join("../..", "conf", "dialogflow", "google_keyfile.json"))
+openai_key_path = abspath(join("../..", "conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    path = abspath(join("..", "assets", "dialogs", "dialogs.json"))
+    path = abspath(join("../..", "assets", "dialogs", "dialogs.json"))
 
     try:
         dialogs, errors = load_dialogs(path)

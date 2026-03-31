@@ -16,7 +16,7 @@ openai_key_path = abspath(join("conf", "openai", ".openai_env"))
 
 
 def load_dialogs_from_json():
-    path = "C:/Users/mlt222/repositories/narrativedialog/NarDialPy/examples/dialogs.json"
+    path = abspath(join("examples", "dialogs.json"))
 
     try:
         dialogs, errors = load_dialogs(path)

@@ -39,7 +39,7 @@ class DialogLogic:
         return any(topic in interests for topic in dialog_topics)
 
     @staticmethod
-    def prioritized_chitchat(pool, theme=None, topics_of_interest=None):
+    def sort_chitchat_dialogs(pool, theme=None, topics_of_interest=None):
         """
         Prioritize chitchat candidates by deps∧interests > interests > deps > others
         """
@@ -95,7 +95,7 @@ class DialogLogic:
           isn't scheduled in this session because it was done in a previous run.
         """
         all_dialogs = all_dialogs or []
-        cands = DialogLogic.prioritized_chitchat(pool, theme=theme, topics_of_interest=topics_of_interest)
+        cands = DialogLogic.sort_chitchat_dialogs(pool, theme=theme, topics_of_interest=topics_of_interest)
         if not cands:
             return False
         for c in cands:

@@ -1,5 +1,5 @@
 from nardial.mini_dialogs import MiniDialog, LLMDialog
-from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_RESPONSE_LLM, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
+from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_LLM_FOLLOWUP, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 
 def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -119,7 +119,7 @@ def test_ask_open_llm_followup_generates_response(
 
     # The LLM response should be spoken and recorded
     agent.say.assert_called_once_with("That sounds wonderful! Mountains are so peaceful.")
-    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
     # User's answer is still stored via set_variable (extract_open_value picks the last token)
     assert user_model.get('weekend_activity') == 'mountains'
@@ -175,7 +175,7 @@ def test_ask_yesno_llm_followup_generates_response(
     call_kwargs = agent.ask_llm.call_args.kwargs
     assert call_kwargs['user_prompt'] == "yes"
     agent.say.assert_called_once_with("That's great, dogs are amazing companions!")
-    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
 def test_ask_options_llm_followup_generates_response(
@@ -202,7 +202,7 @@ def test_ask_options_llm_followup_generates_response(
     call_kwargs = agent.ask_llm.call_args.kwargs
     assert call_kwargs['user_prompt'] == "forest"
     agent.say.assert_called_once_with("Forests are so serene and full of life!")
-    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
 def test_ask_open_without_llm_followup_does_not_call_llm(
@@ -222,7 +222,7 @@ def test_ask_open_without_llm_followup_does_not_call_llm(
     md.handle_move_ask_open(move)
 
     agent.ask_llm.assert_not_called()
-    assert not any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert not any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
 def test_dispatcher_runs_llm_followup_within_ask_open(
@@ -247,4 +247,4 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     agent.ask_llm.assert_called_once()
     agent.say.assert_called_once_with("Painting is a beautiful hobby!")
     assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
-    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)

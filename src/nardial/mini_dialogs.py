@@ -5,7 +5,7 @@ from src.nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_RESPONSE_LLM
+    MOVE_LLM_FOLLOWUP
 
 from enum import Enum
 
@@ -196,7 +196,7 @@ class MiniDialog:
         )
         if llm_text:
             self.conversation_agent.say(llm_text)
-            self._record_robot(MOVE_RESPONSE_LLM, llm_text)
+            self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
     def handle_move_say(self, move):
         text = self._get(move, 'text')

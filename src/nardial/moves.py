@@ -16,7 +16,7 @@ MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
 MOVE_ANSWER_LLM = "answer_llm"
 
-MOVE_RESPONSE_LLM = "response_llm"
+MOVE_LLM_FOLLOWUP = "llm_followup"
 
 LLM_QUIT_SIGNAL = "<<QUIT>>"
 

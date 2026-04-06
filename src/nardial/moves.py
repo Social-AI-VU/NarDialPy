@@ -11,6 +11,8 @@ MOVE_PLAY_AUDIO = "play"
 MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
 
+MOVE_RESPONSE_LLM = "response_llm"
+
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
@@ -159,6 +161,31 @@ class MoveAskLLM(Move):
             max_turns=data.get("max_turns"),
             quit_phrases=data.get("quit_phrases"),
             quit_signal=data.get("quit_signal"),
+        )
+
+
+class MoveResponseLLM(Move):
+    def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
+                 set_variable: Optional[str] = None, branch: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_RESPONSE_LLM
+        self.prompt = prompt
+        # Engine reads 'next'; keep 'next_map' as alias for convenience
+        self.next = dict(next_map or {})
+        self.next_map = self.next
+        self.set_variable = set_variable
+        self.branch = branch
+
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            prompt=data.get("prompt"),
+            next_map=data.get("next"),
+            set_variable=data.get("set_variable"),
+            branch=data.get("branch"),
         )
 
 

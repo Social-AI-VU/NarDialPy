@@ -1,5 +1,5 @@
 from nardial.mini_dialogs import MiniDialog, LLMDialog
-from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM
+from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_RESPONSE_LLM
 
 
 def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -89,3 +89,77 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
 
     assert agent.ask_llm.call_count <= 3
     assert agent.ask_open.call_count <= 3
+
+
+def test_handle_move_response_llm_uses_context_and_last_user_response(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    agent = make_mock_agent(ask_llm_side_effect=["That's great to hear!"])
+
+    # Simulate prior conversation in session_history
+    session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": "What's your favorite food?"})
+    session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": "I love pizza."})
+
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Be a friendly robot.', 'set_variable': None}
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_response_llm(move)
+
+    # LLM should have been called with the last user response and conversation context
+    assert agent.ask_llm.call_count == 1
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == "I love pizza."
+
+    # The LLM response should be spoken and recorded
+    agent.say.assert_called_once_with("That's great to hear!")
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+    assert any(entry['text'] == "That's great to hear!" for entry in session_history)
+
+
+def test_handle_move_response_llm_stores_variable(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    agent = make_mock_agent(ask_llm_side_effect=["Interesting choice!"])
+
+    session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": "I enjoy hiking."})
+
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Generate a response.', 'set_variable': 'llm_reply'}
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_response_llm(move)
+
+    assert user_model.get('llm_reply') == "Interesting choice!"
+
+
+def test_handle_move_response_llm_no_user_history(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    agent = make_mock_agent(ask_llm_side_effect=["Hello!"])
+
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Start the conversation.', 'set_variable': None}
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_response_llm(move)
+
+    # Should still call LLM with empty user_prompt and empty context
+    assert agent.ask_llm.call_count == 1
+    agent.say.assert_called_once_with("Hello!")
+
+
+def test_run_dispatcher_includes_response_llm(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    agent = make_mock_agent(ask_llm_side_effect=["Nice!"])
+
+    session_history.append({"role": "user", "type": "answer_open", "text": "I like dogs."})
+
+    moves = [{'type': MOVE_RESPONSE_LLM, 'prompt': 'Be friendly.', 'set_variable': None}]
+
+    md = MiniDialog('test', moves=moves)
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert agent.ask_llm.call_count == 1
+    agent.say.assert_called_once_with("Nice!")
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)

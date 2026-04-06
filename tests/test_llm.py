@@ -99,7 +99,7 @@ def test_handle_move_response_llm_uses_context_and_last_user_response(
     session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": "What's your favorite food?"})
     session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": "I love pizza."})
 
-    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Be a friendly robot.', 'set_variable': None}
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Be a friendly robot.', 'set_variable': None, 'max_turns': 0}
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -123,7 +123,7 @@ def test_handle_move_response_llm_stores_variable(
 
     session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": "I enjoy hiking."})
 
-    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Generate a response.', 'set_variable': 'llm_reply'}
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Generate a response.', 'set_variable': 'llm_reply', 'max_turns': 0}
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -137,7 +137,7 @@ def test_handle_move_response_llm_no_user_history(
         session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(ask_llm_side_effect=["Hello!"])
 
-    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Start the conversation.', 'set_variable': None}
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Start the conversation.', 'set_variable': None, 'max_turns': 0}
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -155,7 +155,7 @@ def test_run_dispatcher_includes_response_llm(
 
     session_history.append({"role": "user", "type": "answer_open", "text": "I like dogs."})
 
-    moves = [{'type': MOVE_RESPONSE_LLM, 'prompt': 'Be friendly.', 'set_variable': None}]
+    moves = [{'type': MOVE_RESPONSE_LLM, 'prompt': 'Be friendly.', 'set_variable': None, 'max_turns': 0}]
 
     md = MiniDialog('test', moves=moves)
     md.run(agent, session_history, topics_of_interest, user_model)
@@ -163,3 +163,31 @@ def test_run_dispatcher_includes_response_llm(
     assert agent.ask_llm.call_count == 1
     agent.say.assert_called_once_with("Nice!")
     assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+
+
+def test_handle_move_response_llm_respond_first_then_exchange(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    # response_llm with max_turns=1: first respond to the user's last message,
+    # then run one Q&A exchange turn (LLM asks, user answers).
+    agent = make_mock_agent(
+        ask_llm_side_effect=["That sounds great!", "And what did you do next?"],
+        ask_open_side_effect=["I went for a walk."],
+    )
+
+    session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": "I had a wonderful day."})
+
+    move = {'type': MOVE_RESPONSE_LLM, 'prompt': 'Be a friendly robot.', 'set_variable': None, 'max_turns': 1}
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_llm(move)
+
+    # First call: contextual response to the user's last message
+    # Second call: Q&A exchange turn
+    assert agent.ask_llm.call_count == 2
+    assert agent.ask_open.call_count == 1
+
+    types = [entry['type'] for entry in session_history if entry.get('role') == 'robot']
+    assert MOVE_RESPONSE_LLM in types
+    assert MOVE_ASK_LLM in types

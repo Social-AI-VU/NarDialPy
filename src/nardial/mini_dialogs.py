@@ -262,7 +262,8 @@ class MiniDialog:
     def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
         if move.respond_only:
-            # Response mode: generate a single LLM followup grounded in conversation context
+            # Response-first mode: reply to the user's last message using conversation context,
+            # then lead a Q&A exchange for max_turns turns (set max_turns=0 to skip the exchange).
             context_messages = [
                 entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
             ]
@@ -281,6 +282,15 @@ class MiniDialog:
                 self._record_robot(MOVE_RESPONSE_LLM, llm_text)
                 if move.set_variable:
                     self.user_model[move.set_variable] = llm_text
+            max_turns = move.max_turns if move.max_turns is not None else MAX_LLM_TURNS
+            if max_turns > 0:
+                self._run_llm_exchange(
+                    prompt=move.prompt,
+                    max_turns=max_turns,
+                    set_variable=move.set_variable,
+                    quit_phrases=move.quit_phrases,
+                    quit_signal=move.quit_signal,
+                )
         else:
             self._run_llm_exchange(
                 prompt=move.prompt,

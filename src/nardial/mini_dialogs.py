@@ -207,7 +207,7 @@ class MiniDialog:
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
-        answer = self.conversation_agent.ask_yes_no(move.text)
+        answer = self.conversation_agent.ask_yesno(move.text)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")

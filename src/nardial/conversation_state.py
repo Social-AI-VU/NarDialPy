@@ -35,7 +35,7 @@ class ConversationState:
             self,
             path: Optional[str] = None,
             base_dir: Optional[str] = None,
-            overwrite_with_participant_info: bool = False
+            participant_id: Optional[str] = None,
     ) -> None:
         # Determine base directory
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
@@ -58,15 +58,11 @@ class ConversationState:
 
         self.load()
 
-        self.participant_id = None
-        if overwrite_with_participant_info:
+        self.participant_id = participant_id
+        if self.participant_id is not None:
             self.overwrite_with_participant_info()
 
     def overwrite_with_participant_info(self) -> None:
-        self.participant_id = os.environ.get("PARTICIPANT_ID") or None
-        if not self.participant_id:
-            return
-
         print(f"[INFO] Using participant_id={self.participant_id}")
         pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
 

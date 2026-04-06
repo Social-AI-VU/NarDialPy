@@ -104,7 +104,7 @@ def test_handle_move_response_llm_uses_context_and_last_user_response(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_response_llm(move)
+    md.handle_move_ask_llm(move)
 
     # LLM should have been called with the last user response and conversation context
     assert agent.ask_llm.call_count == 1
@@ -128,7 +128,7 @@ def test_handle_move_response_llm_stores_variable(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_response_llm(move)
+    md.handle_move_ask_llm(move)
 
     assert user_model.get('llm_reply') == "Interesting choice!"
 
@@ -142,7 +142,7 @@ def test_handle_move_response_llm_no_user_history(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_response_llm(move)
+    md.handle_move_ask_llm(move)
 
     # Should still call LLM with empty user_prompt and empty context
     assert agent.ask_llm.call_count == 1

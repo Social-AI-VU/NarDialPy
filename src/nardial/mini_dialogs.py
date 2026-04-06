@@ -5,7 +5,7 @@ from src.nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MoveResponseLLM, MOVE_RESPONSE_LLM
+    MOVE_RESPONSE_LLM
 
 from enum import Enum
 
@@ -158,11 +158,8 @@ class MiniDialog:
             elif move_type == MOVE_ANIMATION:
                 self.handle_move_animation(move)
                 idx += 1
-            elif move_type == MOVE_ASK_LLM:
+            elif move_type == MOVE_ASK_LLM or move_type == MOVE_RESPONSE_LLM:
                 self.handle_move_ask_llm(move)
-                idx += 1
-            elif move_type == MOVE_RESPONSE_LLM:
-                self.handle_move_response_llm(move)
                 idx += 1
             else:
                 idx += 1
@@ -264,39 +261,34 @@ class MiniDialog:
 
     def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
-        self._run_llm_exchange(
-            prompt=move.prompt,
-            max_turns=move.max_turns or MAX_LLM_TURNS,
-            set_variable=move.set_variable,
-            quit_phrases=move.quit_phrases,
-            quit_signal=move.quit_signal,
-        )
-
-    def handle_move_response_llm(self, move):
-        move = MoveResponseLLM.from_dict(move)
-
-        # Build context from session history: extract text entries for the LLM
-        context_messages = [
-            entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
-        ]
-
-        # Find the most recent user response to use as the user prompt
-        last_user_response = ""
-        for entry in reversed(self.session_history):
-            if entry.get("role") == "user" and entry.get("text"):
-                last_user_response = entry["text"]
-                break
-
-        llm_text = self.conversation_agent.ask_llm(
-            user_prompt=last_user_response,
-            context_messages=context_messages,
-            system_prompt=move.prompt,
-        )
-        if llm_text:
-            self.conversation_agent.say(llm_text)
-            self._record_robot(MOVE_RESPONSE_LLM, llm_text)
-            if move.set_variable:
-                self.user_model[move.set_variable] = llm_text
+        if move.respond_only:
+            # Response mode: generate a single LLM followup grounded in conversation context
+            context_messages = [
+                entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
+            ]
+            last_user_response = ""
+            for entry in reversed(self.session_history):
+                if entry.get("role") == "user" and entry.get("text"):
+                    last_user_response = entry["text"]
+                    break
+            llm_text = self.conversation_agent.ask_llm(
+                user_prompt=last_user_response,
+                context_messages=context_messages,
+                system_prompt=move.prompt,
+            )
+            if llm_text:
+                self.conversation_agent.say(llm_text)
+                self._record_robot(MOVE_RESPONSE_LLM, llm_text)
+                if move.set_variable:
+                    self.user_model[move.set_variable] = llm_text
+        else:
+            self._run_llm_exchange(
+                prompt=move.prompt,
+                max_turns=move.max_turns or MAX_LLM_TURNS,
+                set_variable=move.set_variable,
+                quit_phrases=move.quit_phrases,
+                quit_signal=move.quit_signal,
+            )
 
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):

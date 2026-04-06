@@ -132,9 +132,13 @@ class MoveAskOptions(Move):
 class MoveAskLLM(Move):
     def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None, branch: Optional[str] = None,
-                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
+                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None,
+                 quit_signal: Optional[str] = None, respond_only: bool = False):
         super().__init__()
-        self.type = MOVE_ASK_LLM
+        # respond_only=True: generate a single followup response from conversation context
+        # respond_only=False (default): run a multi-turn LLM-driven Q&A exchange
+        self.respond_only = respond_only
+        self.type = MOVE_RESPONSE_LLM if respond_only else MOVE_ASK_LLM
         self.prompt = prompt
         # Engine reads 'next'; keep 'next_map' as alias for convenience
         self.next = dict(next_map or {})
@@ -161,31 +165,7 @@ class MoveAskLLM(Move):
             max_turns=data.get("max_turns"),
             quit_phrases=data.get("quit_phrases"),
             quit_signal=data.get("quit_signal"),
-        )
-
-
-class MoveResponseLLM(Move):
-    def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, branch: Optional[str] = None):
-        super().__init__()
-        self.type = MOVE_RESPONSE_LLM
-        self.prompt = prompt
-        # Engine reads 'next'; keep 'next_map' as alias for convenience
-        self.next = dict(next_map or {})
-        self.next_map = self.next
-        self.set_variable = set_variable
-        self.branch = branch
-
-    def get_type(self):
-        return self.type
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return cls(
-            prompt=data.get("prompt"),
-            next_map=data.get("next"),
-            set_variable=data.get("set_variable"),
-            branch=data.get("branch"),
+            respond_only=data.get("respond_only", False) or data.get("type") == MOVE_RESPONSE_LLM,
         )
 
 

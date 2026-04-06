@@ -1,5 +1,5 @@
 import random
-from src.nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
 class DialogLogic:
@@ -10,10 +10,10 @@ class DialogLogic:
         # Block any dialog that is already completed (including greeting/farewell)
         if dialog.dialog_id in completed_ids:
             return False
-        for dep in getattr(dialog, "dependencies", []):
+        for dep in dialog.dependencies:
             if dep not in completed_ids:
                 return False
-        for var_dep in getattr(dialog, "variable_dependencies", []):
+        for var_dep in dialog.variable_dependencies:
             var = var_dep["variable"]
             required = var_dep.get("required", True)
             if required and not user_model.get(var):

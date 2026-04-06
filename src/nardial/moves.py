@@ -16,6 +16,8 @@ MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
 MOVE_ANSWER_LLM = "answer_llm"
 
+MOVE_RESPONSE_LLM = "response_llm"
+
 LLM_QUIT_SIGNAL = "<<QUIT>>"
 
 class Move:
@@ -39,7 +41,8 @@ class MoveSay(Move):
 
 class MoveAskYesNo(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
-                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None):
+                 set_variable: Optional[str] = None, add_interest: Optional[str] = None, branch: Optional[str] = None,
+                 llm_followup: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_YESNO
         self.text = text
@@ -49,6 +52,8 @@ class MoveAskYesNo(Move):
         self.set_variable = set_variable
         self.add_interest = add_interest
         self.branch = branch
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -61,6 +66,7 @@ class MoveAskYesNo(Move):
             set_variable=data.get("set_variable"),
             add_interest=data.get("add_interest"),
             branch=data.get("branch"),
+            llm_followup=data.get("llm_followup"),
         )
 
 
@@ -68,7 +74,7 @@ class MoveAskOpen(Move):
     def __init__(self, text: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None, add_interest_from_answer: Optional[bool] = None,
                  add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
-                 personalize_followup: Optional[bool] = None):
+                 personalize_followup: Optional[bool] = None, llm_followup: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPEN
         self.text = text
@@ -80,6 +86,8 @@ class MoveAskOpen(Move):
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
         self.personalize_followup = personalize_followup
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -94,13 +102,15 @@ class MoveAskOpen(Move):
             add_interest_from_answer=data.get("add_interest_from_answer"),
             branch=data.get("branch"),
             personalize_followup=data.get("personalize_followup"),
+            llm_followup=data.get("llm_followup"),
         )
 
 
 class MoveAskOptions(Move):
     def __init__(self, text: str, options: List[str], next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None,
-                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None):
+                 add_interest_from_variable: Optional[str] = None, branch: Optional[str] = None,
+                 llm_followup: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
         self.text = text
@@ -111,6 +121,8 @@ class MoveAskOptions(Move):
         self.set_variable = set_variable
         self.add_interest_from_variable = add_interest_from_variable
         self.branch = branch
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -123,7 +135,8 @@ class MoveAskOptions(Move):
             next_map=data.get("next"),
             set_variable=data.get("set_variable"),
             add_interest_from_variable=data.get("add_interest_from_variable"),
-            branch=data.get("branch")
+            branch=data.get("branch"),
+            llm_followup=data.get("llm_followup"),
         )
 
 

@@ -1,5 +1,5 @@
 from nardial.mini_dialogs import MiniDialog, LLMDialog
-from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM
+from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_RESPONSE_LLM, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 
 def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -89,3 +89,162 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
 
     assert agent.ask_llm.call_count <= 3
     assert agent.ask_open.call_count <= 3
+
+
+def test_ask_open_llm_followup_generates_response(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_followup on ask_open: after the user replies, the LLM generates a contextual followup."""
+    agent = make_mock_agent(
+        ask_open_side_effect=["I love hiking in the mountains."],
+        ask_llm_side_effect=["That sounds wonderful! Mountains are so peaceful."],
+    )
+
+    move = {
+        'type': 'ask_open',
+        'text': 'What did you do this weekend?',
+        'set_variable': 'weekend_activity',
+        'llm_followup': 'You are a friendly robot. Respond warmly to what the user just said.',
+    }
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_open(move)
+
+    # LLM should have been called once with the user's answer as the prompt
+    agent.ask_llm.assert_called_once()
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == "I love hiking in the mountains."
+    assert 'friendly robot' in call_kwargs['system_prompt']
+
+    # The LLM response should be spoken and recorded
+    agent.say.assert_called_once_with("That sounds wonderful! Mountains are so peaceful.")
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+
+    # User's answer is still stored via set_variable (extract_open_value picks the last token)
+    assert user_model.get('weekend_activity') == 'mountains'
+
+
+def test_ask_open_llm_followup_receives_full_conversation_context(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_followup receives the full session history as context."""
+    agent = make_mock_agent(
+        ask_open_side_effect=["Pizza!"],
+        ask_llm_side_effect=["Great choice, pizza is delicious!"],
+    )
+
+    # Pre-populate history so LLM receives context
+    session_history.append({"role": "robot", "type": "say", "text": "Let's talk about food."})
+
+    move = {
+        'type': 'ask_open',
+        'text': 'What is your favorite food?',
+        'llm_followup': 'Be enthusiastic about the user choice.',
+    }
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_open(move)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    # Context should include prior history entries
+    assert any("Let's talk about food." in msg for msg in call_kwargs['context_messages'])
+
+
+def test_ask_yesno_llm_followup_generates_response(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_followup on ask_yesno: after the user replies yes/no, LLM generates a contextual followup."""
+    agent = make_mock_agent(
+        ask_yes_no_side_effect=["yes"],
+        ask_llm_side_effect=["That's great, dogs are amazing companions!"],
+    )
+
+    move = {
+        'type': 'ask_yesno',
+        'text': 'Do you like dogs?',
+        'llm_followup': 'React warmly to the user answer about dogs.',
+    }
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_yesno(move)
+
+    agent.ask_llm.assert_called_once()
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == "yes"
+    agent.say.assert_called_once_with("That's great, dogs are amazing companions!")
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+
+
+def test_ask_options_llm_followup_generates_response(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_followup on ask_options: after the user picks an option, LLM generates a contextual followup."""
+    agent = make_mock_agent(
+        ask_options_side_effect=["forest"],
+        ask_llm_side_effect=["Forests are so serene and full of life!"],
+    )
+
+    move = {
+        'type': 'ask_options',
+        'text': 'Which place in nature do you prefer?',
+        'options': ['sea', 'forest', 'mountains'],
+        'llm_followup': 'Share enthusiasm about the user chosen nature spot.',
+    }
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_options(move)
+
+    agent.ask_llm.assert_called_once()
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == "forest"
+    agent.say.assert_called_once_with("Forests are so serene and full of life!")
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+
+
+def test_ask_open_without_llm_followup_does_not_call_llm(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """Without llm_followup, ask_open does not call the LLM."""
+    agent = make_mock_agent(ask_open_side_effect=["I like cats."])
+
+    move = {
+        'type': 'ask_open',
+        'text': 'What is your favorite animal?',
+        'set_variable': 'favorite_animal',
+    }
+
+    md = MiniDialog('test', moves=[])
+    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+
+    md.handle_move_ask_open(move)
+
+    agent.ask_llm.assert_not_called()
+    assert not any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)
+
+
+def test_dispatcher_runs_llm_followup_within_ask_open(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """The move dispatcher triggers llm_followup when running ask_open moves."""
+    agent = make_mock_agent(
+        ask_open_side_effect=["I enjoy painting."],
+        ask_llm_side_effect=["Painting is a beautiful hobby!"],
+    )
+
+    moves = [
+        {
+            'type': 'ask_open',
+            'text': 'What is your hobby?',
+            'llm_followup': 'Respond positively to the user hobby.',
+        }
+    ]
+
+    md = MiniDialog('test', moves=moves)
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    agent.ask_llm.assert_called_once()
+    agent.say.assert_called_once_with("Painting is a beautiful hobby!")
+    assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
+    assert any(entry['type'] == MOVE_RESPONSE_LLM for entry in session_history)

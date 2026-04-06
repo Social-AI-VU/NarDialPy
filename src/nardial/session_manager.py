@@ -11,12 +11,12 @@ from nardial.authoring import load_dialogs
 
 
 class SessionManager:
-    def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str):
+    def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str, participant_id=None):
         self.session_agenda = session_agenda
         self.dialogs = self.load_dialogs_from_json(dialog_json_path)
         self.agent = agent
 
-        self.conversation_state = ConversationState(overwrite_with_participant_info=True)
+        self.conversation_state = ConversationState(participant_id=participant_id)
         self.session_id = self.start_session()
 
         # TODO: For now we just take all dialogs in the session_agenda, but we could also apply some filtering logic here

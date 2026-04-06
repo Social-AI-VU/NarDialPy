@@ -38,7 +38,7 @@ class SessionManager:
             return []
 
     def start_session(self):
-        run_id =  os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
+        run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
         session_id = self.conversation_state.start_session(
             # metadata={"thread": thread, "theme": theme},
             participant_id=self.conversation_state.participant_id,
@@ -67,9 +67,9 @@ class SessionManager:
 
         self.conversation_state.add_events(self.session_id, session_history)
         self.conversation_state.end_session(self.session_id,
-                                       completed_ids=self.conversation_state.completed_dialogs,
-                                       user_model=self.conversation_state.user_model,
-                                       topics_of_interest=topics_of_interest)
+                                            completed_ids=self.conversation_state.completed_dialogs,
+                                            user_model=self.conversation_state.user_model,
+                                            topics_of_interest=topics_of_interest)
         self.conversation_state.save()
         print("Conversation state saved.")
 
@@ -81,4 +81,3 @@ class SessionManager:
         except Exception as e:
             print(f"[WARN] Topic condensation failed: {e}")
         return topics_of_interest
-

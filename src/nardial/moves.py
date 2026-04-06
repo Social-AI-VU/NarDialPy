@@ -11,8 +11,6 @@ MOVE_PLAY_AUDIO = "play"
 MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
 
-MOVE_RESPONSE_LLM = "response_llm"
-
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
@@ -132,13 +130,9 @@ class MoveAskOptions(Move):
 class MoveAskLLM(Move):
     def __init__(self, prompt: str, next_map: Optional[Dict[str, str]] = None,
                  set_variable: Optional[str] = None, branch: Optional[str] = None,
-                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None,
-                 quit_signal: Optional[str] = None, respond_only: bool = False):
+                 max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None):
         super().__init__()
-        # respond_only=True: generate a single followup response from conversation context
-        # respond_only=False (default): run a multi-turn LLM-driven Q&A exchange
-        self.respond_only = respond_only
-        self.type = MOVE_RESPONSE_LLM if respond_only else MOVE_ASK_LLM
+        self.type = MOVE_ASK_LLM
         self.prompt = prompt
         # Engine reads 'next'; keep 'next_map' as alias for convenience
         self.next = dict(next_map or {})
@@ -165,7 +159,6 @@ class MoveAskLLM(Move):
             max_turns=data.get("max_turns"),
             quit_phrases=data.get("quit_phrases"),
             quit_signal=data.get("quit_signal"),
-            respond_only=data.get("respond_only", False) or data.get("type") == MOVE_RESPONSE_LLM,
         )
 
 

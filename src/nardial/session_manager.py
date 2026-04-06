@@ -18,9 +18,7 @@ class SessionManager:
 
         self.conversation_state = ConversationState(participant_id=participant_id)
         self.session_id = self.start_session()
-
-        # TODO: For now we just take all dialogs in the session_agenda, but we could also apply some filtering logic here
-        self.session_block = self.dialogs
+        self.session_block = self.build_session_block()
 
     @staticmethod
     def load_dialogs_from_json(path):
@@ -47,10 +45,21 @@ class SessionManager:
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
         return session_id
 
+    def build_session_block(self):
+        # Currently, all dialogs from session_agenda are included as-is.
+        # This can be extended to apply more advanced selection/crafting logic using DialogLogic utilities
+        if len(self.session_agenda) == 0:
+            print("[INFO] Session agenda is empty, running all dialogs.")
+            return self.dialogs
+
+        session_block = [d for d in self.dialogs if d.dialog_id in self.session_agenda]
+
+        return session_block
+
     def run(self):
         session_history = []
         for dialog in self.session_block:
-            if not DialogLogic.can_run(dialog, self.conversation_state.completed_dialogs, self.conversation_state.user_model, self.dialogs):
+            if not DialogLogic.is_dialog_eligible(dialog, self.conversation_state.completed_dialogs, self.conversation_state.user_model, self.dialogs):
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
                 continue
             self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)

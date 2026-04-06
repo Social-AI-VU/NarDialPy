@@ -4,7 +4,8 @@ import re
 from src.nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
-    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM
+    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
+    MOVE_LLM_FOLLOWUP
 
 from enum import Enum
 
@@ -157,6 +158,9 @@ class MiniDialog:
             elif move_type == MOVE_ANIMATION:
                 self.handle_move_animation(move)
                 idx += 1
+            elif move_type == MOVE_ASK_LLM:
+                self.handle_move_ask_llm(move)
+                idx += 1
             else:
                 idx += 1
 
@@ -180,6 +184,20 @@ class MiniDialog:
 
         return len(self.moves)  # End if not found
 
+    def _generate_llm_followup(self, user_answer: str, system_prompt: str):
+        """Call the LLM to generate a contextual followup to the user's answer and speak it."""
+        context_messages = [
+            entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
+        ]
+        llm_text = self.conversation_agent.ask_llm(
+            user_prompt=user_answer,
+            context_messages=context_messages,
+            system_prompt=system_prompt,
+        )
+        if llm_text:
+            self.conversation_agent.say(llm_text)
+            self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
+
     def handle_move_say(self, move):
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
@@ -199,6 +217,10 @@ class MiniDialog:
         if answer == "yes" and getattr(move, 'add_interest', None):
             self.add_interest(self.topics_of_interest, move.add_interest)
 
+        # Optional LLM-generated followup response
+        if move.llm_followup:
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
+
         return answer
 
     def handle_move_ask_open(self, move):
@@ -211,6 +233,10 @@ class MiniDialog:
         # store answer and interests if configured
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
+
+        # Optional LLM-generated followup response
+        if move.llm_followup:
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
         # Optional automatic personalized follow-up
         if not move.personalize_followup:
@@ -237,6 +263,10 @@ class MiniDialog:
         # store answer if configured
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
+
+        # Optional LLM-generated followup response
+        if move.llm_followup:
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
         return answer
 

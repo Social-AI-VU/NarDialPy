@@ -46,14 +46,17 @@ def make_mock_agent():
 
         return fn
 
-    def _make(ask_llm_side_effect=None, ask_open_side_effect=None):
+    def _make(ask_llm_side_effect=None, ask_open_side_effect=None,
+              ask_yes_no_side_effect=None, ask_options_side_effect=None):
         agent = type('Agent', (), {})()
         llm_effect = _wrap_side_effect(ask_llm_side_effect)
         open_effect = _wrap_side_effect(ask_open_side_effect)
+        yesno_effect = _wrap_side_effect(ask_yes_no_side_effect)
+        options_effect = _wrap_side_effect(ask_options_side_effect)
         agent.ask_llm = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
         agent.ask_open = Mock(side_effect=open_effect) if ask_open_side_effect is not None else Mock(return_value=None)
-        agent.ask_yes_no = Mock(return_value='no')
-        agent.ask_options = Mock(return_value=None)
+        agent.ask_yes_no = Mock(side_effect=yesno_effect) if ask_yes_no_side_effect is not None else Mock(return_value='no')
+        agent.ask_options = Mock(side_effect=options_effect) if ask_options_side_effect is not None else Mock(return_value=None)
         agent.say = Mock()
         agent.play_audio = Mock()
         agent.play_motion_sequence = Mock()

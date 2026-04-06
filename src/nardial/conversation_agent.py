@@ -296,7 +296,9 @@ class ConversationAgent:
 
     def ask_llm(self, user_prompt, context_messages, system_prompt):
         try:
-            return self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
+            resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
+            text = (resp.response or "").strip()
+            return text
         except Exception as e:
             print(f"Exception: {e}")
             return None

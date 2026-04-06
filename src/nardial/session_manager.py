@@ -52,7 +52,13 @@ class SessionManager:
             print("[INFO] Session agenda is empty, running all dialogs.")
             return self.dialogs
 
-        session_block = [d for d in self.dialogs if d.dialog_id in self.session_agenda]
+        dialog_map = {d.dialog_id: d for d in self.dialogs}
+
+        session_block = [
+            dialog_map[dialog_id]
+            for dialog_id in self.session_agenda
+            if dialog_id in dialog_map
+        ]
 
         return session_block
 

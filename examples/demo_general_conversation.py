@@ -6,9 +6,9 @@ from nardial.conversation_agent import ConversationAgent
 from nardial.session_manager import SessionManager
 
 # setup key files paths
-google_keyfile_path = abspath(join("conf", "dialogflow", "google_keyfile.json"))
-openai_key_path = abspath(join("conf", "openai", ".openai_env"))
-dialog_json_path = abspath(join("examples", "dialogs.json"))
+google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
+openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
+dialog_json_path = abspath(join("..", "examples", "dialogs.json"))
 
 
 if __name__ == '__main__':
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     agent = ConversationAgent(device, google_keyfile_path=google_keyfile_path, openai_key_path=openai_key_path)
 
     # all dialogs for now
-    session_agenda = ["dialog  1", "dialog 2", "dialog 3"]
+    session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]
 
     session_manager = SessionManager(
         session_agenda=session_agenda,

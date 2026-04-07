@@ -3,7 +3,9 @@ from os.path import abspath, join
 from sic_framework.devices.desktop import Desktop
 
 from nardial.conversation_agent import ConversationAgent
+from nardial.dialog_manager import InteractionConfig
 from nardial.session_manager import SessionManager
+from nardial.tts_manager import GoogleTTSConf
 
 # setup key files paths
 google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
@@ -17,7 +19,12 @@ if __name__ == '__main__':
     # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
-    agent = ConversationAgent(device, google_keyfile_path=google_keyfile_path, openai_key_path=openai_key_path)
+    interaction_config = InteractionConfig(
+        google_keyfile_path=google_keyfile_path,
+        openai_key_path=openai_key_path,
+        tts_conf=GoogleTTSConf(google_tts_voice_name="en-US-Standard-C")
+    )
+    agent = ConversationAgent(device, interaction_config)
 
     # all dialogs for now
     session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]

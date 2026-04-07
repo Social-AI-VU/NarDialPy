@@ -56,7 +56,7 @@ def _make_mock_agent(ask_options_return='dreaming', ask_yesno_return='yes', ask_
     agent = Mock()
     agent.say = Mock()
     agent.ask_options = Mock(return_value=ask_options_return)
-    agent.ask_yes_no = Mock(return_value=ask_yesno_return)
+    agent.ask_yesno = Mock(return_value=ask_yesno_return)
     agent.ask_open = Mock(return_value=ask_open_return)
     agent.play_audio = Mock()
     agent.play_motion_sequence = Mock()

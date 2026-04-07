@@ -1,21 +1,19 @@
-import json
-import os
 import random
-from src.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog
+from src.nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
 class DialogLogic:
     @staticmethod
-    def can_run(dialog, completed_ids, user_model, all_dialogs=None):
+    def is_dialog_eligible(dialog, completed_ids, user_model, all_dialogs=None):
         # check if dialog can be run based on dependencies and user model variables
         # if narrative dialog, check position in thread and if previous narratives in thread have been completed
         # Block any dialog that is already completed (including greeting/farewell)
         if dialog.dialog_id in completed_ids:
             return False
-        for dep in getattr(dialog, "dependencies", []):
+        for dep in dialog.dependencies:
             if dep not in completed_ids:
                 return False
-        for var_dep in getattr(dialog, "variable_dependencies", []):
+        for var_dep in dialog.variable_dependencies:
             var = var_dep["variable"]
             required = var_dep.get("required", True)
             if required and not user_model.get(var):
@@ -32,7 +30,7 @@ class DialogLogic:
         return True
 
     @staticmethod
-    def topic_match(dialog, topics_of_interest):
+    def matches_user_interests(dialog, topics_of_interest):
         # checks if the dialog has at least one topic that matches the user’s topics of interest
         if not topics_of_interest:
             return True
@@ -41,28 +39,7 @@ class DialogLogic:
         return any(topic in interests for topic in dialog_topics)
 
     @staticmethod
-    def load_participant_continuity(participant_id: str):
-        """
-        Read participants/{participant_id}.json if present and return:
-        (completed_dialogs_set, topics_of_interest_list).
-        Falls back to empty if no file or unreadable.
-        """
-        try:
-            pid = str(participant_id)
-            path = os.path.join("participants", f"{pid}.json")
-            if not os.path.exists(path):
-                return set(), []
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f) or {}
-            summary = data.get("summary") or {}
-            completed = set(summary.get("dialog_ids_seen") or [])
-            topics = list(summary.get("topics_of_interest") or [])
-            return completed, topics
-        except Exception:
-            return set(), []
-
-    @staticmethod
-    def prioritized_chitchat(pool, theme=None, topics_of_interest=None):
+    def sort_chitchat_dialogs(pool, theme=None, topics_of_interest=None):
         """
         Prioritize chitchat candidates by deps∧interests > interests > deps > others
         """
@@ -73,14 +50,14 @@ class DialogLogic:
 
         def score(d):
             has_deps = 1 if getattr(d, "dependencies", []) else 0
-            has_interest = 1 if (topics_of_interest and DialogLogic.topic_match(d, topics_of_interest)) else 0
+            has_interest = 1 if (topics_of_interest and DialogLogic.matches_user_interests(d, topics_of_interest)) else 0
             # tuple sorted descending: (deps&interest, interest, deps)
             return (has_deps & has_interest, has_interest, has_deps)
 
         return sorted(cands, key=score, reverse=True)
 
     @staticmethod
-    def auto_select_thread(mini_dialogs, preferred_thread, completed_ids, user_model):
+    def select_active_thread(mini_dialogs, preferred_thread, completed_ids, user_model):
         """
         Pick a narrative thread that still has a runnable next dialog.
         - Try the preferred_thread first.
@@ -90,8 +67,8 @@ class DialogLogic:
         pool = list(mini_dialogs)
         # Try preferred first
         if preferred_thread:
-            if DialogLogic.pick_next_narrative(pool, preferred_thread, completed_ids=completed_ids,
-                                               user_model=user_model, all_dialogs=mini_dialogs):
+            if DialogLogic.select_next_narrative(pool, preferred_thread, completed_ids=completed_ids,
+                                                 user_model=user_model, all_dialogs=mini_dialogs):
                 return preferred_thread
         # Try any other thread
         threads = []
@@ -103,13 +80,13 @@ class DialogLogic:
         for t in threads:
             if t == preferred_thread:
                 continue
-            if DialogLogic.pick_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model,
-                                               all_dialogs=mini_dialogs):
+            if DialogLogic.select_next_narrative(pool, t, completed_ids=completed_ids, user_model=user_model,
+                                                 all_dialogs=mini_dialogs):
                 return t
         return None
 
     @staticmethod
-    def schedule_chitchat(session, pool, theme=None, topics_of_interest=None, all_dialogs=None, completed_ids=None):
+    def insert_chitchat_into_session(session, pool, theme=None, topics_of_interest=None, all_dialogs=None, completed_ids=None):
         """
         Try to schedule one chitchat into session from pool.
         Improvements:
@@ -118,7 +95,7 @@ class DialogLogic:
           isn't scheduled in this session because it was done in a previous run.
         """
         all_dialogs = all_dialogs or []
-        cands = DialogLogic.prioritized_chitchat(pool, theme=theme, topics_of_interest=topics_of_interest)
+        cands = DialogLogic.sort_chitchat_dialogs(pool, theme=theme, topics_of_interest=topics_of_interest)
         if not cands:
             return False
         for c in cands:
@@ -132,7 +109,7 @@ class DialogLogic:
             if greeted:
                 effective_completed.add("greeting")
 
-            if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
+            if DialogLogic.is_dialog_eligible(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
                 session.append(c);
                 pool.remove(c)
                 return True
@@ -141,11 +118,11 @@ class DialogLogic:
                 dep = next((d for d in pool if d.dialog_id == dep_id), None)
                 if not dep:
                     continue
-                if DialogLogic.can_run(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):
+                if DialogLogic.is_dialog_eligible(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):
                     session.append(dep);
                     pool.remove(dep)
                     effective_completed.add(dep.dialog_id)
-                    if DialogLogic.can_run(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
+                    if DialogLogic.is_dialog_eligible(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
                         session.append(c);
                         pool.remove(c)
                         return True
@@ -153,7 +130,7 @@ class DialogLogic:
         return False
 
     @staticmethod
-    def pick_next_narrative(pool, thread, completed_ids, user_model, all_dialogs):
+    def select_next_narrative(pool, thread, completed_ids, user_model, all_dialogs):
         """
         Pick the next runnable narrative in thread (lowest position not yet completed).
         Returns a dialog or None.
@@ -161,12 +138,12 @@ class DialogLogic:
         candidates = [d for d in pool if isinstance(d, NarrativeDialog) and d.thread == thread]
         candidates.sort(key=lambda d: d.position)
         for d in candidates:
-            if DialogLogic.can_run(d, completed_ids, user_model, all_dialogs=all_dialogs):
+            if DialogLogic.is_dialog_eligible(d, completed_ids, user_model, all_dialogs=all_dialogs):
                 return d
         return None
 
     @staticmethod
-    def select_session_block(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
+    def build_dialog_session(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
         session = []
         pool = list(mini_dialogs)
         completed_ids = set(completed_ids or set())
@@ -180,34 +157,34 @@ class DialogLogic:
             session.append(greeting)
             pool.remove(greeting)
         # 2) First narrative in thread
-        n1 = DialogLogic.pick_next_narrative(pool, thread, completed_ids=completed_ids, user_model={},
-                                             all_dialogs=mini_dialogs)
+        n1 = DialogLogic.select_next_narrative(pool, thread, completed_ids=completed_ids, user_model={},
+                                               all_dialogs=mini_dialogs)
         if n1:
             session.append(n1)
             pool.remove(n1)
         # 3) One themed chitchat (use continuity-aware scheduling); if none runnable, print notice
-        added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest,
-                                                 all_dialogs=mini_dialogs, completed_ids=completed_ids)
+        added_c1 = DialogLogic.insert_chitchat_into_session(session, pool, theme=theme, topics_of_interest=topics_of_interest,
+                                                            all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c1:
             # Try relaxing theme once before giving up for this slot
-            added_c1 = DialogLogic.schedule_chitchat(session, pool, theme=None, topics_of_interest=topics_of_interest,
-                                                     all_dialogs=mini_dialogs, completed_ids=completed_ids)
+            added_c1 = DialogLogic.insert_chitchat_into_session(session, pool, theme=None, topics_of_interest=topics_of_interest,
+                                                                all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c1:
             print("[INFO] Chitchats not available for this participant (after narrative 1).")
         # 4) Next narrative in same thread
-        n2 = DialogLogic.pick_next_narrative(pool, thread,
-                                             completed_ids=completed_ids.union({d.dialog_id for d in session}),
-                                             user_model={}, all_dialogs=mini_dialogs)
+        n2 = DialogLogic.select_next_narrative(pool, thread,
+                                               completed_ids=completed_ids.union({d.dialog_id for d in session}),
+                                               user_model={}, all_dialogs=mini_dialogs)
         if n2:
             session.append(n2)
             pool.remove(n2)
         # 5) Another themed chitchat; if none runnable, print notice
-        added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=None if topics_of_interest else theme,
-                                                 topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs,
-                                                 completed_ids=completed_ids)
+        added_c2 = DialogLogic.insert_chitchat_into_session(session, pool, theme=None if topics_of_interest else theme,
+                                                            topics_of_interest=topics_of_interest, all_dialogs=mini_dialogs,
+                                                            completed_ids=completed_ids)
         if not added_c2:
-            added_c2 = DialogLogic.schedule_chitchat(session, pool, theme=theme, topics_of_interest=topics_of_interest,
-                                                     all_dialogs=mini_dialogs, completed_ids=completed_ids)
+            added_c2 = DialogLogic.insert_chitchat_into_session(session, pool, theme=theme, topics_of_interest=topics_of_interest,
+                                                                all_dialogs=mini_dialogs, completed_ids=completed_ids)
         if not added_c2:
             print("[INFO] Chitchats not available for this participant (after narrative 2).")
 

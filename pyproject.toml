@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nardial"
+version = "0.1.0"
+description = "Nardial Dialog System"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Mike Ligthart", email = "m.e.u.ligthart@vu.nl"},
+  { name = "Clara Fayyad"},
+  { name = "Evelyne Prodescu"}
+]
+
+dependencies = [
+  "social-interaction-cloud[dialogflow,google-tts,openai-gpt]"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

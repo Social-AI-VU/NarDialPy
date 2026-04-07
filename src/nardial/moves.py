@@ -17,6 +17,8 @@ MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
 MOVE_ANSWER_LLM = "answer_llm"
 
+MOVE_LLM_FOLLOWUP = "llm_followup"
+
 LLM_QUIT_SIGNAL = "<<QUIT>>"
 
 class Move:
@@ -40,7 +42,7 @@ class MoveSay(Move):
 
 class MoveAskYesNo(Move):
     def __init__(self, text: str, set_variable: Optional[str] = None,
-                 add_interest: Optional[str] = None,
+                 add_interest: Optional[str] = None,  llm_followup: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_YESNO
@@ -49,6 +51,8 @@ class MoveAskYesNo(Move):
         self.add_interest = add_interest
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -61,6 +65,7 @@ class MoveAskYesNo(Move):
             add_interest=data.get("add_interest"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
+            llm_followup=data.get("llm_followup"),
         )
 
 
@@ -69,7 +74,8 @@ class MoveAskOpen(Move):
                  add_interest_from_answer: Optional[bool] = None,
                  add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
-                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
+                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
+                 llm_followup: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPEN
         self.text = text
@@ -79,6 +85,8 @@ class MoveAskOpen(Move):
         self.personalize_followup = personalize_followup
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -93,12 +101,13 @@ class MoveAskOpen(Move):
             personalize_followup=data.get("personalize_followup"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
+            llm_followup=data.get("llm_followup"),
         )
 
 
 class MoveAskOptions(Move):
     def __init__(self, text: str, options: List[str], set_variable: Optional[str] = None,
-                 add_interest_from_variable: Optional[str] = None,
+                 add_interest_from_variable: Optional[str] = None,  llm_followup: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
@@ -108,6 +117,8 @@ class MoveAskOptions(Move):
         self.add_interest_from_variable = add_interest_from_variable
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
+        # Optional LLM-generated followup: system prompt string, generated after the user replies
+        self.llm_followup = llm_followup
 
     def get_type(self):
         return self.type
@@ -121,6 +132,7 @@ class MoveAskOptions(Move):
             add_interest_from_variable=data.get("add_interest_from_variable"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
+            llm_followup=data.get("llm_followup"),
         )
 
 

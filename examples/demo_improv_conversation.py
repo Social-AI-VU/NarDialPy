@@ -39,6 +39,9 @@ if __name__ == '__main__':
         agent=agent,
         dialog_json_path=dialog_json_path,
     )
-    session_manager.run()
+    session_manager.run(
+        export_session_graph_mermaid="../examples/session_graph.mmd",
+        export_session_graph_png="../examples/session_graph.png",  # optional; may fail offline
+    )
 
     sys.exit()

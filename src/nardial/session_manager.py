@@ -1,13 +1,18 @@
 import json
 import os
+from pathlib import Path
 
 import numpy as np
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
-from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
+from nardial.session_graph import (
+    run_session_graph,
+    save_session_graph_mermaid,
+    save_session_graph_png,
+)
 
 
 class SessionManager:
@@ -62,17 +67,22 @@ class SessionManager:
 
         return session_block
 
-    def run(self):
+    def run(
+            self,
+            export_session_graph_mermaid: str | Path | None = None,
+            export_session_graph_png: str | Path | None = None,
+    ):
         session_history = []
-        for dialog in self.session_block:
-            if not DialogLogic.is_dialog_eligible(dialog, self.conversation_state.completed_dialogs, self.conversation_state.user_model, self.dialogs):
-                print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
-                continue
-            self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
-            session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
-            dialog.run(self.agent, session_history, self.conversation_state.topics_of_interest, self.conversation_state.user_model)
-            session_history.append({"role": "system", "type": "dialog_end", "dialog_id": dialog.dialog_id})
-            self.conversation_state.completed_dialogs.append(dialog.dialog_id)
+        if export_session_graph_mermaid is not None:
+            out = save_session_graph_mermaid(self, export_session_graph_mermaid)
+            print(f"[INFO] Saved session graph (Mermaid) to {out}")
+        if export_session_graph_png is not None:
+            png_path = save_session_graph_png(self, export_session_graph_png)
+            if png_path:
+                print(f"[INFO] Saved session graph (PNG) to {png_path}")
+            else:
+                print("[WARN] Session graph PNG export failed (try Mermaid file or check langgraph rendering).")
+        run_session_graph(self, session_history)
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

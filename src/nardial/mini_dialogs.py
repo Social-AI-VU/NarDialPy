@@ -1,13 +1,14 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import re
 
-from src.nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
+from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
     MOVE_LLM_FOLLOWUP
 
 from enum import Enum
+from nardial.improvisation_graph import run_improvisation_graph
 
 
 class DialogType(Enum):
@@ -15,6 +16,7 @@ class DialogType(Enum):
     CHITCHAT = "chitchat"
     FUNCTIONAL = "functional"
     LLM_BASED = "llm_based"
+    IMPROVISATION = "improvisation"
 
 
 MAX_LLM_TURNS = 5
@@ -392,4 +394,29 @@ class LLMDialog(MiniDialog):
             set_variable=None,
             quit_phrases=self.quit_phrases,
             quit_signal=self.quit_signal,
+        )
+
+
+class ImprovisationDialog(MiniDialog):
+    def __init__(
+            self,
+            dialog_id,
+            system_prompt: str,
+            stop_condition: Optional[Dict[str, Any]] = None,
+            dependencies=None,
+            variable_dependencies=None):
+        # Improvisation dialogs do not use predefined moves; a graph/subagent controls turns.
+        super().__init__(dialog_id, moves=[], dependencies=dependencies, variable_dependencies=variable_dependencies)
+        self.system_prompt = system_prompt or ""
+        self.stop_condition = stop_condition or {}
+
+    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        run_improvisation_graph(
+            conversation_agent=self.conversation_agent,
+            session_history=self.session_history,
+            topics_of_interest=self.topics_of_interest,
+            user_model=self.user_model,
+            system_prompt=self.system_prompt,
+            stop_condition=self.stop_condition,
         )

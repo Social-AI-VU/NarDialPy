@@ -1,7 +1,15 @@
 from typing import Any, Dict, List
 
-from src.nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
-from src.nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
+from nardial.mini_dialogs import (
+    MiniDialog,
+    NarrativeDialog,
+    ChitchatDialog,
+    FunctionalDialog,
+    LLMDialog,
+    ImprovisationDialog,
+    DialogType,
+)
+from nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
 
 
 ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO}
@@ -57,8 +65,8 @@ class DialogFactory:
         did = doc.get("id")
         if not isinstance(did, str) or not did:
             errs.append("id must be non-empty string")
-        if t not in {"functional", "narrative", "chitchat"}:
-            errs.append("type must be 'functional' | 'narrative' | 'chitchat'")
+        if t not in {"functional", "narrative", "chitchat", "llm_based", "improvisation"}:
+            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based' | 'improvisation'")
         # shared
         deps = doc.get("dependencies")
         if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
@@ -91,13 +99,31 @@ class DialogFactory:
             topics = doc.get("topics")
             if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
                 errs.append("topics must be a list of strings for chitchat dialogs")
+        elif t == "llm_based":
+            if not isinstance(doc.get("prompt"), str):
+                errs.append("prompt must be string for llm_based dialogs")
+            max_turns = doc.get("max_turns")
+            if max_turns is not None:
+                try:
+                    int(max_turns)
+                except Exception:
+                    errs.append("max_turns must be integer for llm_based dialogs")
+        elif t == "improvisation":
+            if not isinstance(doc.get("system_prompt"), str):
+                errs.append("system_prompt must be string for improvisation dialogs")
+            sc = doc.get("stop_condition")
+            if sc is not None and not isinstance(sc, dict):
+                errs.append("stop_condition must be an object for improvisation dialogs")
 
         moves = doc.get("moves")
-        if not isinstance(moves, list):
-            errs.append("moves must be a list")
-        else:
-            for i, mv in enumerate(moves):
-                errs.extend(MoveFactory.validate(mv, idx=i))
+        if t != "improvisation":
+            if not isinstance(moves, list):
+                errs.append("moves must be a list")
+            else:
+                for i, mv in enumerate(moves):
+                    errs.extend(MoveFactory.validate(mv, idx=i))
+        elif moves is not None and not isinstance(moves, list):
+            errs.append("moves must be a list when provided")
         return errs
 
     @staticmethod
@@ -142,7 +168,17 @@ class DialogFactory:
                 dialog_id=did,
                 moves=moves,
                 prompt=doc["prompt"],
-                max_turns=doc["max_turns"],
+                max_turns=doc.get("max_turns"),
+                dependencies=deps,
+                variable_dependencies=vdeps,
+                quit_phrases=doc.get("quit_phrases"),
+                quit_signal=doc.get("quit_signal"),
+            )
+        if dtype == DialogType.IMPROVISATION.value:
+            return ImprovisationDialog(
+                dialog_id=did,
+                system_prompt=doc.get("system_prompt") or "",
+                stop_condition=dict(doc.get("stop_condition") or {}),
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
@@ -172,6 +208,21 @@ class DialogFactory:
             base.update({
                 "type": "functional",
                 "functional_type": getattr(d, "type", ""),
+            })
+        elif isinstance(d, LLMDialog):
+            base.update({
+                "type": "llm_based",
+                "prompt": getattr(d, "prompt", ""),
+                "max_turns": int(getattr(d, "max_turns", 0)),
+                "quit_phrases": list(getattr(d, "quit_phrases", []) or []),
+                "quit_signal": getattr(d, "quit_signal", ""),
+            })
+        elif isinstance(d, ImprovisationDialog):
+            base.update({
+                "type": "improvisation",
+                "system_prompt": getattr(d, "system_prompt", ""),
+                "stop_condition": dict(getattr(d, "stop_condition", {}) or {}),
+                "moves": [],
             })
         else:
             base.update({"type": "unknown"})

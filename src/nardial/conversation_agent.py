@@ -10,7 +10,7 @@ from sic_framework.devices import Nao, Pepper
 from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.device import SICDeviceManager
-from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
+from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.services.llm.openai_gpt import GPT
 from sic_framework.services.llm import GPTConf, GPTRequest
@@ -24,10 +24,56 @@ from sic_framework.services.dialogflow.dialogflow import (
 )
 
 
+def read_keyboard_line(prompt: str) -> str:
+    """Read one line of user input from stdin; strip whitespace. EOF yields empty string."""
+    try:
+        line = input(prompt)
+    except EOFError:
+        return ""
+    return (line or "").strip()
+
+
+def parse_yesno_keyboard_answer(raw: str) -> str | None:
+    """Map typed text to Dialogflow-style yes/no/dontknow, or None if unrecognized."""
+    if not raw:
+        return None
+    low = raw.lower()
+    if low in ("y", "yes", "yeah", "yep", "sure", "ok", "okay"):
+        return "yes"
+    if low in ("n", "no", "nope", "nah"):
+        return "no"
+    if low in ("maybe", "unsure", "not sure", "idk", "dunno"):
+        return "dontknow"
+    if "know" in low and ("don" in low or "dunno" in low):
+        return "dontknow"
+    if "yes" in low:
+        return "yes"
+    if "no" in low:
+        return "no"
+    return None
+
+
+def read_open_answer_from_keyboard(prompt: str = "You: ") -> str | None:
+    """Read a non-empty open answer from the keyboard, or None."""
+    line = read_keyboard_line(prompt)
+    return line if line else None
+
+
+def read_yesno_answer_from_keyboard(prompt: str = "You (yes/no/dontknow): ") -> str | None:
+    """Read and parse yes/no/dontknow from the keyboard, or None if empty/unrecognized."""
+    raw = read_keyboard_line(prompt)
+    return parse_yesno_keyboard_answer(raw)
+
+
 class ConversationAgent:
     def __init__(self, device_manager: SICDeviceManager, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
                  google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
-                 openai_key_path=None):
+                 openai_key_path=None, keyboard_input: bool = False):
+        """
+        If keyboard_input is True, user replies are read from the keyboard instead of Dialogflow (STT bypass).
+        Robot output still uses Google TTS as usual.
+        """
+        self.keyboard_input = keyboard_input
 
         if openai_key_path:
             load_dotenv(openai_key_path)
@@ -37,9 +83,10 @@ class ConversationAgent:
         self.gpt = GPT(conf=conf)
         print("OpenAI GPT4 Ready")
 
-        # Setup TTS
         self.google_tts_voice_name = google_tts_voice_name
         self.google_tts_voice_gender = google_tts_voice_gender
+
+        # Setup TTS (always; keyboard_input only affects how user speech is captured)
         self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=json.load(open(google_keyfile_path)),
                                                     speaking_rate=default_speaking_rate))
         init_reply = self.tts.request(GetSpeechRequest(text="I am initializing",
@@ -60,20 +107,34 @@ class ConversationAgent:
         self.mic = self.device.mic
         print("Device connected")
 
-        # Set up Dialogflow
-        dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
-                                         sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
-        self.dialogflow = Dialogflow(ip="localhost", conf=dialogflow_conf, input_source=self.mic)
-        # flag to signal when the app should listen (i.e. transmit to dialogflow)
-        self.request_id = np.random.randint(10000)
-        print("Dialogflow Ready")
+        if keyboard_input:
+            self.dialogflow = None
+            self.request_id = np.random.randint(10000)
+            print("Keyboard input mode: Dialogflow (STT) disabled.")
+        else:
+            # Set up Dialogflow
+            dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
+                                             sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
+            self.dialogflow = Dialogflow(ip="localhost", conf=dialogflow_conf, input_source=self.mic)
+            # flag to signal when the app should listen (i.e. transmit to dialogflow)
+            self.request_id = np.random.randint(10000)
+            print("Dialogflow Ready")
+
+    def _tts_request(self, text: str, speaking_rate: float = 1.0):
+        """Call Google TTS and return the speech result."""
+        return self.tts.request(GetSpeechRequest(text=text,
+                                                 voice_name=self.google_tts_voice_name,
+                                                 ssml_gender=self.google_tts_voice_gender,
+                                                 speaking_rate=speaking_rate))
+
+    def _tts_play(self, text: str, speaking_rate: float = 1.0) -> None:
+        """Synthesize text with Google TTS and play on the speaker."""
+        reply = self._tts_request(text, speaking_rate)
+        self.speaker.request(AudioRequest(reply.waveform, reply.sample_rate))
 
     def say(self, text, speaking_rate=1.0):
         print('Saying', text)
-        reply = self.tts.request(GetSpeechRequest(text=text,
-                                                  voice_name=self.google_tts_voice_name,
-                                                  ssml_gender=self.google_tts_voice_gender,
-                                                  speaking_rate=speaking_rate))
+        reply = self._tts_request(text, speaking_rate)
         print(f'Speech generated with sample rate: {reply.sample_rate}')
         self.speaker.request(AudioRequest(reply.waveform, reply.sample_rate))
         print('Sent to device speaker')
@@ -112,26 +173,27 @@ class ConversationAgent:
     def ask_yesno(self, question, max_attempts=2):
         attempts = 0
         while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
+            self._tts_play(question)
 
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
+            if self.keyboard_input:
+                ans = read_yesno_answer_from_keyboard()
+                if ans is not None:
+                    print("The detected intent:", ans)
+                    return ans
+            else:
+                # listen for answer (Dialogflow / STT)
+                # TODO: Wrap this listening logic in reusable `listen()` function(s).
+                reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
 
-            print("The detected intent:", reply.intent)
+                print("The detected intent:", reply.intent)
 
-            # return answer
-            if reply.intent:
-                if "yesno_yes" in reply.intent:
-                    return "yes"
-                elif "yesno_no" in reply.intent:
-                    return "no"
-                elif "yesno_dontknow" in reply.intent:
-                    return "dontknow"
+                if reply.intent:
+                    if "yesno_yes" in reply.intent:
+                        return "yes"
+                    elif "yesno_no" in reply.intent:
+                        return "no"
+                    elif "yesno_dontknow" in reply.intent:
+                        return "dontknow"
             attempts += 1
         return None
 
@@ -139,23 +201,22 @@ class ConversationAgent:
         attempts = 0
 
         while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
+            self._tts_play(question)
 
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context))
+            if self.keyboard_input:
+                line = read_open_answer_from_keyboard()
+                if line:
+                    print("The detected intent:", line)
+                    return line
+            else:
+                reply = self.dialogflow.request(GetIntentRequest(self.request_id, context))
 
-            print("The detected intent:", reply.intent)
+                print("The detected intent:", reply.intent)
 
-            # Return entity
-            if reply.intent:
-                if target_intent in reply.intent:
-                    if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
-                        return reply.response.query_result.parameters[target_entity]
+                if reply.intent:
+                    if target_intent in reply.intent:
+                        if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
+                            return reply.response.query_result.parameters[target_entity]
             attempts += 1
         return None
 
@@ -163,21 +224,20 @@ class ConversationAgent:
         attempts = 0
 
         while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
+            self._tts_play(question)
 
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id))
+            if self.keyboard_input:
+                line = read_open_answer_from_keyboard()
+                if line:
+                    print("The detected intent:", line)
+                    return line
+            else:
+                reply = self.dialogflow.request(GetIntentRequest(self.request_id))
 
-            print("The detected intent:", reply.intent)
+                print("The detected intent:", reply.intent)
 
-            # Return entity
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
+                if reply.response.query_result.query_text:
+                    return reply.response.query_result.query_text
             attempts += 1
         return None
 

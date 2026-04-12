@@ -71,13 +71,16 @@ class SessionManager:
             self,
             export_session_graph_mermaid: str | Path | None = None,
             export_session_graph_png: str | Path | None = None,
+            session_graph_xray: bool = True,
     ):
         session_history = []
         if export_session_graph_mermaid is not None:
-            out = save_session_graph_mermaid(self, export_session_graph_mermaid)
+            out = save_session_graph_mermaid(
+                self, export_session_graph_mermaid, xray=session_graph_xray)
             print(f"[INFO] Saved session graph (Mermaid) to {out}")
         if export_session_graph_png is not None:
-            png_path = save_session_graph_png(self, export_session_graph_png)
+            png_path = save_session_graph_png(
+                self, export_session_graph_png, xray=session_graph_xray)
             if png_path:
                 print(f"[INFO] Saved session graph (PNG) to {png_path}")
             else:

@@ -46,7 +46,7 @@ def strip_spoken_role_prefix(text: str) -> str:
 
 
 def _history_as_context_messages(session_history: List[Dict[str, Any]]) -> List[str]:
-    """Build LLM context without 'robot:' lines that get echoed into TTS."""
+    """Build LLM context"""
     context_messages: List[str] = []
     for entry in session_history or []:
         role = entry.get("role", "unknown")
@@ -135,10 +135,10 @@ def compile_improvisation_graph_for_visualization():
     ).compile()
 
 
-def improvisation_graph_mermaid() -> str:
+def improvisation_graph_mermaid(*, xray: bool = False) -> str:
     """Return Mermaid source for the improvisation StateGraph (structure only)."""
     app = compile_improvisation_graph_for_visualization()
-    return app.get_graph().draw_mermaid()
+    return app.get_graph(xray=xray).draw_mermaid()
 
 
 def save_improvisation_graph_mermaid(output_path: str | Path) -> Path:
@@ -163,30 +163,32 @@ def save_improvisation_graph_png(output_path: str | Path) -> Path | None:
     return path
 
 
-def run_improvisation_graph(
-        conversation_agent: Any,
-        session_history: List[Dict[str, Any]],
-        topics_of_interest: List[str],
-        user_model: Dict[str, Any],
-        system_prompt: str,
-        stop_condition: Dict[str, Any] | None = None) -> None:
-    """
-    Run improvisation via an actual LangGraph StateGraph.
-
-    stop_condition examples:
-    {
-      "max_turns": 6,
-      "time_limit_seconds": 120,
-      "stop_phrases": ["stop", "that's enough"],
-      "quit_signal": "<<STOP_IMPROV>>"
-    }
-    """
+def _normalize_stop_condition(stop_condition: Dict[str, Any] | None) -> tuple[int, float | None, List[str], str]:
     condition = stop_condition or {}
     max_turns = int(condition.get("max_turns", DEFAULT_MAX_TURNS))
     time_limit_seconds_raw = condition.get("time_limit_seconds")
     time_limit_seconds = float(time_limit_seconds_raw) if time_limit_seconds_raw is not None else None
     stop_phrases = [p for p in (condition.get("stop_phrases") or []) if p]
     quit_signal = condition.get("quit_signal") or DEFAULT_QUIT_SIGNAL
+    return max_turns, time_limit_seconds, stop_phrases, quit_signal
+
+
+def compile_improvisation_app(
+        conversation_agent: Any,
+        session_history: List[Dict[str, Any]],
+        topics_of_interest: List[str],
+        user_model: Dict[str, Any],
+        system_prompt: str,
+        stop_condition: Dict[str, Any] | None = None,
+) -> tuple[Any, str, Dict[str, Any]]:
+    """
+    Build and compile the improvisation LangGraph
+
+    Returns (compiled_app, runtime_prompt, stop_condition_dict) for use with
+    invoke_compiled_improvisation_app().
+    """
+    condition = dict(stop_condition or {})
+    max_turns, time_limit_seconds, stop_phrases, quit_signal = _normalize_stop_condition(condition)
 
     runtime_prompt = _build_runtime_prompt(
         system_prompt=system_prompt or "You are a helpful conversational improvisation agent.",
@@ -211,7 +213,6 @@ def run_improvisation_graph(
         if state["stop_reason"]:
             return {}
         llm_text = state["last_llm_text"]
-        # LLM can ask to terminate by embedding the configured quit signal.
         if state["quit_signal"] in llm_text:
             clean = llm_text.replace(quit_signal, "").strip()
             clean = strip_spoken_role_prefix(clean)
@@ -242,8 +243,19 @@ def run_improvisation_graph(
         speak_and_listen,
         check_stop,
     ).compile()
+    return app, runtime_prompt, condition
 
-    final_state = app.invoke({
+
+def invoke_compiled_improvisation_app(
+        compiled_app: Any,
+        runtime_prompt: str,
+        stop_condition: Dict[str, Any] | None,
+        session_history: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Run one full improvisation pass on a graph from compile_improvisation_app()."""
+    max_turns, time_limit_seconds, stop_phrases, quit_signal = _normalize_stop_condition(stop_condition)
+
+    final_state = compiled_app.invoke({
         "user_input": "",
         "turn_idx": 0,
         "max_turns": max_turns,
@@ -261,3 +273,33 @@ def run_improvisation_graph(
         _record_event(session_history, "system", "error", "llm_returned_none", stage="improvisation")
     elif stop_reason:
         _record_event(session_history, "system", "improvisation_stop", stop_reason)
+    return final_state
+
+
+def run_improvisation_graph(
+        conversation_agent: Any,
+        session_history: List[Dict[str, Any]],
+        topics_of_interest: List[str],
+        user_model: Dict[str, Any],
+        system_prompt: str,
+        stop_condition: Dict[str, Any] | None = None) -> None:
+    """
+    Run improvisation via an actual LangGraph StateGraph.
+
+    stop_condition examples:
+    {
+      "max_turns": 6,
+      "time_limit_seconds": 120,
+      "stop_phrases": ["stop", "that's enough"],
+      "quit_signal": "<<STOP_IMPROV>>"
+    }
+    """
+    app, runtime_prompt, cond = compile_improvisation_app(
+        conversation_agent,
+        session_history,
+        topics_of_interest,
+        user_model,
+        system_prompt,
+        stop_condition,
+    )
+    invoke_compiled_improvisation_app(app, runtime_prompt, cond, session_history)

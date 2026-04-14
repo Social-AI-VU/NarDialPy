@@ -9,6 +9,7 @@ from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTI
 
 from enum import Enum
 from nardial.improvisation_graph import run_improvisation_graph
+from nardial.mini_dialog_graph import compile_scripted_mini_dialog_graph, initial_mini_dialog_state
 
 
 class DialogType(Enum):
@@ -119,52 +120,11 @@ class MiniDialog:
         return text
 
     def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
-        # Execute mini dialogs, sending speech to the device and logging events.
+        # Phase C: scripted moves run as a LangGraph loop (step + conditional edge).
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-        idx = 0
-        branch = None
-
-        while idx < len(self.moves):
-            move = self.moves[idx]
-            move_type = self._get(move, 'type')
-            move_branch = self._get(move, 'branch')
-            if move_branch != branch:
-                if branch is not None and move_branch is None:
-                    branch = None
-                else:
-                    idx += 1
-                    continue
-
-            if move_type == MOVE_SAY:
-                self.handle_move_say(move)
-                idx += 1
-            elif move_type == MOVE_ASK_YESNO:
-                answer = self.handle_move_ask_yesno(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_ASK_OPEN:
-                answer = self.handle_move_ask_open(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_ASK_OPTIONS:
-                answer = self.handle_move_ask_options(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_PLAY_AUDIO:
-                self.handle_move_play_audio(move)
-                idx += 1
-            elif move_type == MOVE_MOTION_SEQUENCE:
-                self.handle_move_motion_sequence(move)
-                idx += 1
-            elif move_type == MOVE_ANIMATION:
-                self.handle_move_animation(move)
-                idx += 1
-            elif move_type == MOVE_ASK_LLM:
-                self.handle_move_ask_llm(move)
-                idx += 1
-            else:
-                idx += 1
+        if getattr(self, "_scripted_dialog_graph_app", None) is None:
+            self._scripted_dialog_graph_app = compile_scripted_mini_dialog_graph(self)
+        self._scripted_dialog_graph_app.invoke(initial_mini_dialog_state())
 
     def find_next_branch(self, branch, move, answer):
         next_map = self._get(move, 'next', {}) or {}
@@ -387,14 +347,9 @@ class LLMDialog(MiniDialog):
 
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-        self._run_llm_exchange(
-            prompt=self.prompt,
-            max_turns=self.max_turns,
-            set_variable=None,
-            quit_phrases=self.quit_phrases,
-            quit_signal=self.quit_signal,
-        )
+        if getattr(self, "_scripted_dialog_graph_app", None) is None:
+            self._scripted_dialog_graph_app = compile_scripted_mini_dialog_graph(self)
+        self._scripted_dialog_graph_app.invoke(initial_mini_dialog_state())
 
 
 class ImprovisationDialog(MiniDialog):

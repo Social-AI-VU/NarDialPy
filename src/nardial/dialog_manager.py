@@ -97,6 +97,8 @@ class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
                  openai_key_path=None, animation_style=AnimationStyle.EXPLANATORY):
+        self.language = language
+
         self.tts_conf = tts_conf
         if not tts_conf:
             self.tts_conf = GoogleTTSConf(
@@ -178,6 +180,8 @@ class DialogManager:
             self.setup_alphamini()
         elif isinstance(self.device_manager, Pepper):
             self.setup_pepper()
+        elif isinstance(self.device_manager, Nao):
+            self.setup_nao()
         elif isinstance(self.device_manager, Desktop):
             self.setup_desktop()
         else:
@@ -269,8 +273,8 @@ class DialogManager:
         connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
         try:
             connect_to_mini_sdk_future.result()
-            self.animate(AnimationType.ACTION, "009")  # Wake up
-            self.animate(AnimationType.EXPRESSION, "codemao20")  # Blink
+            self.animate_alphamini(AnimationType.ACTION, "009")  # Wake up
+            self.animate_alphamini(AnimationType.EXPRESSION, "codemao20")  # Blink
         except Exception as e:
             self.logger.error("Failed to connect to mini device", exc_info=e)
 
@@ -278,16 +282,37 @@ class DialogManager:
     def setup_pepper():
         print("\n Device is PEPPER")
 
+    @staticmethod
+    def setup_nao():
+        print("\n Device is NAO")
+
     def setup_desktop(self):
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    def google_say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False,
-                   always_regenerate=False):
-        # Animate
+    def say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False, always_regenerate=False, chunking=True):
         if animated:
-            self.animation()  # TODO implement animated say outside the TTS
+            self.animation()
 
+        if isinstance(self.tts_conf, NaoqiTTSConf):
+            self.naoqi_say(text, sleep_time=sleep_time, animated=animated)
+        elif isinstance(self.tts_conf, GoogleTTSConf):
+            self.google_say(text, speaking_rate=speaking_rate, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
+        elif isinstance(self.tts_conf, ElevenLabsTTSConf):
+            self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunking)
+        else:
+            raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+
+    def naoqi_say(self, text, sleep_time=None, animated=False):
+        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
+            return
+
+        self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=self.interaction_conf.language))
+
+        if sleep_time and sleep_time > 0:
+            sleep(sleep_time)
+
+    def google_say(self, text, speaking_rate=None, sleep_time=None, amplified=False,  always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -321,23 +346,15 @@ class DialogManager:
         if sleep_time and sleep_time > 0:
             sleep(sleep_time)
 
-    def elevenlabs_say(self, text, sleep_time=None, animated=None, amplified=False, always_regenerate=False,
-                       model_id='eleven_flash_v2_5', chunking=True):
-        if model_id == 'eleven_v3' or not chunking:
+    def elevenlabs_say(self, text, sleep_time=None, amplified=False, always_regenerate=False, chunking=True):
+        if not chunking or self.interaction_conf.tts_conf.model_id == 'eleven_v3':
             text_chunks = [text]
         else:
             text_chunks = self._split_text(text, max_len=80)
 
         for chunk in text_chunks:
-            # Animate
-            if animated:
-                self.animation()
-
             # Normalize and hash text
-            if model_id == 'eleven_v3':
-                tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf) + '_v3'
-            else:
-                tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf)
+            tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf)
 
             if not always_regenerate:
                 audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -357,38 +374,9 @@ class DialogManager:
             if sleep_time and sleep_time > 0:
                 sleep(sleep_time)
 
-    def generate_and_save_audio(self, text, amplified=False, renew_all=False, model_id='eleven_flash_v2_5',
-                                websockets=True):
-        if isinstance(self.tts_conf, NaoqiTTSConf):
-            pass
-        elif isinstance(self.tts_conf, GoogleTTSConf):
-            pass
-        elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_generate_audio(text, amplified, renew_all, model_id, websockets)
-        else:
-            raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
-
-    def elevenlabs_generate_audio(self, text, amplified=False, renew_all=False, model_id='eleven_flash_v2_5',
-                                  websockets=True):
-        if not websockets:
-            self.elevenlabs_generate_audio_no_websockets(text, renew_all=renew_all)
-        elif model_id == 'eleven_v3':
-            self.elevenlabs_generate_audio_no_websockets(text, renew_all=renew_all, model_id=model_id)
-        else:
-            text_chunks = self._split_text(text, max_len=80)
-            for chunk in text_chunks:
-                if not renew_all:
-                    tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf)
-                    if tts_key in self.tts_cacher.tts_cache:
-                        continue
-                self.elevenlabs_generate_chunk_audio(chunk, amplified)
-
-    def elevenlabs_generate_chunk_audio(self, text, amplified=False, model_id='eleven_flash_v2_5'):
+    def elevenlabs_generate_chunk_audio(self, text, amplified=False):
         # Normalize and hash text
-        if model_id == 'eleven_v3':
-            tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf) + '_v3'
-        else:
-            tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
+        tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
 
         # ElevenLabs TTS returns bytes
         audio_bytes = asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
@@ -401,130 +389,14 @@ class DialogManager:
 
         return audio_bytes
 
-    def elevenlabs_generate_audio_no_websockets(self, text, renew_all=False, model_id='eleven_flash_v2_5'):
-        if model_id == 'eleven_v3':
-            tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf) + '_v3'
-        else:
-            tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
-        if not renew_all:
-            if tts_key in self.tts_cacher.tts_cache:
-                return
-
-        print(f"creating w/o websockets with key {tts_key} and text {text}")
-
-        audio = self.elevenlabs.text_to_speech.convert(
-            text=text,
-            voice_id=self.tts.voice_id,
-            model_id="eleven_v3",
-            output_format=f"pcm_{self.sample_rate}",
-        )
-
-        audio_data = b''.join(audio)
-        self.tts_cacher.save_audio_file(tts_key, audio_data, self.sample_rate)
-
-    def set_tts_stability(self, stability):
-        if not isinstance(self.tts, ElevenLabsTTS):
-            return
-        if stability < 0 or stability > 1:
-            stability = 0.5
-        self.tts.stability = stability
-
-    def set_animation_style(self, animation_style):
-        if animation_style not in [AnimationStyle.EXPRESSIVE, AnimationStyle.EXPLANATORY]:
-            animation_style = AnimationStyle.EXPLANATORY  # default
-        self.interaction_conf.animation_style = animation_style
-
-    def random_pepper_animation(self):
-        if self.interaction_conf.animation_style == AnimationStyle.EXPRESSIVE:
-            return self.random_expressive_pepper_animation()
-        return self.random_explanatory_pepper_animation()
-
-    @staticmethod
-    def random_expressive_pepper_animation():
-        all_animations = [
-            "animations/Stand/Emotions/Positive/Happy_4",
-            "animations/Stand/Emotions/Positive/Peaceful_1",
-            "animations/Stand/Gestures/But_1",
-            "animations/Stand/Gestures/CalmDown_6",
-            "animations/Stand/Gestures/Enthusiastic_4",
-            "animations/Stand/Gestures/Everything_3",
-            "animations/Stand/Gestures/Everything_4",
-            "animations/Stand/Gestures/Explain_1",
-            "animations/Stand/Gestures/Explain_10",
-            "animations/Stand/Gestures/Explain_11",
-            "animations/Stand/Gestures/Far_1",
-            "animations/Stand/Gestures/Far_2",
-            "animations/Stand/Gestures/Far_3",
-            "animations/Stand/Gestures/ShowSky_1",
-            "animations/Stand/Gestures/ShowSky_5",
-            "animations/Stand/Gestures/ShowSky_7",
-            "animations/Stand/Gestures/ShowSky_8",
-            "animations/Stand/Gestures/IDontKnow_1",
-            "animations/Stand/Gestures/IDontKnow_2",
-            "animations/Stand/Gestures/No_1",
-            "animations/Stand/Gestures/No_2",
-            "animations/Stand/Gestures/No_9",
-            "animations/Stand/Gestures/Yes_1",
-            "animations/Stand/Gestures/Yes_2",
-        ]
-        return rand.choice(all_animations)
-
-    @staticmethod
-    def random_explanatory_pepper_animation():
-        all_animations = [
-            "animations/Stand/Gestures/Everything_2",
-            "animations/Stand/Gestures/Explain_1",
-            "animations/Stand/Gestures/Explain_10",
-            "animations/Stand/Gestures/Explain_2",
-            "animations/Stand/Gestures/Explain_4",
-            "animations/Stand/Gestures/Explain_5",
-            "animations/Stand/Gestures/Give_3",
-            "animations/Stand/Gestures/Give_5",
-            "animations/Stand/Gestures/IDontKnow_1",
-            "animations/Stand/Gestures/IDontKnow_2",
-            "animations/Stand/Gestures/Me_1",
-            "animations/Stand/Gestures/Me_4",
-            "animations/Stand/Gestures/No_1",
-            "animations/Stand/Gestures/No_2",
-            "animations/Stand/Gestures/No_9",
-            "animations/Stand/Gestures/ShowFloor_3",
-            "animations/Stand/Gestures/ShowFloor_4",
-            "animations/Stand/Gestures/ShowSky_6",
-            "animations/Stand/Gestures/Thinking_1",
-            "animations/Stand/Gestures/Thinking_3",
-            "animations/Stand/Gestures/Thinking_6",
-            "animations/Stand/Gestures/Yes_1",
-            "animations/Stand/Gestures/Yes_2",
-            "animations/Stand/Gestures/YouKnowWhat_2",
-            "animations/Stand/Gestures/You_1"
-        ]
-        return rand.choice(all_animations)
-
-    def naoqi_say(self, text, sleep_time=None, animated=False):
-        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
-            return
-
-        self.device_manager.tts.request(
-            NaoqiTextToSpeechRequest(text, animated=animated, language='Dutch'))
-
-        # Sleep if requested
-        if sleep_time and sleep_time > 0:
-            sleep(sleep_time)
-
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['speaking_rate', 'sleep_time', 'animated', 'amplified',
-                                                                  'always_regenerate'])
-    def say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False, always_regenerate=False,
-            model_id='eleven_flash_v2_5', chunking=True):
-        if isinstance(self.tts_conf, NaoqiTTSConf):
-            self.naoqi_say(text, sleep_time=sleep_time, animated=animated)
-        elif isinstance(self.tts_conf, GoogleTTSConf):
-            self.google_say(text, speaking_rate=speaking_rate, sleep_time=sleep_time, animated=animated,
-                            amplified=amplified, always_regenerate=always_regenerate)
-        elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_say(text, sleep_time=sleep_time, animated=animated, amplified=amplified,
-                                always_regenerate=always_regenerate, model_id=model_id, chunking=chunking)
-        else:
-            raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+    def listen(self):
+        try:
+            reply = self.dialogflow.request(GetIntentRequest(self.request_id), timeout=10)
+            if reply.response.query_result.query_text:
+                return reply.response.query_result.query_text
+            return None
+        except TimeoutError as e:
+            print("Error:", e)
 
     def play_audio(self, audio_file, amplified=False, log=True):
         with wave.open(audio_file, 'rb') as wf:
@@ -545,17 +417,14 @@ class DialogManager:
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['max_attempts', 'speaking_rate', 'animated'])
     def ask_yesno(self, question, max_attempts=None, speaking_rate=None, animated=None):
         attempts = 0
         while attempts < max_attempts:
             # ask question
             self.say(question, speaking_rate=speaking_rate, animated=animated)
 
-            # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
             # listen for answer
             reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
-            # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
             print("The detected intent:", reply.intent)
 
             # return answer
@@ -574,7 +443,6 @@ class DialogManager:
         self.log_recognition_result(f'context: answer_yesno, intent recognition failed')
         return None
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['max_attempts', 'speaking_rate', 'animated'])
     def ask_entity(self, question, context, target_intent, target_entity, max_attempts=None, speaking_rate=None,
                    animated=None):
         attempts = 0
@@ -603,7 +471,6 @@ class DialogManager:
         self.log_recognition_result(f'context: {context}, intent recognition failed')
         return None
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['max_attempts', 'speaking_rate', 'animated'])
     def ask_open(self, question, max_attempts=None, speaking_rate=None, animated=None, listening_behavior=False):
         attempts = 0
 
@@ -630,27 +497,6 @@ class DialogManager:
             attempts += 1
         return None
 
-    def listen(self):
-        try:
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id), timeout=10)
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
-            return None
-        except TimeoutError as e:
-            print("Error:", e)
-
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['speaking_rate', 'animated'])
-    def ask_fake(self, question, duration, speaking_rate=None, animated=None):
-        self.say(question, speaking_rate=speaking_rate, animated=animated)
-        # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-        sleep(duration)
-        # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-
-    def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
-        if isinstance(self.device_manager, Pepper):
-            self.device_manager.leds.request(NaoFadeRGBRequest(name, r, g, b, 0))
-
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['max_attempts', 'speaking_rate', 'animated'])
     def ask_entity_llm(self, question, strict=False, max_attempts=None, speaking_rate=None, animated=None):
         attempts = 0
 
@@ -695,42 +541,6 @@ class DialogManager:
         self.log_recognition_result('llm extracted entity: None')
         return None
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['max_attempts', 'speaking_rate', 'animated'])
-    def ask_opinion_llm(self, question, max_attempts=None, speaking_rate=None, animated=None):
-        attempts = 0
-
-        while attempts < max_attempts:
-            # ask question
-            self.say(question, speaking_rate=speaking_rate, animated=animated)
-
-            # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            # listen for answer
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id))
-            # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-
-            # Return entity
-            if reply.response.query_result.query_text:
-                print(f'transcript is {reply.response.query_result.query_text}')
-                gpt_response = self.gpt.request(
-                    GPTRequest(f'Je bent een sociale robot die praat met een kind tussen de 6 en 9 jaar oud. '
-                               f'De robot stelt een vraag over een interesse van het kind.'
-                               f'Jouw taak is om de mening van het kind er uit te filteren'
-                               f'Bijvoorbeeld bij de vraag: "hoe goed is het gegaan?" '
-                               f'en de reactie "het ging niet zo goed" '
-                               f'filter je "negative" als opinion er uit. '
-                               # f'of bijvoorbeeld "wat is je superkracht?" en de reactie '
-                               # f'is "mijn superkracht is heel hard rennen"'
-                               # f'filter je "heel hard rennen" er uit.'
-                               f'Als robot heb je net het volgende gevraagt {question}'
-                               f'Dit is de reactie van het kind {reply.response.query_result.query_text}'
-                               f'Return alleen de opinion string (positive/negative) terug.'))
-                print(f'response is {gpt_response.response}')
-                self.log_recognition_result(f'llm extracted sentiment: {gpt_response.response}')
-                return gpt_response.response
-            attempts += 1
-        self.log_recognition_result('llm extracted sentiment: None')
-        return None
-
     def ask_llm(self, user_prompt, context_messages, system_prompt):
         try:
             resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
@@ -740,68 +550,20 @@ class DialogManager:
             print(f"Exception: {e}")
             return None
 
-    def get_article(self, word):
-        gpt_response = self.gpt.request(
-            GPTRequest(
-                f'Retourneer het lidwoord van {word}. Retouneer alleen het lidwoord zelf bijv. "de" of "het" en geen andere informatie.'))
-        return gpt_response.response
-
-    def get_adjective(self, word):
-        gpt_response = self.gpt.request(
-            GPTRequest(
-                f'Retourneer het bijvoeglijk naamwoord van {word}. Retourneer alleen het bijvoeglijk naamwoord zelf bijv. "groene" of "zachte" en geen andere informatie.'))
-        return gpt_response.response
-
-    def personalize(self, robot_input, user_age, user_input):
-        gpt_response = self.gpt.request(
-            GPTRequest(f'Je bent een sociale robot die praat met een kind van {str(user_age)} jaar oud.'
-                       f'Het kind ligt in het ziekenhuis.'
-                       f'Jij bent daar om het kind af te leiden met een leuk gesprek.'
-                       f'Als robot heb je zojuist het volgende gevraagd: {robot_input}'
-                       f'Het kind reageerde met het volgende: "{user_input}"'
-                       f'Genereer nu een passende reactie in 1 zin. '
-                       f'Het mag geen vraag zijn. De woordenschat en het taalniveau moeten op B2 niveau zijn.'))
-        return gpt_response.response
-
-    def generate_funny_response(self, user_age, context, user_input):
-        gpt_response = self.gpt.request(
-            GPTRequest(f'Je bent een sociale robot die praat met een kind van {str(user_age)} jaar oud.'
-                       f'Het kind ligt in het ziekenhuis.'
-                       f'Jij bent daar om het kind af te leiden met een leuk gesprek.'
-                       f'Dit is de context van het gesprek: {context}'
-                       f'Het kind reageerde met het volgende: "{user_input}"'
-                       f'Genereer nu een grappige reactie in één of twee zinnen. '
-                       f'Het mag geen vraag zijn. De woordenschat en het taalniveau moeten op B2 niveau zijn.'))
-        return gpt_response.response
-
-    def generate_question(self, user_age, robot_input, user_input):
-        gpt_response = self.gpt.request(
-            GPTRequest(f'Je bent een sociale robot die praat met een kind van {str(user_age)} jaar oud.'
-                       f'Het kind ligt in het ziekenhuis.'
-                       f'Jij bent daar om het kind af te leiden met een leuk gesprek.'
-                       f'Als robot heb je zojuist het volgende gevraagd: {robot_input}'
-                       f'Het kind reageerde met het volgende: "{user_input}"'
-                       f'Genereer nu 1 passende vervolgvraag. '
-                       f'De woordenschat en het taalniveau moeten op B2 niveau zijn.'))
-        return gpt_response.response
-
-    def animate(self, animation_type: AnimationType, animation_id: str, run_async=False):
-        if self.computer_test_mode:
+    def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
+        if not isinstance(self.device_manager, Alphamini):
             print(f'Animation played: {animation_type} [{animation_id}]')
-        else:
-            try:
-                future = asyncio.run_coroutine_threadsafe(
-                    self._animation_action(animation_id, animation_type),
-                    self.background_loop
-                )
-            except Exception as e:
-                self.logger.error(f'Animation {animation_id} failed: {e}', exc_info=e)
-                return
+            return
 
-            self.animation_futures.append(future)
+        try:
+            future = asyncio.run_coroutine_threadsafe(self.alphamini_animation_action(animation_id, animation_type), self.background_loop)
+        except Exception as e:
+            self.logger.error(f'Animation {animation_id} failed: {e}', exc_info=e)
+            return
 
-            if not run_async:
-                future.result()
+        self.animation_futures.append(future)
+        if not run_async:
+            future.result()
 
     def animate_naoqi(self, animation: str, block=True):
         try:
@@ -809,7 +571,11 @@ class DialogManager:
         except Exception as e:
             self.logger.error(f"Failed to play pepper animation: {animation}", exc_info=e)
 
-    async def _animation_action(self, action_name, animation_type):
+    def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
+        if isinstance(self.device_manager, Pepper):
+            self.device_manager.leds.request(NaoFadeRGBRequest(name, r, g, b, 0))
+
+    async def alphamini_animation_action(self, action_name, animation_type):
         try:
             if animation_type == AnimationType.ACTION:
                 action: PlayAction = PlayAction(action_name=action_name)
@@ -826,21 +592,21 @@ class DialogManager:
             except Exception as e:
                 self.logger.error("Failed to connect to mini device", exc_info=e)
 
-    def set_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000,
-                       run_async=False):
-        if 'computer' in self.device_name:
+    def set_alphamini_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000, run_async=False):
+        if not isinstance(self.device_manager, Alphamini):
             print(f"Set mouth lamp: {color} {mode} {duration} {breath_duration}")
-        else:
-            future = asyncio.run_coroutine_threadsafe(
-                self._mouth_lamp_expression(color, mode, duration, breath_duration),
-                self.background_loop)
-            self.animation_futures.append(future)
+            return
 
-            if not run_async:
-                future.result()
+        future = asyncio.run_coroutine_threadsafe(
+            self.alphamini_mouth_lamp_expression(color, mode, duration, breath_duration),
+            self.background_loop)
+        self.animation_futures.append(future)
 
-    async def _mouth_lamp_expression(self, color: MouthLampColor, mode: MouthLampMode, duration=-1,
-                                     breath_duration=1000):
+        if not run_async:
+            future.result()
+
+    @staticmethod
+    async def alphamini_mouth_lamp_expression(color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000):
         if mode == MouthLampMode.BREATH:
             mouth_lamp_action: SetMouthLamp = SetMouthLamp(color=color, mode=MouthLampMode.BREATH,
                                                            breath_duration=breath_duration)
@@ -888,46 +654,22 @@ class DialogManager:
     async def _disconnect_alphamini_api():
         await MiniSdk.release()
 
-    @staticmethod
-    def _get_user_model_file_path(participant_id: str):
-        folder = Path("user_models")
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f"user_model_{participant_id}.json"
-
-    def load_user_model(self, participant_id: str):
-        file_path = self._get_user_model_file_path(participant_id)
-        if exists(file_path):
-            with open(file_path, "r") as f:
-                return json.load(f)
-        else:
-            return {}
-
-    def save_user_model(self, participant_id: str, user_model: dict):
-        file_path = self._get_user_model_file_path(participant_id)
-        with open(file_path, "w") as f:
-            json.dump(user_model, f, indent=4)
-            f.flush()  # flush internal buffers
-            fsync(f.fileno())  # flush OS buffers to disk
-
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf
-
-    def reset_interaction_conf(self):
-        self.interaction_conf = InteractionConfig()
 
     def listening_behavior(self, start=True):
         # has not yet been tested on noa and alphamini
         if start:
             if isinstance(self.device_manager, Alphamini):
                 # taken from droomrobot code
-                self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
+                self.set_alphamini_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
             elif isinstance(self.device_manager, Nao):
                 self.animate_naoqi_leds(g=1)
             elif isinstance(self.device_manager, Pepper):
                 self.animate_naoqi_leds(g=1)
         else:
             if isinstance(self.device_manager, Alphamini):
-                self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
+                self.set_alphamini_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
             elif isinstance(self.device_manager, Nao):
                 self.animate_naoqi_leds()
             elif isinstance(self.device_manager, Pepper):
@@ -935,14 +677,14 @@ class DialogManager:
 
     def animation(self):
         if isinstance(self.device_manager, Alphamini):
-            self.animate(AnimationType.EXPRESSION, self._random_speaking_eye_expression(), run_async=True)
-            self.animate(AnimationType.ACTION, self._random_speaking_act(), run_async=True)
-        elif isinstance(self.device_manager, Pepper):
+            self.animate_alphamini(AnimationType.EXPRESSION, self.random_alphamini_speaking_eye_expression(), run_async=True)
+            self.animate_alphamini(AnimationType.ACTION, self.random_alphamini_speaking_act(), run_async=True)
+        elif isinstance(self.device_manager, Pepper) or isinstance(self.device_manager, Nao):
             self.device_manager.motion.request(NaoqiAnimationRequest(self.random_pepper_animation()), block=False)
-        elif isinstance(self.device_manager, Nao):
-            pass
 
     def play_motion(self, motion_name):
+        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
+            return
         try:
             # Play the recording
             self.logger.info(f"Playing motion {motion_name}")
@@ -952,7 +694,7 @@ class DialogManager:
             self.logger.error(f"Exception: {e}")
 
     @staticmethod
-    def _random_speaking_act():
+    def random_alphamini_speaking_act():
         speaking_acts = [
             "speakingAct1",
             "speakingAct2",
@@ -975,13 +717,71 @@ class DialogManager:
         return rand.choice(speaking_acts)
 
     @staticmethod
-    def _random_speaking_eye_expression():
+    def random_alphamini_speaking_eye_expression():
         speaking_expressions = [
             "codemao1", "codemao2", "codemao3", "codemao4", "codemao5",
             "codemao6", "codemao7", "codemao8", "codemao9", "codemao10",
             "codemao11", "codemao12", "codemao13", "codemao14", "codemao15",
             "codemao16", "codemao17", "codemao18", "codemao19", "codemao20"]
         return rand.choice(speaking_expressions)
+
+    def random_pepper_animation(self):
+        if self.interaction_conf.animation_style == AnimationStyle.EXPRESSIVE:
+            animations = [
+                "animations/Stand/Emotions/Positive/Happy_4",
+                "animations/Stand/Emotions/Positive/Peaceful_1",
+                "animations/Stand/Gestures/But_1",
+                "animations/Stand/Gestures/CalmDown_6",
+                "animations/Stand/Gestures/Enthusiastic_4",
+                "animations/Stand/Gestures/Everything_3",
+                "animations/Stand/Gestures/Everything_4",
+                "animations/Stand/Gestures/Explain_1",
+                "animations/Stand/Gestures/Explain_10",
+                "animations/Stand/Gestures/Explain_11",
+                "animations/Stand/Gestures/Far_1",
+                "animations/Stand/Gestures/Far_2",
+                "animations/Stand/Gestures/Far_3",
+                "animations/Stand/Gestures/ShowSky_1",
+                "animations/Stand/Gestures/ShowSky_5",
+                "animations/Stand/Gestures/ShowSky_7",
+                "animations/Stand/Gestures/ShowSky_8",
+                "animations/Stand/Gestures/IDontKnow_1",
+                "animations/Stand/Gestures/IDontKnow_2",
+                "animations/Stand/Gestures/No_1",
+                "animations/Stand/Gestures/No_2",
+                "animations/Stand/Gestures/No_9",
+                "animations/Stand/Gestures/Yes_1",
+                "animations/Stand/Gestures/Yes_2",
+            ]
+        else:
+            animations = [
+                "animations/Stand/Gestures/Everything_2",
+                "animations/Stand/Gestures/Explain_1",
+                "animations/Stand/Gestures/Explain_10",
+                "animations/Stand/Gestures/Explain_2",
+                "animations/Stand/Gestures/Explain_4",
+                "animations/Stand/Gestures/Explain_5",
+                "animations/Stand/Gestures/Give_3",
+                "animations/Stand/Gestures/Give_5",
+                "animations/Stand/Gestures/IDontKnow_1",
+                "animations/Stand/Gestures/IDontKnow_2",
+                "animations/Stand/Gestures/Me_1",
+                "animations/Stand/Gestures/Me_4",
+                "animations/Stand/Gestures/No_1",
+                "animations/Stand/Gestures/No_2",
+                "animations/Stand/Gestures/No_9",
+                "animations/Stand/Gestures/ShowFloor_3",
+                "animations/Stand/Gestures/ShowFloor_4",
+                "animations/Stand/Gestures/ShowSky_6",
+                "animations/Stand/Gestures/Thinking_1",
+                "animations/Stand/Gestures/Thinking_3",
+                "animations/Stand/Gestures/Thinking_6",
+                "animations/Stand/Gestures/Yes_1",
+                "animations/Stand/Gestures/Yes_2",
+                "animations/Stand/Gestures/YouKnowWhat_2",
+                "animations/Stand/Gestures/You_1"
+            ]
+        return rand.choice(animations)
 
     @staticmethod
     def _amplify_audio(waveform_bytes, compression_strength=2.0, target_level=0.9):

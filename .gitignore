@@ -29,3 +29,6 @@ conf/openai/.openai_env
 # Ignore participants data
 participants/*
 conversation_state.json
+
+# Ignore cache
+examples/tts_cache/

@@ -289,3 +289,5 @@ class ConversationState:
             json.dump(data, f, indent=2, ensure_ascii=False, default=_serialize)
 
         os.replace(tmp_path, path)
+
+        print (f"[INFO] Saved conversation state to {path}")

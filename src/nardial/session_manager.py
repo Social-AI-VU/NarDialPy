@@ -99,7 +99,6 @@ class SessionManager:
                                             user_model=self.conversation_state.user_model,
                                             topics_of_interest=topics_of_interest)
         self.conversation_state.save()
-        print("Conversation state saved.")
 
     def condense_topics(self, topics_of_interest):
         # Condense topics_of_interest into single-word keywords via GPT (with a simple fallback)

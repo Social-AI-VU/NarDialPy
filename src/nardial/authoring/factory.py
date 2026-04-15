@@ -1,18 +1,10 @@
 from typing import Any, Dict, List
 
-from nardial.mini_dialogs import (
-    MiniDialog,
-    NarrativeDialog,
-    ChitchatDialog,
-    FunctionalDialog,
-    LLMDialog,
-    ImprovisationDialog,
-    DialogType,
-)
-from nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO
+from src.nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
+from src.nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH
 
 
-ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO}
+ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH}
 
 
 class MoveFactory:
@@ -36,6 +28,15 @@ class MoveFactory:
                 errs.append(f"moves[{idx}].options must be a list of strings for ask_options")
         if "set_variable" in move and not isinstance(move.get("set_variable"), str):
             errs.append(f"moves[{idx}].set_variable must be string if present")
+        if mt == MOVE_BRANCH:
+            on_val = move.get("on", "outcome")
+            if not isinstance(on_val, str):
+                errs.append(f"moves[{idx}].on must be a string for branch")
+            cases = move.get("cases")
+            if not isinstance(cases, dict):
+                errs.append(f"moves[{idx}].cases must be an object for branch")
+            elif not all(isinstance(v, list) for v in cases.values()):
+                errs.append(f"moves[{idx}].cases values must be lists of moves for branch")
         return errs
 
     @staticmethod

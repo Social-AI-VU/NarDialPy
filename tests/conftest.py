@@ -53,7 +53,7 @@ def make_mock_agent():
         open_effect = _wrap_side_effect(ask_open_side_effect)
         yesno_effect = _wrap_side_effect(ask_yes_no_side_effect)
         options_effect = _wrap_side_effect(ask_options_side_effect)
-        agent.request_from_gpt = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
+        agent.ask_llm = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
         agent.ask_open = Mock(side_effect=open_effect) if ask_open_side_effect is not None else Mock(return_value=None)
         agent.ask_yesno = Mock(side_effect=yesno_effect) if ask_yes_no_side_effect is not None else Mock(return_value='no')
         agent.ask_options = Mock(side_effect=options_effect) if ask_options_side_effect is not None else Mock(return_value=None)

@@ -11,8 +11,8 @@ class ConversationAgent:
         self.dialog_manager = DialogManager(device_manager=device_manager, int_config=int_config)
         self.device = device_manager
 
-    def say(self, text, animated=False):
-        self.dialog_manager.say(text, animated=animated)
+    def say(self, text):
+        self.dialog_manager.say(text)
 
     def play_audio(self, audio_file):
         self.dialog_manager.play_audio(audio_file)
@@ -27,10 +27,10 @@ class ConversationAgent:
             except Exception as e:
                 print(f"Failed to play animation: {animation_name}", e)
 
-    def ask_yesno(self, question, max_attempts=1, animated=False):
+    def ask_yesno(self, question, max_attempts=1):
         attempts = 0
         while attempts < max_attempts:
-            self.say(question, animated=animated)
+            self.say(question)
             reply = self.dialog_manager.listen(context={'answer_yesno': 1})
 
             if reply.intent:
@@ -45,10 +45,10 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2,  animated=False):
+    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2):
         attempts = 0
         while attempts < max_attempts:
-            self.say(question, animated=animated)
+            self.say(question)
             reply = self.dialog_manager.listen(context=context)
 
             if reply.intent:
@@ -61,10 +61,10 @@ class ConversationAgent:
 
         return None
 
-    def ask_open(self, question, max_attempts=2, animated=False):
+    def ask_open(self, question, max_attempts=2):
         attempts = 0
         while attempts < max_attempts:
-            self.say(question, animated=animated)
+            self.say(question)
             reply = self.dialog_manager.listen()
             if reply.response.query_result.query_text:
                 return reply.response.query_result.query_text

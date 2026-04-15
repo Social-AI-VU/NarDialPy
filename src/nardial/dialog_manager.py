@@ -110,12 +110,29 @@ class InteractionConfig:
         self.google_keyfile_path = google_keyfile_path
         self.openai_key_path = openai_key_path
         self.animation_style = animation_style
+        self.animated = True
+        self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
+        self.chunk_audio = True
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
             keyfile_json=json.load(open(google_keyfile_path)),
             sample_rate_hertz=44100,
             language=language
         )
+
+    @staticmethod
+    def apply_config_defaults(config_attr, param_names):
+        def decorator(func):
+            def wrapper(self, *args, **kwargs):
+                config = getattr(self, config_attr)
+                for name in param_names:
+                    if kwargs.get(name) is None:
+                        kwargs[name] = getattr(config, name)
+                return func(self, *args, **kwargs)
+
+            return wrapper
+
+        return decorator
 
 
 class DialogManager:
@@ -290,7 +307,8 @@ class DialogManager:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    def say(self, text, sleep_time=None, animated=None, amplified=False, always_regenerate=False, chunking=True):
+    @InteractionConfig.apply_config_defaults('interaction_conf', ['animated', 'always_regenerate', 'chunk_audio'])
+    def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         if animated:
             self.animation()
 
@@ -299,7 +317,7 @@ class DialogManager:
         elif isinstance(self.tts_conf, GoogleTTSConf):
             self.google_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunking)
+            self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
         else:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
 

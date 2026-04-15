@@ -5,25 +5,7 @@ import os
 import json
 import re
 
-# Attempt to import the SIC Redis datastore message classes used by the demo. If unavailable,
-# ConversationState will gracefully fall back to file-based user_model.
-try:
-    from sic_framework.services.datastore.redis_datastore import (
-        RedisDatastoreConf,
-        RedisDatastore,
-        SetUsermodelValuesRequest,
-        GetUsermodelValuesRequest,
-        GetUsermodelKeysRequest,
-        GetUsermodelRequest,
-        DeleteUsermodelValuesRequest,
-        DeleteUserRequest,
-        UsermodelKeyValuesMessage,
-        UsermodelKeysMessage,
-        SICSuccessMessage,
-    )
-    _HAS_REDIS_DS = True
-except Exception:
-    _HAS_REDIS_DS = False
+from .user_model_proxy import UserModelProxy
 
 
 class Session:
@@ -40,126 +22,6 @@ class Session:
         self.events: List[Dict[str, Any]] = events or []
         self.dialog_ids: List[str] = dialog_ids or []
         self.summary: Dict[str, Any] = summary or {}
-
-
-class UserModelProxy:
-    """
-    Minimal dict-like proxy that routes CRUD operations to the provided datastore when available.
-    It keeps a small in-memory cache (snapshot) to retain compatibility with code expecting a mapping.
-    """
-
-    def __init__(self, initial: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, datastore: Optional[Any] = None):
-        self._cache: Dict[str, Any] = dict(initial or {})
-        self._pid = participant_id
-        self._datastore = datastore
-
-    def set_participant(self, participant_id: Optional[str]):
-        self._pid = participant_id
-
-    def _ensure_loaded(self) -> None:
-        # If we have a datastore and a participant id, try to load the full user model from Redis.
-        if not self._datastore or not self._pid:
-            return
-        try:
-            resp = self._datastore.request(GetUsermodelRequest(user_id=self._pid))
-            if isinstance(resp, UsermodelKeyValuesMessage):
-                # overwrite local cache with canonical values
-                self._cache = dict(resp.keyvalues or {})
-        except Exception:
-            # On any failure, silently keep the current cache (fallback behavior)
-            return
-
-    # Mapping protocol
-    def __getitem__(self, key: str) -> Any:
-        if key in self._cache:
-            return self._cache[key]
-        # try to refresh from datastore once
-        self._ensure_loaded()
-        return self._cache[key]
-
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            return self.__getitem__(key)
-        except Exception:
-            return default
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        # write-through to datastore when available, otherwise update local cache
-        if self._datastore and self._pid:
-            try:
-                kv = {key: value}
-                resp = self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=kv))
-                # On success, update cache. On failure, still update cache as best-effort.
-                if isinstance(resp, SICSuccessMessage):
-                    self._cache[key] = value
-                else:
-                    self._cache[key] = value
-            except Exception:
-                self._cache[key] = value
-        else:
-            self._cache[key] = value
-
-    def update(self, mapping: Optional[Dict[str, Any]] = None, **kwargs) -> None:
-        items = dict(mapping or {})
-        items.update(kwargs)
-        if not items:
-            return
-        if self._datastore and self._pid:
-            try:
-                resp = self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=items))
-                if isinstance(resp, SICSuccessMessage):
-                    self._cache.update(items)
-                else:
-                    self._cache.update(items)
-            except Exception:
-                self._cache.update(items)
-        else:
-            self._cache.update(items)
-
-    def keys(self):
-        self._ensure_loaded()
-        return self._cache.keys()
-
-    def items(self):
-        self._ensure_loaded()
-        return self._cache.items()
-
-    def as_dict(self) -> Dict[str, Any]:
-        self._ensure_loaded()
-        return dict(self._cache)
-
-    def __delitem__(self, key: str) -> None:
-        if self._datastore and self._pid:
-            try:
-                resp = self._datastore.request(DeleteUsermodelValuesRequest(user_id=self._pid, keys=[key]))
-                self._cache.pop(key, None)
-            except Exception:
-                self._cache.pop(key, None)
-        else:
-            self._cache.pop(key, None)
-
-    def clear_remote(self) -> None:
-        # Delete the entire user from datastore if available
-        if self._datastore and self._pid:
-            try:
-                resp = self._datastore.request(DeleteUserRequest(user_id=self._pid))
-                if isinstance(resp, SICSuccessMessage):
-                    self._cache.clear()
-            except Exception:
-                pass
-        else:
-            self._cache.clear()
-
-    def __iter__(self):
-        self._ensure_loaded()
-        return iter(self._cache)
-
-    def __len__(self):
-        self._ensure_loaded()
-        return len(self._cache)
-
-    def __repr__(self):
-        return f"UserModelProxy(pid={self._pid}, cache={self._cache})"
 
 
 class ConversationState:
@@ -186,21 +48,9 @@ class ConversationState:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
         # optional datastore (duck-typed interface: .request(message) -> response)
-        self.datastore = datastore
-        if self.datastore is None and _HAS_REDIS_DS:
-            # Try to create a default local RedisDatastore (matches demo defaults)
-            try:
-                conf = RedisDatastoreConf(
-                    host="127.0.0.1",
-                    port=6379,
-                    password="changemeplease",
-                    namespace="usermodel",
-                    version="v1",
-                    developer_id=0
-                )
-                self.datastore = RedisDatastore(conf=conf)
-            except Exception:
-                self.datastore = None
+        # ConversationState does not manage Redis details; the proxy will handle datastore construction and checks.
+        # ConversationState no longer constructs a default Redis client; the proxy will handle that.
+        # self.datastore = datastore
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -220,7 +70,9 @@ class ConversationState:
 
         self.participant_id = participant_id
         # Create the user model proxy (uses local snapshot initially)
-        self.user_model = UserModelProxy(initial=self._local_user_model, participant_id=self.participant_id, datastore=self.datastore)
+        # The proxy will decide whether to use the provided datastore or create a default Redis client.
+        proxy_ds = datastore if datastore is not None else None
+        self.user_model = UserModelProxy(initial=self._local_user_model, participant_id=self.participant_id, datastore=proxy_ds)
 
         if self.participant_id is not None:
             self.overwrite_with_participant_info()
@@ -233,13 +85,14 @@ class ConversationState:
         self.completed_dialogs = pid_completed or set()
         self.topics_of_interest = pid_topics or []
 
-        # Let the proxy know the participant id and attempt to load from Redis if possible
+        # Let the proxy know the participant id and attempt to load from remote if available.
         try:
             if hasattr(self.user_model, "set_participant"):
                 self.user_model.set_participant(self.participant_id)
-                # Refresh local snapshot from remote
-                if hasattr(self.user_model, "_ensure_loaded"):
-                    self.user_model._ensure_loaded()
+                # If the proxy reports remote availability, ask it to refresh its cache
+                if hasattr(self.user_model, "remote_available") and self.user_model.remote_available(check=True):
+                    if hasattr(self.user_model, "_ensure_loaded"):
+                        self.user_model._ensure_loaded()
         except Exception:
             # ignore failures and continue with local snapshot
             pass
@@ -295,11 +148,14 @@ class ConversationState:
         self.save()  # create file immediately
 
     def save(self) -> None:
-        # If user_model is a proxy, serialize its snapshot; otherwise use as-is
+        # If a remote datastore is available, prefer it and avoid writing user_model into JSON.
         try:
-            user_model_data = self.user_model.as_dict() if hasattr(self.user_model, "as_dict") else self.user_model
+            if hasattr(self.user_model, "remote_available") and self.user_model.remote_available(check=True):
+                user_model_data = {}
+            else:
+                user_model_data = self.user_model.as_dict() if hasattr(self.user_model, "as_dict") else self.user_model
         except Exception:
-            user_model_data = {}
+            user_model_data = self._local_user_model or {}
 
         data = {
             "completed_dialogs": self.completed_dialogs,

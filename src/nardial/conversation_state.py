@@ -47,11 +47,6 @@ class ConversationState:
         self.path = Path(path) if path else self.base_dir / "conversation_state.json"
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        # optional datastore (duck-typed interface: .request(message) -> response)
-        # ConversationState does not manage Redis details; the proxy will handle datastore construction and checks.
-        # ConversationState no longer constructs a default Redis client; the proxy will handle that.
-        # self.datastore = datastore
-
         # continuity
         self.completed_dialogs: List[str] = []
         # store local snapshot from file load in _local_user_model; expose user_model as proxy
@@ -69,10 +64,9 @@ class ConversationState:
         self.load()
 
         self.participant_id = participant_id
+
         # Create the user model proxy (uses local snapshot initially)
-        # The proxy will decide whether to use the provided datastore or create a default Redis client.
-        proxy_ds = datastore if datastore is not None else None
-        self.user_model = UserModelProxy(initial=self._local_user_model, participant_id=self.participant_id, datastore=proxy_ds)
+        self.user_model = UserModelProxy(initial=self._local_user_model, participant_id=self.participant_id, datastore=datastore)
 
         if self.participant_id is not None:
             self.overwrite_with_participant_info()

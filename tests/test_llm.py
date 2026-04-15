@@ -13,7 +13,7 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
 
     md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
 
-    assert agent.ask_llm.call_count == 2
+    assert agent.request_from_gpt.call_count == 2
     assert agent.ask_open.call_count == 2
 
     types = [entry['type'] for entry in session_history]
@@ -35,7 +35,7 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
-    assert agent.ask_llm.call_count == 1
+    assert agent.request_from_gpt.call_count == 1
     assert agent.ask_open.call_count == 1
 
 
@@ -50,7 +50,7 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
 
-    assert agent.ask_llm.call_count == 1
+    assert agent.request_from_gpt.call_count == 1
     agent.say.assert_called_once()
     say_arg = agent.say.call_args[0][0]
     assert "<<QUIT>>" not in say_arg
@@ -70,7 +70,7 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
 
     md.handle_move_ask_llm(move)
 
-    assert agent.ask_llm.call_count >= 1
+    assert agent.request_from_gpt.call_count >= 1
     assert agent.ask_open.call_count >= 1
     assert any(entry['type'] == MOVE_ASK_LLM for entry in session_history)
     assert any(entry['type'] == MOVE_ANSWER_LLM for entry in session_history)
@@ -87,7 +87,7 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
 
     dialog.run(agent, session_history, topics_of_interest, user_model)
 
-    assert agent.ask_llm.call_count <= 3
+    assert agent.request_from_gpt.call_count <= 3
     assert agent.ask_open.call_count <= 3
 
 
@@ -112,8 +112,8 @@ def test_ask_open_llm_followup_generates_response(
     md.handle_move_ask_open(move)
 
     # LLM should have been called once with the user's answer as the prompt
-    agent.ask_llm.assert_called_once()
-    call_kwargs = agent.ask_llm.call_args.kwargs
+    agent.request_from_gpt.assert_called_once()
+    call_kwargs = agent.request_from_gpt.call_args.kwargs
     assert call_kwargs['user_prompt'] == "I love hiking in the mountains."
     assert 'friendly robot' in call_kwargs['system_prompt']
 
@@ -147,7 +147,7 @@ def test_ask_open_llm_followup_receives_full_conversation_context(
 
     md.handle_move_ask_open(move)
 
-    call_kwargs = agent.ask_llm.call_args.kwargs
+    call_kwargs = agent.request_from_gpt.call_args.kwargs
     # Context should include prior history entries
     assert any("Let's talk about food." in msg for msg in call_kwargs['context_messages'])
 
@@ -171,8 +171,8 @@ def test_ask_yesno_llm_followup_generates_response(
 
     md.handle_move_ask_yesno(move)
 
-    agent.ask_llm.assert_called_once()
-    call_kwargs = agent.ask_llm.call_args.kwargs
+    agent.request_from_gpt.assert_called_once()
+    call_kwargs = agent.request_from_gpt.call_args.kwargs
     assert call_kwargs['user_prompt'] == "yes"
     agent.say.assert_called_once_with("That's great, dogs are amazing companions!")
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
@@ -198,8 +198,8 @@ def test_ask_options_llm_followup_generates_response(
 
     md.handle_move_ask_options(move)
 
-    agent.ask_llm.assert_called_once()
-    call_kwargs = agent.ask_llm.call_args.kwargs
+    agent.request_from_gpt.assert_called_once()
+    call_kwargs = agent.request_from_gpt.call_args.kwargs
     assert call_kwargs['user_prompt'] == "forest"
     agent.say.assert_called_once_with("Forests are so serene and full of life!")
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
@@ -221,7 +221,7 @@ def test_ask_open_without_llm_followup_does_not_call_llm(
 
     md.handle_move_ask_open(move)
 
-    agent.ask_llm.assert_not_called()
+    agent.request_from_gpt.assert_not_called()
     assert not any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
@@ -244,7 +244,7 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     md = MiniDialog('test', moves=moves)
     md.run(agent, session_history, topics_of_interest, user_model)
 
-    agent.ask_llm.assert_called_once()
+    agent.request_from_gpt.assert_called_once()
     agent.say.assert_called_once_with("Painting is a beautiful hobby!")
     assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)

@@ -23,7 +23,7 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
     md._run_llm_exchange(prompt='p', max_turns=3)
 
     # ask_llm retried until a non-None response
-    assert agent.ask_llm.call_count >= 2
+    assert agent.request_from_gpt.call_count >= 2
     # ask_open should be called at least once (the LLM may prompt multiple times up to max_turns)
     assert agent.ask_open.call_count >= 1
 

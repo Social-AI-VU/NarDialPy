@@ -3,7 +3,6 @@ import re
 
 from sic_framework.devices import Nao, Pepper
 from sic_framework.devices.device import SICDeviceManager
-from sic_framework.services.llm import GPTRequest
 from nardial.dialog_manager import DialogManager, InteractionConfig
 
 
@@ -12,8 +11,8 @@ class ConversationAgent:
         self.dialog_manager = DialogManager(device_manager=device_manager, int_config=int_config)
         self.device = device_manager
 
-    def say(self, text):
-        self.dialog_manager.say(text)
+    def say(self, text, animated=False):
+        self.dialog_manager.say(text, animated=animated)
 
     def play_audio(self, audio_file):
         self.dialog_manager.play_audio(audio_file)
@@ -28,14 +27,49 @@ class ConversationAgent:
             except Exception as e:
                 print(f"Failed to play animation: {animation_name}", e)
 
-    def ask_yesno(self, question):
-        return self.dialog_manager.ask_yesno(question)
+    def ask_yesno(self, question, max_attempts=1, animated=False):
+        attempts = 0
+        while attempts < max_attempts:
+            self.say(question, animated=animated)
+            reply = self.dialog_manager.listen(context={'answer_yesno': 1})
 
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2):
-        return self.dialog_manager.ask_entity(question, context, target_intent, target_entity, max_attempts)
+            if reply.intent:
+                print(f'context: answer_yesno, recognized_intent: {str(reply.intent)}')
+                if reply.intent == "yesno_yes":
+                    return "yes"
+                elif reply.intent == "yesno_no":
+                    return "no"
+                elif reply.intent == "yesno_dontknow":
+                    return "dontknow"
 
-    def ask_open(self, question, max_attempts=2):
-        return self.dialog_manager.ask_open(question, max_attempts)
+            attempts += 1
+        return None
+
+    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2,  animated=False):
+        attempts = 0
+        while attempts < max_attempts:
+            self.say(question, animated=animated)
+            reply = self.dialog_manager.listen(context=context)
+
+            if reply.intent:
+                if target_intent in reply.intent:
+                    if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
+                        result_entity = reply.response.query_result.parameters[target_entity]
+                        return result_entity
+
+            attempts += 1
+
+        return None
+
+    def ask_open(self, question, max_attempts=2, animated=False):
+        attempts = 0
+        while attempts < max_attempts:
+            self.say(question, animated=animated)
+            reply = self.dialog_manager.listen()
+            if reply.response.query_result.query_text:
+                return reply.response.query_result.query_text
+            attempts += 1
+        return None
 
     def ask_options(self, question, options, max_attempts=2):
         answer = self.ask_open(question, max_attempts=max_attempts)
@@ -85,9 +119,7 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            resp = self.dialog_manager.gpt.request(GPTRequest(prompt))
-            text = (resp.response or "").strip()
-            data = json.loads(text)
+            data = self.dialog_manager.request_from_gpt(system_prompt=prompt)
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -103,4 +135,4 @@ class ConversationAgent:
             return _heuristic(raw_topics)
 
     def ask_llm(self, user_prompt, context_messages, system_prompt):
-        return self.dialog_manager.ask_llm(user_prompt, context_messages, system_prompt)
+        return self.dialog_manager.request_from_gpt(user_prompt, context_messages, system_prompt)

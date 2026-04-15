@@ -290,14 +290,14 @@ class DialogManager:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    def say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False, always_regenerate=False, chunking=True):
+    def say(self, text, sleep_time=None, animated=None, amplified=False, always_regenerate=False, chunking=True):
         if animated:
             self.animation()
 
         if isinstance(self.tts_conf, NaoqiTTSConf):
             self.naoqi_say(text, sleep_time=sleep_time, animated=animated)
         elif isinstance(self.tts_conf, GoogleTTSConf):
-            self.google_say(text, speaking_rate=speaking_rate, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
+            self.google_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
             self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunking)
         else:
@@ -312,7 +312,7 @@ class DialogManager:
         if sleep_time and sleep_time > 0:
             sleep(sleep_time)
 
-    def google_say(self, text, speaking_rate=None, sleep_time=None, amplified=False,  always_regenerate=False):
+    def google_say(self, text, sleep_time=None, amplified=False,  always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -326,7 +326,7 @@ class DialogManager:
                 text=text,
                 voice_name=self.tts_conf.google_tts_voice_name,
                 ssml_gender=self.tts_conf.google_tts_voice_gender,
-                speaking_rate=speaking_rate or self.tts_conf.speaking_rate
+                speaking_rate=self.tts_conf.speaking_rate
             ))
             audio_bytes = reply.waveform
             sample_rate = reply.sample_rate
@@ -389,9 +389,10 @@ class DialogManager:
 
         return audio_bytes
 
-    def listen(self):
+    def listen(self, context=None, timeout=10):
         try:
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id), timeout=10)
+            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
+            print("The detected intent:", reply.intent)
             if reply.response.query_result.query_text:
                 return reply.response.query_result.query_text
             return None
@@ -417,134 +418,12 @@ class DialogManager:
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
-    def ask_yesno(self, question, max_attempts=None, speaking_rate=None, animated=None):
-        attempts = 0
-        while attempts < max_attempts:
-            # ask question
-            self.say(question, speaking_rate=speaking_rate, animated=animated)
-
-            # listen for answer
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
-            print("The detected intent:", reply.intent)
-
-            # return answer
-            if reply.intent:
-                print(f'context: answer_yesno, recognized_intent: {str(reply.intent)}')
-                self.log_recognition_result(f'context: answer_yesno, recognized_intent: {str(reply.intent)}')
-                if reply.intent == "yesno_yes":
-                    return "yes"
-                elif reply.intent == "yesno_no":
-                    return "no"
-                elif reply.intent == "yesno_dontknow":
-                    return "dontknow"
-
-            self.log_recognition_result(f'context: answer_yesno, recognized_intent: None')
-            attempts += 1
-        self.log_recognition_result(f'context: answer_yesno, intent recognition failed')
-        return None
-
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=None, speaking_rate=None,
-                   animated=None):
-        attempts = 0
-
-        while attempts < max_attempts:
-            # ask question
-            self.say(question, speaking_rate=speaking_rate, animated=animated)
-            # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            # listen for answer
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context))
-            # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-            print("The detected intent:", reply.intent)
-
-            # Return entity
-            if reply.intent:
-                if target_intent in reply.intent:
-                    if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
-                        result_entity = reply.response.query_result.parameters[target_entity]
-                        self.log_recognition_result(f'context: {context}, target_intent: {target_intent}, '
-                                                    f'target_entity: {target_entity}, recognized_entity: {str(result_entity)}')
-                        return result_entity
-            attempts += 1
-            self.log_recognition_result(f'context: {context}, target_intent: {target_intent}, '
-                                        f'target_entity: {target_entity}, recognized_intent: None')
-
-        self.log_recognition_result(f'context: {context}, intent recognition failed')
-        return None
-
-    def ask_open(self, question, max_attempts=None, speaking_rate=None, animated=None, listening_behavior=False):
-        attempts = 0
-
-        while attempts < max_attempts:
-            # ask question
-            self.say(question, speaking_rate=speaking_rate, animated=animated)
-
-            # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            # listen for answer
-            if listening_behavior:
-                # self.animate_naoqi_leds(g=1)
-                self.listening_behavior()
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id))
-            if listening_behavior:
-                # self.animate_naoqi_leds()
-                self.listening_behavior(start=False)
-            # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-
-            print("The detected intent:", reply.intent)
-
-            # Return entity
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
-            attempts += 1
-        return None
-
-    def ask_entity_llm(self, question, strict=False, max_attempts=None, speaking_rate=None, animated=None):
-        attempts = 0
-
-        while attempts < max_attempts:
-            # ask question
-            self.say(question, speaking_rate=speaking_rate, animated=animated)
-
-            # self.set_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            # listen for answer
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id))
-            # self.set_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-
-            strict_instruction = ''
-            if strict:
-                strict_instruction = (f'Zorg ervoor dat de entity gerelateerd aan de vraag. '
-                                      f'Is dat niet het geval return dan "none"'
-                                      f'Bijvoorbeeld als de reactie is "lust er iemand nog koffie"'
-                                      f'dan is "koffie" niet gerelateerd aan de vraag.')
-            # Return entity
-            if reply.response.query_result.query_text:
-                print(f'transcript is {reply.response.query_result.query_text}')
-                gpt_response = self.gpt.request(
-                    GPTRequest(f'Je bent een sociale robot die praat met een kind tussen de 6 en 9 jaar oud. '
-                               f'De robot stelt een vraag over een interesse van het kind.'
-                               f'Jouw taak is om de key entity er uit te filteren'
-                               f'Bijvoorbeeld bij de vraag: "wat is je lievelingsdier?" '
-                               f'en de reactie "mijn lievelingsdier is een hond" '
-                               f'filter je alleen "hond" als key entity uit. '
-                               f'{strict_instruction}'
-                               # f'of bijvoorbeeld "wat is je superkracht?" en de reactie '
-                               # f'is "mijn superkracht is heel hard rennen"'
-                               # f'filter je "heel hard rennen" er uit.'
-                               f'Als robot heb je net het volgende gevraagt {question}'
-                               f'Dit is de reactie van het kind {reply.response.query_result.query_text}'
-                               f'Return alleen de key entity string terug (of none).'))
-                print(f'response is {gpt_response.response}')
-
-                self.log_recognition_result(f'llm extracted entity: {gpt_response.response}')
-                if gpt_response.response != 'none':
-                    return gpt_response.response
-            attempts += 1
-        self.log_recognition_result('llm extracted entity: None')
-        return None
-
-    def ask_llm(self, user_prompt, context_messages, system_prompt):
+    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
         try:
             resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
             text = (resp.response or "").strip()
+            if json_response:
+                return json.loads(text)
             return text
         except Exception as e:
             print(f"Exception: {e}")

@@ -189,7 +189,7 @@ class MiniDialog:
         context_messages = [
             entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
         ]
-        llm_text = self.conversation_agent.ask_llm(
+        llm_text = self.conversation_agent.request_from_gpt(
             user_prompt=user_answer,
             context_messages=context_messages,
             system_prompt=system_prompt,
@@ -287,7 +287,7 @@ class MiniDialog:
         dialog_history = []
         user_input = ""
         for _ in range(max_turns or MAX_LLM_TURNS):
-            llm_text = self.conversation_agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=prompt)
+            llm_text = self.conversation_agent.request_from_gpt(user_prompt=user_input, context_messages=dialog_history, system_prompt=prompt)
             if llm_text is None:
                 continue
 

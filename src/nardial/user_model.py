@@ -18,7 +18,7 @@ except Exception:
     _HAS_REDIS_DS = False
 
 
-class UserModelProxy:
+class UserModel:
     """
     Minimal dict-like proxy that routes CRUD operations to a Redis datastore.
     It keeps a small in-memory cache (snapshot) to retain compatibility with code expecting a mapping.
@@ -154,4 +154,4 @@ class UserModelProxy:
         return len(self._cache)
 
     def __repr__(self):
-        return f"UserModelProxy(pid={self._pid}, cache={self._cache})"
+        return f"UserModel(pid={self._pid}, cache={self._cache})"

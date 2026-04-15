@@ -5,7 +5,7 @@ import os
 import json
 import re
 
-from .user_model_proxy import UserModelProxy
+from .user_model import UserModel
 
 
 class Session:
@@ -63,7 +63,7 @@ class ConversationState:
             self.load_state_from_json()
 
         self.participant_id = participant_id
-        self.user_model = UserModelProxy(participant_id=self.participant_id)
+        self.user_model = UserModel(participant_id=self.participant_id)
 
         if self.participant_id is not None:
             self.restore_participant_state()

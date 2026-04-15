@@ -44,9 +44,10 @@ class ConversationState:
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self.use_json_file = use_json_file
 
-        # Default file location inside the caller's project
+        # Default file location inside the caller's project (only needed for JSON persistence)
         self.path = Path(path) if path else self.base_dir / "conversation_state.json"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.use_json_file:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -55,9 +56,10 @@ class ConversationState:
         # all sessions (append-only)
         self.sessions: List[Session] = []
 
-        # participants folder inside caller's project
-        self.participants_dir = self.base_dir / "participants"
-        self.participants_dir.mkdir(parents=True, exist_ok=True)
+        # participants folder inside caller's project (only needed for JSON persistence)
+        if self.use_json_file:
+            self.participants_dir = self.base_dir / "participants"
+            self.participants_dir.mkdir(parents=True, exist_ok=True)
 
         if self.use_json_file:
             self.load_state_from_json()
@@ -70,12 +72,16 @@ class ConversationState:
 
     def restore_participant_state(self) -> None:
         print(f"[INFO] Using participant_id={self.participant_id}")
-        pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
-
-        # For a new participant (no file), this will be empty -> fresh run
-        self.completed_dialogs = pid_completed or set()
-        self.topics_of_interest = pid_topics or []
         self.user_model.set_participant(self.participant_id)
+
+        # Load continuity from Redis (default) or JSON file (opt-in).
+        if self.use_json_file:
+            pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
+            self.completed_dialogs = pid_completed or set()
+            self.topics_of_interest = pid_topics or []
+        else:
+            self.completed_dialogs = set(self.user_model.get_completed_dialogs())
+            self.topics_of_interest = self.user_model.get_topics_of_interest()
 
         print(
             f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
@@ -183,10 +189,17 @@ class ConversationState:
         if topics_of_interest:
             self._merge_interests(topics_of_interest)
 
-        # Write/update per-participant transcript if participant_id present
+        # Persist continuity to Redis (always, regardless of use_json_file).
         pid = sess.participant_id
         if pid:
             self.user_model.set_participant(pid)
+            self.user_model.save_continuity(
+                completed_dialogs=list(self.completed_dialogs),
+                topics_of_interest=list(self.topics_of_interest),
+            )
+
+        # Write per-participant JSON transcript only when opted-in.
+        if self.use_json_file and pid:
             self.save_participant_transcript(pid)
 
     # ---------- helpers ----------

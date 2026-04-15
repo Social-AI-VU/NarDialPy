@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # Attempt to import the SIC Redis datastore message classes and client used by the demo.
 # The proxy will hide these details and gracefully fall back to in-memory behavior when unavailable.
@@ -16,6 +17,11 @@ try:
     _HAS_REDIS_DS = True
 except Exception:
     _HAS_REDIS_DS = False
+
+# Reserved keys used internally to persist continuity data alongside regular user-model values.
+_KEY_COMPLETED_DIALOGS = "_completed_dialogs"
+_KEY_TOPICS_OF_INTEREST = "_topics_of_interest"
+_KEY_LAST_UPDATED = "_last_updated"
 
 
 class UserModel:
@@ -69,6 +75,34 @@ class UserModel:
         except Exception:
             # On any failure, silently keep the current cache (fallback behavior)
             return
+
+    # ---- continuity helpers (completed_dialogs, topics_of_interest, metadata) ----
+
+    def get_completed_dialogs(self) -> List[str]:
+        """Return the list of completed dialog IDs stored for this participant."""
+        self._ensure_loaded()
+        return list(self._cache.get(_KEY_COMPLETED_DIALOGS) or [])
+
+    def set_completed_dialogs(self, dialog_ids: List[str]) -> None:
+        """Persist the completed dialog IDs for this participant."""
+        self[_KEY_COMPLETED_DIALOGS] = list(dialog_ids)
+
+    def get_topics_of_interest(self) -> List[str]:
+        """Return the list of topics of interest stored for this participant."""
+        self._ensure_loaded()
+        return list(self._cache.get(_KEY_TOPICS_OF_INTEREST) or [])
+
+    def set_topics_of_interest(self, topics: List[str]) -> None:
+        """Persist the topics of interest for this participant."""
+        self[_KEY_TOPICS_OF_INTEREST] = list(topics)
+
+    def save_continuity(self, completed_dialogs: List[str], topics_of_interest: List[str]) -> None:
+        """Persist all continuity fields (completed_dialogs, topics, metadata) in one write."""
+        self.update({
+            _KEY_COMPLETED_DIALOGS: list(completed_dialogs),
+            _KEY_TOPICS_OF_INTEREST: list(topics_of_interest),
+            _KEY_LAST_UPDATED: datetime.utcnow().isoformat(),
+        })
 
     # Mapping protocol
     def __getitem__(self, key: str) -> Any:

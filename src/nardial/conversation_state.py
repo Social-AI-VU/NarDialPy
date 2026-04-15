@@ -122,9 +122,12 @@ class ConversationState:
         self.topics_of_interest = []
         self.sessions = []
 
-        self.save()  # create file immediately
+        if self.use_json_file:
+            self.save()  # create file immediately
 
     def save(self) -> None:
+        if not self.use_json_file:
+            return
         data = {
             "completed_dialogs": self.completed_dialogs,
             "topics_of_interest": self.topics_of_interest,

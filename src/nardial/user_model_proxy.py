@@ -52,6 +52,21 @@ class UserModelProxy:
 
     def set_participant(self, participant_id: Optional[str]):
         self._pid = participant_id
+        if self._datastore and self._pid:
+            try:
+                self._ensure_loaded()
+            except Exception:
+                pass
+
+    def get_serializable_data(self) -> Dict[str, Any]:
+        """Return data suitable for JSON serialization.
+
+        Returns empty dict if remote storage is available (data lives there),
+        otherwise returns the local cache.
+        """
+        if self.remote_available():
+            return {}
+        return self.as_dict()
 
     def remote_available(self, check: bool = False) -> bool:
         """Return True if a remote datastore appears available.

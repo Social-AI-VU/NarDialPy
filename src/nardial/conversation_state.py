@@ -49,9 +49,6 @@ class ConversationState:
 
         # continuity
         self.completed_dialogs: List[str] = []
-        # store local snapshot from file load in _local_user_model; expose user_model as proxy
-        self._local_user_model: Dict[str, Any] = {}
-        self.user_model: Any = {}
         self.topics_of_interest: List[str] = []
 
         # all sessions (append-only)
@@ -61,12 +58,13 @@ class ConversationState:
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
-        self.load()
+        # Load state from file; returns raw user_model data for proxy init
+        loaded_user_model = self.load()
 
         self.participant_id = participant_id
 
-        # Create the user model proxy (uses local snapshot initially)
-        self.user_model = UserModelProxy(initial=self._local_user_model, participant_id=self.participant_id, datastore=datastore)
+        # Create user model proxy (handles local cache and remote datastore)
+        self.user_model = UserModelProxy(initial=loaded_user_model, participant_id=self.participant_id, datastore=datastore)
 
         if self.participant_id is not None:
             self.overwrite_with_participant_info()
@@ -79,17 +77,8 @@ class ConversationState:
         self.completed_dialogs = pid_completed or set()
         self.topics_of_interest = pid_topics or []
 
-        # Let the proxy know the participant id and attempt to load from remote if available.
-        try:
-            if hasattr(self.user_model, "set_participant"):
-                self.user_model.set_participant(self.participant_id)
-                # If the proxy reports remote availability, ask it to refresh its cache
-                if hasattr(self.user_model, "remote_available") and self.user_model.remote_available(check=True):
-                    if hasattr(self.user_model, "_ensure_loaded"):
-                        self.user_model._ensure_loaded()
-        except Exception:
-            # ignore failures and continue with local snapshot
-            pass
+        # Delegate participant loading (including remote refresh) to the proxy
+        self.user_model.set_participant(self.participant_id)
 
         print(
             f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
@@ -114,42 +103,24 @@ class ConversationState:
         except Exception:
             return set(), []
 
-    def load(self) -> None:
+    def load(self) -> Dict[str, Any]:
+        """Load state from file. Returns the raw user_model data for proxy init."""
         if not self.path.exists():
-            self._initialize_empty_state()
-            return
+            return {}
 
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
         except Exception:
-            # corrupted file fallback
-            self._initialize_empty_state()
-            return
+            return {}
 
         self.completed_dialogs = data.get("completed_dialogs", [])
-        # keep local snapshot; the user_model proxy will be created later
-        self._local_user_model = data.get("user_model", {})
         self.topics_of_interest = data.get("topics_of_interest", [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
-
-    def _initialize_empty_state(self) -> None:
-        self.completed_dialogs = []
-        self._local_user_model = {}
-        self.topics_of_interest = []
-        self.sessions = []
-
-        self.save()  # create file immediately
+        return data.get("user_model", {})
 
     def save(self) -> None:
-        # If a remote datastore is available, prefer it and avoid writing user_model into JSON.
-        try:
-            if hasattr(self.user_model, "remote_available") and self.user_model.remote_available(check=True):
-                user_model_data = {}
-            else:
-                user_model_data = self.user_model.as_dict() if hasattr(self.user_model, "as_dict") else self.user_model
-        except Exception:
-            user_model_data = self._local_user_model or {}
+        user_model_data = self.user_model.get_serializable_data()
 
         data = {
             "completed_dialogs": self.completed_dialogs,
@@ -203,30 +174,14 @@ class ConversationState:
         elif sess.dialog_ids:
             self._merge_completed(sess.dialog_ids)
         if user_model:
-            try:
-                # Prefer proxy update which will write to datastore if available
-                if hasattr(self.user_model, "update"):
-                    self.user_model.update(user_model)
-                else:
-                    self.user_model.update(user_model)
-            except Exception:
-                # Fallback to in-memory update
-                try:
-                    self.user_model.update(user_model)
-                except Exception:
-                    pass
+            self.user_model.update(user_model)
         if topics_of_interest:
             self._merge_interests(topics_of_interest)
 
         # Write/update per-participant transcript if participant_id present
         pid = sess.participant_id
         if pid:
-            # Ensure the proxy is aware of the participant id before saving transcript
-            try:
-                if hasattr(self.user_model, "set_participant"):
-                    self.user_model.set_participant(pid)
-            except Exception:
-                pass
+            self.user_model.set_participant(pid)
             self.save_participant_transcript(pid)
 
     # ---------- helpers ----------

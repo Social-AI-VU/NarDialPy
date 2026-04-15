@@ -95,31 +95,25 @@ class AnimationStyle(Enum):
 
 class InteractionConfig:
 
-    def __init__(self,  language="en", tts_conf: TTSConf = NaoqiTTSConf,  microphone_device=None, google_keyfile_path=None, openai_key_path=None):
+    def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
+                 openai_key_path=None, animation_style=AnimationStyle.EXPLANATORY):
         self.tts_conf = tts_conf
+        if not tts_conf:
+            self.tts_conf = GoogleTTSConf(
+                google_tts_voice_name="en-US-Standard-C",
+                speaking_rate=1.0
+            )
+
         self.microphone_device = microphone_device
         self.google_keyfile_path = google_keyfile_path
         self.openai_key_path = openai_key_path
+        self.animation_style = animation_style
+
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
             keyfile_json=json.load(open(google_keyfile_path)),
             sample_rate_hertz=44100,
             language=language
         )
-        self.animation_style = AnimationStyle.EXPLANATORY
-
-    @staticmethod
-    def apply_config_defaults(config_attr, param_names):
-        def decorator(func):
-            def wrapper(self, *args, **kwargs):
-                config = getattr(self, config_attr)
-                for name in param_names:
-                    if kwargs.get(name) is None:
-                        kwargs[name] = getattr(config, name)
-                return func(self, *args, **kwargs)
-
-            return wrapper
-
-        return decorator
 
 
 class DialogManager:
@@ -143,103 +137,54 @@ class DialogManager:
         self.background_loop = asyncio.new_event_loop()
         self.background_thread = Thread(target=self._start_loop, daemon=True)
         self.background_thread.start()
-
-        print('complete')
+        print('Complete')
 
         print("\n SETTING UP OPENAI")
+        self.gpt = None
         if self.interaction_conf.openai_key_path:
             load_dotenv(self.interaction_conf.openai_key_path)
-
         try:
-            # Setup GPT client
-            conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
-            self.gpt = GPT(conf=conf)
+            self.gpt = GPT(conf=GPTConf(openai_key=environ["OPENAI_API_KEY"]))
         except KeyError:
             self.logger.warning("No openAI key available")
-            self.gpt = None
         print('Complete')
 
         print("\n SETTING UP TTS")
-        # Set up TTS using tts_conf extracted from interaction_config
+        self.tts = None
+        self.sample_rate = None
+        self.elevenlabs = None
         self.tts_conf = self.interaction_conf.tts_conf
+        self.tts_cacher = TTSCacher()
         if isinstance(self.tts_conf, GoogleTTSConf):
-            # setup the tts service
-            if self.interaction_conf.dialogflow_conf is None:
-                raise ValueError("Google TTS requires a dialogflow_conf/keyfile to initialize")
-            self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=self.interaction_conf.dialogflow_conf.keyfile_json,
-                                                        speaking_rate=self.tts_conf.speaking_rate))
-            init_reply = self.tts.request(GetSpeechRequest(text="Ik ben aan het initializeren",
-                                                           voice_name=self.tts_conf.google_tts_voice_name,
-                                                           ssml_gender=self.tts_conf.google_tts_voice_gender))
-            self.sample_rate = init_reply.sample_rate
-            print('Google TTS activated')
+            self.activate_google_tts()
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.sample_rate = 22050
-            self.tts = ElevenLabsTTS(elevenlabs_key=environ["ELEVENLABS_API_KEY"],
-                                     voice_id=self.tts_conf.voice_id,
-                                     model_id=self.tts_conf.model_id,
-                                     sample_rate=self.sample_rate,
-                                     speaking_rate=self.tts_conf.speaking_rate)
-            connect_to_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.connect(),
-                                                                            self.background_loop)
-            try:
-                connect_to_elevenlabs_future.result()
-                asyncio.run_coroutine_threadsafe(self.tts.speak("Initializing text to speech"),
-                                                 self.background_loop).result()
-                print('Elevenlabs TTS activated')
-            except Exception as e:
-                self.logger.error("Failed to connect to elevenlabs", exc_info=e)
+            self.activate_elevenlabs_tts()
         elif isinstance(self.tts_conf, NaoqiTTSConf):
             pass
         else:
             raise ValueError(f"Unknown tts_conf {self.tts_conf}")
-
-        self.elevenlabs = ElevenLabs(
-            api_key=environ["ELEVENLABS_API_KEY"],
-        )
-
-        self.tts_cacher = TTSCacher()
         print("Complete")
 
         print("\n SETTING UP DEVICE MANAGER")
+        self.device_manager = device_manager
+        self.mic = self.device_manager.mic
+        self.speaker = self.device_manager.speaker
+        self.mini_api = None
+        self.animation_futures = []
         if self.interaction_conf.microphone_device:
             print("\n Additional Microphone Device Detected")
             self.mic = self.interaction_conf.microphone_device.mic
-        self.device_manager = device_manager
         if isinstance(self.device_manager, Alphamini):
-            print("\n Device is ALPHAMINI")
-
-            self.speaker = self.device_manager.speaker
-            if not self.interaction_conf.microphone_device:
-                self.mic = self.device_manager.mic
-
-            print("Connecting to miniSDK")
-            # Create asyncio event loop to keep connection open to miniSDK.
-            self.animation_futures = []
-            self.mini_api = None
-            connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
-            try:
-                connect_to_mini_sdk_future.result()
-                self.animate(AnimationType.ACTION, "009")  # Wake up
-                self.animate(AnimationType.EXPRESSION, "codemao20")  # Blink
-            except Exception as e:
-                self.logger.error("Failed to connect to mini device", exc_info=e)
+            self.setup_alphamini()
         elif isinstance(self.device_manager, Pepper):
-            print("\n Device is PEPPER")
-            self.speaker = self.device_manager.speaker
-            if not self.interaction_conf.microphone_device:
-                self.mic = self.device_manager.mic
+            self.setup_pepper()
         elif isinstance(self.device_manager, Desktop):
-            print("\n Device is COMPUTER")
-            self.speaker = self.device_manager.speakers
-            if not self.interaction_conf.microphone_device:
-                self.mic = self.device_manager.mic
+            self.setup_desktop()
         else:
             raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
         print("Complete")
 
         print("\n SETTING UP DIALOGFLOW")
-        # initiate Dialogflow object (use dialogflow_conf from interaction_config if available)
         self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=getattr(self, 'mic', None))
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
@@ -282,6 +227,60 @@ class DialogManager:
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
+
+    def activate_google_tts(self):
+        if self.interaction_conf.google_keyfile_path is None:
+            raise ValueError("Google TTS requires a google keyfile to initialize")
+        google_tts_conf = Text2SpeechConf(
+            keyfile_json=self.interaction_conf.google_keyfile_path,
+            speaking_rate=self.tts_conf.speaking_rate
+        )
+        self.tts = Text2Speech(conf=google_tts_conf)
+        init_reply = self.tts.request(GetSpeechRequest(text="Ik am initializing",
+                                                       voice_name=self.tts_conf.google_tts_voice_name,
+                                                       ssml_gender=self.tts_conf.google_tts_voice_gender))
+        self.sample_rate = init_reply.sample_rate
+        print('Google TTS activated')
+
+    def activate_elevenlabs_tts(self):
+        if "ELEVENLABS_API_KEY" not in environ:
+            raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable to initialize")
+        self.sample_rate = 22050
+        self.tts = ElevenLabsTTS(
+                            elevenlabs_key=environ["ELEVENLABS_API_KEY"],
+                             voice_id=self.tts_conf.voice_id,
+                             model_id=self.tts_conf.model_id,
+                             sample_rate=self.sample_rate,
+                             speaking_rate=self.tts_conf.speaking_rate
+        )
+        connect_to_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.connect(), self.background_loop)
+        try:
+            connect_to_elevenlabs_future.result()
+            asyncio.run_coroutine_threadsafe(self.tts.speak("Initializing text to speech"), self.background_loop).result()
+            self.elevenlabs = ElevenLabs(api_key=environ["ELEVENLABS_API_KEY"])
+            print('Elevenlabs TTS activated')
+        except Exception as e:
+            self.logger.error("Failed to connect to elevenlabs", exc_info=e)
+
+    def setup_alphamini(self):
+        print("\n Device is ALPHAMINI")
+        print("Connecting to miniSDK")
+        # Create asyncio event loop to keep connection open to miniSDK.
+        connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
+        try:
+            connect_to_mini_sdk_future.result()
+            self.animate(AnimationType.ACTION, "009")  # Wake up
+            self.animate(AnimationType.EXPRESSION, "codemao20")  # Blink
+        except Exception as e:
+            self.logger.error("Failed to connect to mini device", exc_info=e)
+
+    @staticmethod
+    def setup_pepper():
+        print("\n Device is PEPPER")
+
+    def setup_desktop(self):
+        print("\n Device is COMPUTER")
+        self.speaker = self.device_manager.speakers
 
     def google_say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False,
                    always_regenerate=False):
@@ -513,7 +512,7 @@ class DialogManager:
             sleep(sleep_time)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['speaking_rate', 'sleep_time', 'animated', 'amplified',
-                                                                'always_regenerate'])
+                                                                  'always_regenerate'])
     def say(self, text, speaking_rate=None, sleep_time=None, animated=None, amplified=False, always_regenerate=False,
             model_id='eleven_flash_v2_5', chunking=True):
         if isinstance(self.tts_conf, NaoqiTTSConf):

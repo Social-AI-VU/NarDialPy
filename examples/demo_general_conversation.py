@@ -22,7 +22,6 @@ if __name__ == '__main__':
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
         openai_key_path=openai_key_path,
-        tts_conf=GoogleTTSConf(google_tts_voice_name="en-US-Standard-C")
     )
     agent = ConversationAgent(device, interaction_config)
 

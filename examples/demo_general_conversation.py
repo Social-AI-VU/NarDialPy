@@ -24,7 +24,6 @@ if __name__ == '__main__':
         google_keyfile_path=google_keyfile_path,
         openai_key_path=openai_key_path,
     )
-    interaction_config.always_regenerate = True
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 
     # all dialogs for now

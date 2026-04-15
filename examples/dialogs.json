@@ -77,15 +77,21 @@
         "text": "What is it called when you sleep and experience all sorts of things and then suddenly wake up?",
         "options": ["dreaming", "sleeping", "resting"],
         "set_variable": "what_is_dreaming",
-        "next": {
-          "dreaming": "correct",
-          "sleeping": "incorrect",
-          "resting": "incorrect",
-          "fail": "incorrect"
+        "outcomes": { "dreaming": "correct", "sleeping": "incorrect", "resting": "incorrect" },
+        "default_outcome": "incorrect"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "correct": [
+            { "type": "say", "text": "Indeed, dreaming." }
+          ],
+          "incorrect": [
+            { "type": "say", "text": "This is called dreaming!" }
+          ]
         }
       },
-      { "type": "say", "text": "This is called dreaming!", "branch": "incorrect" },
-      { "type": "say", "text": "Indeed, dreaming.", "branch": "correct" },
       { "type": "say", "text": "I sometimes dream of being a robot dog with four legs." },
       { "type": "say", "text": "I can fetch and deliver letters." },
       { "type": "say", "text": "What do you dream about?" },
@@ -93,18 +99,24 @@
         "type": "ask_yesno",
         "text": "Do you remember any of your dreams?",
         "set_variable": "remembered_dream",
-        "next": {
-          "yes": "dream_mem_yes",
-          "no": "dream_mem_no",
-          "dontknow": "dream_mem_no",
-          "fail": "dream_mem_no"
-        }
+        "outcomes": { "yes": "dream_mem_yes" },
+        "default_outcome": "dream_mem_no"
       },
-      { "type": "ask_open", "text": "What was it about?", "branch": "dream_mem_yes" },
-      { "type": "say", "text": "That's something!", "branch": "dream_mem_yes" },
-      { "type": "say", "text": "I have that sometimes too!", "branch": "dream_mem_no" },
-      { "type": "say", "text": "Then you dream something and afterwards it's gone!", "branch": "dream_mem_no" }
-    ]
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "dream_mem_yes": [
+            { "type": "ask_open", "text": "What was it about?" },
+            { "type": "say", "text": "That's something!" }
+          ],
+          "dream_mem_no": [
+            { "type": "say", "text": "I have that sometimes too!" },
+            { "type": "say", "text": "Then you dream something and afterwards it's gone!" }
+          ]
+        }
+      }
+        ]
   },
   {
     "id": "dream_on_demand_2",
@@ -171,24 +183,35 @@
         "type": "ask_options",
         "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
         "options": ["sea", "forest", "mountains", "beach"],
-        "next": {
-          "sea": "sea",
-          "forest": "forest",
-          "mountains": "mountains",
-          "beach": "beach",
-          "fail": "fail_place"
-        },
         "set_variable": "favorite_nature_place",
-        "add_interest_from_variable": true
+        "add_interest_from_variable": true,
+        "outcomes": { "sea": "sea", "forest": "forest", "mountains": "mountains", "beach": "beach" },
+        "default_outcome": "fail_place"
       },
-      { "type": "say", "text": "I also really love the sea!", "branch": "sea" },
-      { "type": "say", "text": "If you hold a shell to your ear, it’s just like you hear the sea.", "branch": "sea" },
-      { "type": "say", "text": "I also really like going to the forest!", "branch": "forest" },
-      { "type": "say", "text": "How exciting! From the top of a mountain you have the most beautiful view over the world.", "branch": "mountains" },
-      { "type": "say", "text": "I’d really like to go there for real sometime!", "branch": "beach" },
-      { "type": "say", "text": "I think I would most like to go to the sea.", "branch": "fail_place" },
-      { "type": "say", "text": "Okay, let’s talk about something else!", "branch": null }
-    ]
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "sea": [
+            { "type": "say", "text": "I also really love the sea!" },
+            { "type": "say", "text": "If you hold a shell to your ear, it's just like you hear the sea." }
+          ],
+          "forest": [
+            { "type": "say", "text": "I also really like going to the forest!" }
+          ],
+          "mountains": [
+            { "type": "say", "text": "How exciting! From the top of a mountain you have the most beautiful view over the world." }
+          ],
+          "beach": [
+            { "type": "say", "text": "I’d really like to go there for real sometime!" }
+          ],
+          "fail_place": [
+            { "type": "say", "text": "I think I would most like to go to the sea." }
+          ]
+        }
+      },
+      { "type": "say", "text": "Okay, let’s talk about something else!" }
+        ]
   },
   {
     "id": "talk_about_sea",
@@ -203,12 +226,22 @@
         "text": "What do you like most about the sea?",
         "set_variable": "favorite_sea_thing",
         "add_interest_from_answer": true,
-        "next": { "success": "has_sea_thing", "fail": "no_sea_thing" }
+        "outcomes": { "*": "has_sea_thing" },
+        "default_outcome": "no_sea_thing"
       },
-      { "type": "say", "text": "%favorite_sea_thing% are great!", "branch": "has_sea_thing" },
-      { "type": "say", "text": "No worries, maybe we’ll find something you like next time.", "branch": "no_sea_thing" },
-      { "type": "say", "text": "That’s okay, maybe mountains or forests are more your thing.", "branch": "no_sea" }
-    ]
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "has_sea_thing": [
+            { "type": "say", "text": "%favorite_sea_thing% are great!" }
+          ],
+          "no_sea_thing": [
+            { "type": "say", "text": "No worries, maybe we’ll find something you like next time." }
+          ]
+        }
+      }
+        ]
   },
   {
     "id": "favorite_tree",
@@ -254,25 +287,69 @@
       {
         "type": "ask_yesno",
         "text": "Would you ever want to be a robot?",
-        "next": { "yes": "yes", "no": "no", "dontknow": "dontknow", "fail": "no" },
         "set_variable": "wants_to_be_robot",
-        "add_interest": "robots"
+        "add_interest": "robots",
+        "outcomes": { "yes": "yes", "no": "no", "dontknow": "dontknow" },
+        "default_outcome": "no"
       },
-      { "type": "say", "text": "Bizarre!", "branch": "yes" },
-      { "type": "ask_open", "text": "Why would you want to be a robot?", "branch": "yes", "next": { "success": "open_answer", "fail": "dontknow" } },
-      { "type": "say", "text": "That’s okay, sometimes I don’t know either.", "branch": "dontknow" },
-      { "type": "say", "text": "I really like hearing that!", "branch": "open_answer" },
-      { "type": "ask_yesno", "text": "May I also tell other robots about that?", "branch": "open_answer", "next": { "yes": "yes2", "no": "no2", "dontknow": "no2", "fail": "no2" } },
-      { "type": "say", "text": "Hooray! Just a moment.", "branch": "yes2" },
-      { "type": "say", "text": "I passed it on to them via wifi.", "branch": "yes2" },
-      { "type": "say", "text": "And lots of robots say thank you, dear first_name.", "branch": "yes2" },
-      { "type": "say", "text": "Alright, then I’ll keep your sweet words just for myself.", "branch": "no2" },
-      { "type": "say", "text": "Thank you, dear first_name.", "branch": "no2" },
-      { "type": "say", "text": "Well, you don’t know what you’re missing!", "branch": "no" },
-      { "type": "say", "text": "But of course, I don’t know what it’s like to be human either.", "branch": "no" },
-      { "type": "say", "text": "Maybe that actually is more fun.", "branch": "no" },
-      { "type": "say", "text": "But I don’t think I’ll ever find out!", "branch": "no" }
-    ]
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "yes": [
+            { "type": "say", "text": "Bizarre!" },
+            {
+              "type": "ask_open",
+              "text": "Why would you want to be a robot?",
+              "outcomes": { "*": "open_answer" },
+              "default_outcome": "dontknow"
+            },
+            {
+              "type": "branch",
+              "on": "outcome",
+              "cases": {
+                "open_answer": [
+                  { "type": "say", "text": "I really like hearing that!" },
+                  {
+                    "type": "ask_yesno",
+                    "text": "May I also tell other robots about that?",
+                    "outcomes": { "yes": "yes2" },
+                    "default_outcome": "no2"
+                  },
+                  {
+                    "type": "branch",
+                    "on": "outcome",
+                    "cases": {
+                      "yes2": [
+                        { "type": "say", "text": "Hooray! Just a moment." },
+                        { "type": "say", "text": "I passed it on to them via wifi." },
+                        { "type": "say", "text": "And lots of robots say thank you, dear first_name." }
+                      ],
+                      "no2": [
+                        { "type": "say", "text": "Alright, then I'll keep your sweet words just for myself." },
+                        { "type": "say", "text": "Thank you, dear first_name." }
+                      ]
+                    }
+                  }
+                ],
+                "dontknow": [
+                  { "type": "say", "text": "That's okay, sometimes I don't know either." }
+                ]
+              }
+            }
+          ],
+          "no": [
+            { "type": "say", "text": "Well, you don't know what you're missing!" },
+            { "type": "say", "text": "But of course, I don't know what it's like to be human either." },
+            { "type": "say", "text": "Maybe that actually is more fun." },
+            { "type": "say", "text": "But I don't think I'll ever find out!" }
+          ],
+          "dontknow": [
+            { "type": "say", "text": "That's okay, sometimes I don't know either." }
+          ]
+        }
+      }
+        ]
   },
   {
     "id": "robot_favorite_feature",
@@ -313,13 +390,27 @@
     "theme": "animals",
     "topics": ["animals","dogs"],
     "moves": [
-      { "type": "ask_yesno", "text": "Do you like dogs?",
-        "next": { "yes": "yes", "no": "no", "dontknow": "no", "fail": "no" },
+      {
+        "type": "ask_yesno",
+        "text": "Do you like dogs?",
         "set_variable": "likes_dogs",
-        "add_interest": "dogs" },
-      { "type": "say", "text": "Nice! Dogs are great.", "branch": "yes" },
-      { "type": "say", "text": "No problem, different tastes!", "branch": "no" }
-    ]
+        "add_interest": "dogs",
+        "outcomes": { "yes": "yes" },
+        "default_outcome": "no"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "yes": [
+            { "type": "say", "text": "Nice! Dogs are great." }
+          ],
+          "no": [
+            { "type": "say", "text": "No problem, different tastes!" }
+          ]
+        }
+      }
+        ]
   },
   {
     "id": "dogs",
@@ -330,10 +421,27 @@
     "variable_dependencies": [ { "variable": "likes_dogs", "required": true } ],
     "moves": [
       { "type": "say", "text": "You said earlier that you like dogs!" },
-      { "type": "ask_open", "text": "What is your favorite dog breed?", "branch": "likes_yes", "set_variable": "favorite_dog_breed", "add_interest_from_answer": true, "next": { "success": "got_breed", "fail": "no_breed" } },
-      { "type": "say", "text": "%favorite_dog_breed% are awesome!", "branch": "got_breed" },
-      { "type": "say", "text": "That's okay, there are so many breeds!", "branch": "no_breed" }
-    ]
+      {
+        "type": "ask_open",
+        "text": "What is your favorite dog breed?",
+        "set_variable": "favorite_dog_breed",
+        "add_interest_from_answer": true,
+        "outcomes": { "*": "got_breed" },
+        "default_outcome": "no_breed"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "got_breed": [
+            { "type": "say", "text": "%favorite_dog_breed% are awesome!" }
+          ],
+          "no_breed": [
+            { "type": "say", "text": "That's okay, there are so many breeds!" }
+          ]
+        }
+      }
+        ]
   },
   {
     "id": "personalization_test",

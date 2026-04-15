@@ -3,9 +3,9 @@ import re
 
 from src.nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
-    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, \
+    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP
+    MOVE_LLM_FOLLOWUP, MOVE_BRANCH
 
 from enum import Enum
 
@@ -36,6 +36,7 @@ class MiniDialog:
         self.session_history = []
         self.topics_of_interest = []
         self.user_model = {}
+        self.current_outcome = None
 
     def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
         self.conversation_agent = agent
@@ -121,68 +122,66 @@ class MiniDialog:
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
         idx = 0
-        branch = None
 
         while idx < len(self.moves):
             move = self.moves[idx]
-            move_type = self._get(move, 'type')
-            move_branch = self._get(move, 'branch')
-            if move_branch != branch:
-                if branch is not None and move_branch is None:
-                    branch = None
-                else:
-                    idx += 1
-                    continue
+            self._dispatch_move(move)
+            idx += 1
 
-            if move_type == MOVE_SAY:
-                self.handle_move_say(move)
-                idx += 1
-            elif move_type == MOVE_ASK_YESNO:
-                answer = self.handle_move_ask_yesno(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_ASK_OPEN:
-                answer = self.handle_move_ask_open(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_ASK_OPTIONS:
-                answer = self.handle_move_ask_options(move)
-                branch = self.find_next_branch(branch, move, answer)
-                idx = self.find_branch_start(branch, idx)
-            elif move_type == MOVE_PLAY_AUDIO:
-                self.handle_move_play_audio(move)
-                idx += 1
-            elif move_type == MOVE_MOTION_SEQUENCE:
-                self.handle_move_motion_sequence(move)
-                idx += 1
-            elif move_type == MOVE_ANIMATION:
-                self.handle_move_animation(move)
-                idx += 1
-            elif move_type == MOVE_ASK_LLM:
+    def _resolve_outcome(self, move, answer) -> None:
+        """Resolve and store ``current_outcome`` from the declarative outcome fields.
+
+        Resolution order:
+        1. Exact match: if ``answer`` appears as a key in ``outcomes``, use that label.
+        2. Wildcard: if ``"*"`` is a key in ``outcomes`` and ``answer`` is non-empty,
+           use that label (useful for free-text ``ask_open`` answers).
+        3. Default: ``default_outcome`` is used when the answer is empty/None, or
+           when no exact or wildcard match is found.
+        """
+        outcomes = self._get(move, 'outcomes') or {}
+        default_outcome = self._get(move, 'default_outcome')
+        if answer and answer in outcomes:
+            self.current_outcome = outcomes[answer]
+        elif answer and "*" in outcomes:
+            self.current_outcome = outcomes["*"]
+        else:
+            self.current_outcome = default_outcome
+
+    def handle_move_branch(self, move) -> None:
+        """Execute the sub-moves for the matching case of a ``branch`` move."""
+        move = MoveBranch.from_dict(move)
+        if move.on == "outcome":
+            key = self.current_outcome
+        else:
+            key = self.user_model.get(move.on)
+        case_moves = move.cases.get(key, [])
+        for sub_move in case_moves:
+            self._dispatch_move(sub_move)
+
+    def _dispatch_move(self, move) -> None:
+        """Execute a single move dict."""
+        move_type = self._get(move, 'type')
+        if move_type == MOVE_SAY:
+            self.handle_move_say(move)
+        elif move_type == MOVE_ASK_YESNO:
+            answer = self.handle_move_ask_yesno(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_ASK_OPEN:
+            answer = self.handle_move_ask_open(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_ASK_OPTIONS:
+            answer = self.handle_move_ask_options(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_BRANCH:
+            self.handle_move_branch(move)
+        elif move_type == MOVE_PLAY_AUDIO:
+            self.handle_move_play_audio(move)
+        elif move_type == MOVE_MOTION_SEQUENCE:
+            self.handle_move_motion_sequence(move)
+        elif move_type == MOVE_ANIMATION:
+            self.handle_move_animation(move)
+        elif move_type == MOVE_ASK_LLM:
                 self.handle_move_ask_llm(move)
-                idx += 1
-            else:
-                idx += 1
-
-    def find_next_branch(self, branch, move, answer):
-        next_map = self._get(move, 'next', {}) or {}
-        if next_map:
-            if answer:
-                branch = next_map.get("success", None)
-            else:
-                branch = next_map.get("fail", None)
-        return branch
-
-    def find_branch_start(self, branch, idx):
-        if branch is None:  # continue to next move
-            return idx + 1
-
-        # Find the jump target for a branch; if it doesn’t exist, end the dialog.
-        for i, move in enumerate(self.moves):
-            if self._get(move, 'branch') == branch:
-                return i
-
-        return len(self.moves)  # End if not found
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""

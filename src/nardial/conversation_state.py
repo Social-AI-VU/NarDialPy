@@ -60,15 +60,15 @@ class ConversationState:
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
         if self.use_json_file:
-            self.load()
+            self.load_state_from_json()
 
         self.participant_id = participant_id
         self.user_model = UserModelProxy(participant_id=self.participant_id)
 
         if self.participant_id is not None:
-            self.overwrite_with_participant_info()
+            self.restore_participant_state()
 
-    def overwrite_with_participant_info(self) -> None:
+    def restore_participant_state(self) -> None:
         print(f"[INFO] Using participant_id={self.participant_id}")
         pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
 
@@ -100,7 +100,7 @@ class ConversationState:
         except Exception:
             return set(), []
 
-    def load(self) -> None:
+    def load_state_from_json(self) -> None:
         if not self.path.exists():
             self._initialize_empty_state()
             return
@@ -123,9 +123,9 @@ class ConversationState:
         self.sessions = []
 
         if self.use_json_file:
-            self.save()  # create file immediately
+            self.save_state_to_json()  # create file immediately
 
-    def save(self) -> None:
+    def save_state_to_json(self) -> None:
         if not self.use_json_file:
             return
         data = {

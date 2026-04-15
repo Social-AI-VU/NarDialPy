@@ -85,7 +85,7 @@ class SessionManager:
                                             completed_ids=self.conversation_state.completed_dialogs,
                                             user_model=self.conversation_state.user_model,
                                             topics_of_interest=topics_of_interest)
-        self.conversation_state.save()
+        self.conversation_state.save_state_to_json()
         print("Conversation state saved.")
 
     def condense_topics(self, topics_of_interest):

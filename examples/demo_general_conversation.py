@@ -5,7 +5,6 @@ from sic_framework.devices.desktop import Desktop
 from nardial.conversation_agent import ConversationAgent
 from nardial.dialog_manager import InteractionConfig
 from nardial.session_manager import SessionManager
-from nardial.tts_manager import GoogleTTSConf
 
 # setup key files paths
 google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))

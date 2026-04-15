@@ -7,7 +7,9 @@ from nardial.dialog_manager import DialogManager, InteractionConfig
 
 
 class ConversationAgent:
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = InteractionConfig()):
+    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
+        if int_config is None:
+            int_config = InteractionConfig()
         self.dialog_manager = DialogManager(device_manager=device_manager, int_config=int_config)
         self.device = device_manager
 
@@ -31,43 +33,27 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply = self.dialog_manager.listen(context={'answer_yesno': 1})
+            reply, intent = self.dialog_manager.listen(context={'answer_yesno': 1})
 
-            if reply.intent:
-                print(f'context: answer_yesno, recognized_intent: {str(reply.intent)}')
-                if reply.intent == "yesno_yes":
+            if intent:
+                print(f'context: answer_yesno, recognized_intent: {str(intent)}')
+                if intent == "yesno_yes":
                     return "yes"
-                elif reply.intent == "yesno_no":
+                elif intent == "yesno_no":
                     return "no"
-                elif reply.intent == "yesno_dontknow":
+                elif intent == "yesno_dontknow":
                     return "dontknow"
 
             attempts += 1
-        return None
-
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2):
-        attempts = 0
-        while attempts < max_attempts:
-            self.say(question)
-            reply = self.dialog_manager.listen(context=context)
-
-            if reply.intent:
-                if target_intent in reply.intent:
-                    if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
-                        result_entity = reply.response.query_result.parameters[target_entity]
-                        return result_entity
-
-            attempts += 1
-
         return None
 
     def ask_open(self, question, max_attempts=2):
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply = self.dialog_manager.listen()
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
+            reply, _ = self.dialog_manager.listen()
+            if reply:
+                return reply
             attempts += 1
         return None
 

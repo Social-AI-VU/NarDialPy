@@ -43,7 +43,7 @@ from sic_framework.services.llm.openai_gpt import GPT
 from sic_framework.services.llm import GPTConf, GPTRequest
 from dotenv import load_dotenv
 
-from tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
+from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
 
 """
@@ -188,7 +188,7 @@ class DialogManager:
         print("\n SETTING UP DEVICE MANAGER")
         self.device_manager = device_manager
         self.mic = self.device_manager.mic
-        self.speaker = self.device_manager.speaker
+        self.speaker = None
         self.mini_api = None
         self.animation_futures = []
         if self.interaction_conf.microphone_device:
@@ -254,7 +254,7 @@ class DialogManager:
         if self.interaction_conf.google_keyfile_path is None:
             raise ValueError("Google TTS requires a google keyfile to initialize")
         google_tts_conf = Text2SpeechConf(
-            keyfile_json=self.interaction_conf.google_keyfile_path,
+            keyfile_json=json.load(open(self.interaction_conf.google_keyfile_path)),
             speaking_rate=self.tts_conf.speaking_rate
         )
         self.tts = Text2Speech(conf=google_tts_conf)
@@ -287,6 +287,7 @@ class DialogManager:
     def setup_alphamini(self):
         print("\n Device is ALPHAMINI")
         print("Connecting to miniSDK")
+        self.speaker = self.device_manager.speaker
         # Create asyncio event loop to keep connection open to miniSDK.
         connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
         try:
@@ -296,12 +297,12 @@ class DialogManager:
         except Exception as e:
             self.logger.error("Failed to connect to mini device", exc_info=e)
 
-    @staticmethod
-    def setup_pepper():
+    def setup_pepper(self):
+        self.speaker = self.device_manager.speaker
         print("\n Device is PEPPER")
 
-    @staticmethod
-    def setup_nao():
+    def setup_nao(self):
+        self.speaker = self.device_manager.speaker
         print("\n Device is NAO")
 
     def setup_desktop(self):
@@ -414,9 +415,10 @@ class DialogManager:
         try:
             reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
             print("The detected intent:", reply.intent)
+            intent = reply.intent if reply.intent else None
             if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
-            return None
+                return reply.response.query_result.query_text, intent
+            return None, intent
         except TimeoutError as e:
             print("Error:", e)
         if self.interaction_conf.signal_listening_behavior:

@@ -1,5 +1,5 @@
 import random
-from src.nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
+from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
 class DialogLogic:

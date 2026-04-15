@@ -96,7 +96,7 @@ class AnimationStyle(Enum):
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, animation_style=AnimationStyle.EXPLANATORY):
+                 openai_key_path=None, signal_listening_behavior=True):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -109,8 +109,9 @@ class InteractionConfig:
         self.microphone_device = microphone_device
         self.google_keyfile_path = google_keyfile_path
         self.openai_key_path = openai_key_path
-        self.animation_style = animation_style
+        self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
         self.animated = True
+        self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
 
@@ -408,6 +409,8 @@ class DialogManager:
         return audio_bytes
 
     def listen(self, context=None, timeout=10):
+        if self.interaction_conf.signal_listening_behavior:
+            self.signal_listening_behavior(start=True)
         try:
             reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
             print("The detected intent:", reply.intent)
@@ -416,6 +419,8 @@ class DialogManager:
             return None
         except TimeoutError as e:
             print("Error:", e)
+        if self.interaction_conf.signal_listening_behavior:
+            self.signal_listening_behavior(start=False)
 
     def play_audio(self, audio_file, amplified=False, log=True):
         with wave.open(audio_file, 'rb') as wf:
@@ -554,22 +559,16 @@ class DialogManager:
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf
 
-    def listening_behavior(self, start=True):
-        # has not yet been tested on noa and alphamini
+    def signal_listening_behavior(self, start=True):
         if start:
             if isinstance(self.device_manager, Alphamini):
-                # taken from droomrobot code
                 self.set_alphamini_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            elif isinstance(self.device_manager, Nao):
-                self.animate_naoqi_leds(g=1)
-            elif isinstance(self.device_manager, Pepper):
+            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
                 self.animate_naoqi_leds(g=1)
         else:
             if isinstance(self.device_manager, Alphamini):
                 self.set_alphamini_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-            elif isinstance(self.device_manager, Nao):
-                self.animate_naoqi_leds()
-            elif isinstance(self.device_manager, Pepper):
+            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
                 self.animate_naoqi_leds()
 
     def animation(self):

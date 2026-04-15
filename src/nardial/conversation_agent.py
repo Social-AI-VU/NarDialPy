@@ -3,29 +3,29 @@ import re
 
 from sic_framework.devices import Nao, Pepper
 from sic_framework.devices.device import SICDeviceManager
-from nardial.dialog_manager import DialogManager, InteractionConfig
+from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
 class ConversationAgent:
     def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
         if int_config is None:
             int_config = InteractionConfig()
-        self.dialog_manager = DialogManager(device_manager=device_manager, int_config=int_config)
+        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
         self.device = device_manager
 
     def say(self, text):
-        self.dialog_manager.say(text)
+        self.orchestrator.say(text)
 
     def play_audio(self, audio_file):
-        self.dialog_manager.play_audio(audio_file)
+        self.orchestrator.play_audio(audio_file)
 
     def play_motion_sequence(self, motion_sequence_file):
-        self.dialog_manager.play_motion(motion_sequence_file)
+        self.orchestrator.play_motion(motion_sequence_file)
 
     def play_animation(self, animation_name, block=False):
         if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
             try:
-                self.dialog_manager.animate_naoqi(animation_name, block)
+                self.orchestrator.animate_naoqi(animation_name, block)
             except Exception as e:
                 print(f"Failed to play animation: {animation_name}", e)
 
@@ -33,7 +33,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, intent = self.dialog_manager.listen(context={'answer_yesno': 1})
+            reply, intent = self.orchestrator.listen(context={'answer_yesno': 1})
 
             if intent:
                 print(f'context: answer_yesno, recognized_intent: {str(intent)}')
@@ -51,7 +51,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, _ = self.dialog_manager.listen()
+            reply, _ = self.orchestrator.listen()
             if reply:
                 return reply
             attempts += 1
@@ -105,7 +105,7 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.dialog_manager.request_from_gpt(system_prompt=prompt)
+            data = self.orchestrator.request_from_gpt(system_prompt=prompt)
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -121,4 +121,4 @@ class ConversationAgent:
             return _heuristic(raw_topics)
 
     def ask_llm(self, user_prompt, context_messages, system_prompt):
-        return self.dialog_manager.request_from_gpt(user_prompt, context_messages, system_prompt)
+        return self.orchestrator.request_from_gpt(user_prompt, context_messages, system_prompt)

@@ -136,7 +136,7 @@ class InteractionConfig:
         return decorator
 
 
-class DialogManager:
+class InteractionOrchestrator:
     def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig):
 
         print("\n SETTING UP BASIC PROCESSING")

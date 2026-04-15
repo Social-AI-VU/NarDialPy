@@ -5,7 +5,7 @@ from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.devices.desktop import Desktop
 
 from nardial.conversation_agent import ConversationAgent
-from nardial.dialog_manager import InteractionConfig
+from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
 
 # setup key files paths

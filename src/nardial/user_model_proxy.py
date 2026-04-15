@@ -20,22 +20,21 @@ except Exception:
 
 class UserModelProxy:
     """
-    Minimal dict-like proxy that routes CRUD operations to the provided datastore when available.
+    Minimal dict-like proxy that routes CRUD operations to a Redis datastore.
     It keeps a small in-memory cache (snapshot) to retain compatibility with code expecting a mapping.
 
     Behavior:
-    - If `datastore` is supplied, use it.
-    - Else, if the SIC Redis client is available, try to construct a default RedisDatastore.
-    - If no datastore can be used, remain in pure in-memory mode and callers should persist to JSON.
+    - If the SIC Redis client is available, connect to the default RedisDatastore.
+    - If no datastore can be used, remain in pure in-memory mode.
     """
 
-    def __init__(self, initial: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, datastore: Optional[Any] = None):
-        self._cache: Dict[str, Any] = dict(initial or {})
+    def __init__(self, *, participant_id: Optional[str] = None):
+        self._cache: Dict[str, Any] = {}
         self._pid = participant_id
-        self._datastore = datastore
+        self._datastore = None
 
-        # If no datastore was provided, attempt to create a default RedisDatastore (hidden here).
-        if self._datastore is None and _HAS_REDIS_DS:
+        # Attempt to create a default RedisDatastore.
+        if _HAS_REDIS_DS:
             try:
                 conf = RedisDatastoreConf(
                     host="127.0.0.1",
@@ -57,32 +56,6 @@ class UserModelProxy:
                 self._ensure_loaded()
             except Exception:
                 pass
-
-    def get_serializable_data(self) -> Dict[str, Any]:
-        """Return data suitable for JSON serialization.
-
-        Returns empty dict if remote storage is available (data lives there),
-        otherwise returns the local cache.
-        """
-        if self.remote_available():
-            return {}
-        return self.as_dict()
-
-    def remote_available(self, check: bool = False) -> bool:
-        """Return True if a remote datastore appears available.
-
-        If `check` is True and a participant id is set, perform a lightweight GET to validate connectivity.
-        """
-        if not self._datastore:
-            return False
-        if not check or not self._pid:
-            return True
-        try:
-            # Try a lightweight read; if it raises, remote is unavailable
-            resp = self._datastore.request(GetUsermodelRequest(user_id=self._pid))
-            return True
-        except Exception:
-            return False
 
     def _ensure_loaded(self) -> None:
         # If we have a datastore and a participant id, try to load the full user model from Redis.

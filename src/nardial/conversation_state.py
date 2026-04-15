@@ -38,10 +38,11 @@ class ConversationState:
             path: Optional[str] = None,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
-            datastore: Optional[Any] = None,
+            use_json_file: bool = False,
     ) -> None:
         # Determine base directory
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
+        self.use_json_file = use_json_file
 
         # Default file location inside the caller's project
         self.path = Path(path) if path else self.base_dir / "conversation_state.json"
@@ -58,13 +59,11 @@ class ConversationState:
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load state from file; returns raw user_model data for proxy init
-        loaded_user_model = self.load()
+        if self.use_json_file:
+            self.load()
 
         self.participant_id = participant_id
-
-        # Create user model proxy (handles local cache and remote datastore)
-        self.user_model = UserModelProxy(initial=loaded_user_model, participant_id=self.participant_id, datastore=datastore)
+        self.user_model = UserModelProxy(participant_id=self.participant_id)
 
         if self.participant_id is not None:
             self.overwrite_with_participant_info()
@@ -76,8 +75,6 @@ class ConversationState:
         # For a new participant (no file), this will be empty -> fresh run
         self.completed_dialogs = pid_completed or set()
         self.topics_of_interest = pid_topics or []
-
-        # Delegate participant loading (including remote refresh) to the proxy
         self.user_model.set_participant(self.participant_id)
 
         print(
@@ -103,28 +100,33 @@ class ConversationState:
         except Exception:
             return set(), []
 
-    def load(self) -> Dict[str, Any]:
-        """Load state from file. Returns the raw user_model data for proxy init."""
+    def load(self) -> None:
         if not self.path.exists():
-            return {}
+            self._initialize_empty_state()
+            return
 
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
         except Exception:
-            return {}
+            # corrupted file fallback
+            self._initialize_empty_state()
+            return
 
         self.completed_dialogs = data.get("completed_dialogs", [])
         self.topics_of_interest = data.get("topics_of_interest", [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
-        return data.get("user_model", {})
+
+    def _initialize_empty_state(self) -> None:
+        self.completed_dialogs = []
+        self.topics_of_interest = []
+        self.sessions = []
+
+        self.save()  # create file immediately
 
     def save(self) -> None:
-        user_model_data = self.user_model.get_serializable_data()
-
         data = {
             "completed_dialogs": self.completed_dialogs,
-            "user_model": user_model_data,
             "topics_of_interest": self.topics_of_interest,
             "sessions": [s.__dict__ for s in self.sessions],
         }

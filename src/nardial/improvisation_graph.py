@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, TypedDict
@@ -8,6 +7,11 @@ from typing import Any, Callable, Dict, List, Literal, TypedDict
 
 DEFAULT_MAX_TURNS = 6
 DEFAULT_QUIT_SIGNAL = "<<STOP_IMPROV>>"
+DEFAULT_SPEECH_CLEANER_PROMPT = (
+    "You rewrite text into exactly what a social robot should say out loud. "
+    "Remove any metadata, role labels, transcript wrappers, or formatting noise. "
+    "Return only the final spoken utterance, plain text, no prefixes, no quotes, no explanation."
+)
 
 
 def _build_runtime_prompt(system_prompt: str, topics_of_interest: List[str], user_model: Dict[str, Any]) -> str:
@@ -27,22 +31,14 @@ def _build_runtime_prompt(system_prompt: str, topics_of_interest: List[str], use
     )
 
 
-def strip_spoken_role_prefix(text: str) -> str:
-    """Remove leading role labels models often copy from transcript formatting (e.g. 'robot: ')."""
+def _normalize_spoken_text(text: str, quit_signal: str | None = None) -> str:
+    """Minimal safety normalization after LLM verification."""
     if not text:
-        return text
+        return ""
     t = text.strip()
-    # e.g. "robot:", "Robot :", "assistant:"
-    prefix_re = re.compile(
-        r"^\s*(robot|assistant|ai|nar|nardial)\s*:\s*",
-        re.IGNORECASE,
-    )
-    while True:
-        new_t = prefix_re.sub("", t).strip()
-        if new_t == t:
-            break
-        t = new_t
-    return t
+    if quit_signal:
+        t = t.replace(quit_signal, " ")
+    return t.strip()
 
 
 def _history_as_context_messages(session_history: List[Dict[str, Any]]) -> List[str]:
@@ -86,6 +82,7 @@ class ImprovisationState(TypedDict):
     quit_signal: str
     runtime_prompt: str
     last_llm_text: str
+    spoken_text: str
     stop_reason: str
 
 
@@ -101,6 +98,7 @@ def _import_state_graph():
 
 def build_improvisation_state_graph(
         plan_response: Callable[[ImprovisationState], ImprovisationState],
+        verify_spoken_text: Callable[[ImprovisationState], ImprovisationState],
         speak_and_listen: Callable[[ImprovisationState], ImprovisationState],
         check_stop: Callable[[ImprovisationState], ImprovisationState],
 ):
@@ -112,10 +110,12 @@ def build_improvisation_state_graph(
 
     graph = StateGraph(ImprovisationState)
     graph.add_node("plan_response", plan_response)
+    graph.add_node("verify_spoken_text", verify_spoken_text)
     graph.add_node("speak_and_listen", speak_and_listen)
     graph.add_node("check_stop", check_stop)
     graph.add_edge(START, "plan_response")
-    graph.add_edge("plan_response", "speak_and_listen")
+    graph.add_edge("plan_response", "verify_spoken_text")
+    graph.add_edge("verify_spoken_text", "speak_and_listen")
     graph.add_edge("speak_and_listen", "check_stop")
     graph.add_conditional_edges("check_stop", route_after_check, {"plan_response": "plan_response", "stop": END})
     return graph
@@ -129,6 +129,7 @@ def _noop_improvisation_node(_state: ImprovisationState) -> ImprovisationState:
 def compile_improvisation_graph_for_visualization():
     """Compiled graph with no-op nodes — use `get_graph().draw_mermaid()` etc."""
     return build_improvisation_state_graph(
+        _noop_improvisation_node,
         _noop_improvisation_node,
         _noop_improvisation_node,
         _noop_improvisation_node,
@@ -209,18 +210,44 @@ def compile_improvisation_app(
             return {"stop_reason": "llm_returned_none"}
         return {"last_llm_text": llm_text}
 
+    def verify_spoken_text(state: ImprovisationState) -> ImprovisationState:
+        if state["stop_reason"]:
+            return {}
+        raw_llm_text = state["last_llm_text"] or ""
+        if not raw_llm_text:
+            return {"stop_reason": "llm_returned_none"}
+
+        base_spoken = _normalize_spoken_text(raw_llm_text, quit_signal=quit_signal)
+        if not base_spoken and state["quit_signal"] not in raw_llm_text:
+            return {"stop_reason": "llm_returned_none"}
+
+        # Ask the model to self-clean into pure spoken text.
+        verifier_input = base_spoken or raw_llm_text
+        verifier_output = conversation_agent.ask_llm(
+            user_prompt=verifier_input,
+            context_messages=None,
+            system_prompt=DEFAULT_SPEECH_CLEANER_PROMPT,
+        )
+        verified_spoken = _normalize_spoken_text(verifier_output or "", quit_signal=quit_signal)
+        final_spoken = verified_spoken or base_spoken
+        if not final_spoken and state["quit_signal"] not in raw_llm_text:
+            return {"stop_reason": "llm_returned_none"}
+        return {"spoken_text": final_spoken}
+
     def speak_and_listen(state: ImprovisationState) -> ImprovisationState:
         if state["stop_reason"]:
             return {}
         llm_text = state["last_llm_text"]
+        to_speak = state.get("spoken_text", "")
         if state["quit_signal"] in llm_text:
-            clean = llm_text.replace(quit_signal, "").strip()
-            clean = strip_spoken_role_prefix(clean)
+            clean = to_speak or _normalize_spoken_text(llm_text, quit_signal=quit_signal)
             if clean:
                 conversation_agent.say(clean)
                 _record_event(session_history, "robot", "improvisation_ask", clean)
             return {"stop_reason": "quit_signal"}
-        to_speak = strip_spoken_role_prefix(llm_text)
+        if not to_speak:
+            # Keep conversation moving even if sanitization removes wrapper-only output.
+            return {"stop_reason": "llm_returned_none"}
         user_input = conversation_agent.ask_open(to_speak) or ""
         turn = state["turn_idx"] + 1
         _record_event(session_history, "robot", "improvisation_ask", to_speak, turn=turn)
@@ -240,6 +267,7 @@ def compile_improvisation_app(
 
     app = build_improvisation_state_graph(
         plan_response,
+        verify_spoken_text,
         speak_and_listen,
         check_stop,
     ).compile()
@@ -265,6 +293,7 @@ def invoke_compiled_improvisation_app(
         "quit_signal": quit_signal,
         "runtime_prompt": runtime_prompt,
         "last_llm_text": "",
+        "spoken_text": "",
         "stop_reason": "",
     })
 

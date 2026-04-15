@@ -13,16 +13,18 @@ from threading import Thread
 from time import sleep, strftime
 
 import numpy as np
+
 import mini.mini_sdk as MiniSdk
+from sic_framework.devices.alphamini import Alphamini
 
 from mini import MouthLampColor, MouthLampMode
 from mini.apis.api_action import PlayAction
 from mini.apis.api_expression import SetMouthLamp, PlayExpression
+
 from sic_framework.core import sic_logging
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.core.sic_application import SICApplication
 from sic_framework.devices import Pepper, Nao
-from sic_framework.devices.alphamini import Alphamini
 from sic_framework.devices.common_naoqi.naoqi_leds import NaoFadeRGBRequest
 from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
@@ -41,7 +43,17 @@ from sic_framework.services.google_tts.google_tts import (
 )
 from sic_framework.services.llm.openai_gpt import GPT
 from sic_framework.services.llm import GPTConf, GPTRequest
+from sic_framework.services.datastore.redis_datastore import (
+    RedisDatastoreConf,
+    RedisDatastore,
+    IngestVectorDocsRequest,
+    QueryVectorDBRequest,
+    VectorDBResultsMessage,
+)
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from pydantic import SecretStr
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
@@ -96,7 +108,11 @@ class AnimationStyle(Enum):
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, signal_listening_behavior=True):
+                 openai_key_path=None, signal_listening_behavior=True, keyboard_input: bool = False,
+                 use_langgraph: bool = False, rag: bool = False, ingest_docs: bool = False,
+                 input_path: str = "", index_name: str = "", embedding_model: str = "",
+                 chunk_chars: int = 1200, chunk_overlap: int = 150,
+                 override_existing: bool = False, force_recreate_index: bool = False):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -110,16 +126,59 @@ class InteractionConfig:
         self.google_keyfile_path = google_keyfile_path
         self.openai_key_path = openai_key_path
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
+        self.keyboard_input = keyboard_input
+        self.use_langgraph = use_langgraph
+        self.rag = rag
+        self.ingest_docs = ingest_docs
+        self.input_path = input_path
+        self.index_name = index_name
+        self.embedding_model = embedding_model
+        self.chunk_chars = chunk_chars
+        self.chunk_overlap = chunk_overlap
+        self.override_existing = override_existing
+        self.force_recreate_index = force_recreate_index
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
+        self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
             keyfile_json=json.load(open(google_keyfile_path)),
             sample_rate_hertz=44100,
             language=language
         )
+
+    def _validate_rag_config(self):
+        if not self.rag:
+            return
+
+        if not isinstance(self.ingest_docs, bool):
+            raise ValueError("InteractionConfig.ingest_docs must be a bool when rag=True")
+
+        if not self.embedding_model:
+            raise ValueError("InteractionConfig.embedding_model is required when rag=True")
+
+        if self.ingest_docs:
+            required_fields = {
+                "input_path": self.input_path,
+                "index_name": self.index_name,
+                "embedding_model": self.embedding_model,
+            }
+            missing = [k for k, v in required_fields.items() if not v]
+            if missing:
+                raise ValueError(
+                    "Missing required InteractionConfig fields when rag=True and ingest_docs=True: "
+                    + ", ".join(missing)
+                )
+            if not isinstance(self.chunk_chars, int) or self.chunk_chars <= 0:
+                raise ValueError("InteractionConfig.chunk_chars must be a positive int when ingest_docs=True")
+            if not isinstance(self.chunk_overlap, int) or self.chunk_overlap < 0:
+                raise ValueError("InteractionConfig.chunk_overlap must be a non-negative int when ingest_docs=True")
+            if not isinstance(self.override_existing, bool):
+                raise ValueError("InteractionConfig.override_existing must be bool when ingest_docs=True")
+            if not isinstance(self.force_recreate_index, bool):
+                raise ValueError("InteractionConfig.force_recreate_index must be bool when ingest_docs=True")
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
@@ -144,7 +203,7 @@ class InteractionOrchestrator:
         self.app = SICApplication()
         self.logger = self.app.get_app_logger()
         self.app.set_log_level(sic_logging.DEBUG)  # can be DEBUG, INFO, WARNING, ERROR, CRITICAL
-        self.app.set_log_file("./logs")
+        self.app.set_log_file_path("./logs")
 
         # Data logging
         self._log_queue = None
@@ -161,12 +220,25 @@ class InteractionOrchestrator:
 
         print("\n SETTING UP OPENAI")
         self.gpt = None
+        self.llm = None
+        self.datastore = None
+        self.rag_enabled = bool(self.interaction_conf.rag)
         if self.interaction_conf.openai_key_path:
             load_dotenv(self.interaction_conf.openai_key_path)
-        try:
-            self.gpt = GPT(conf=GPTConf(openai_key=environ["OPENAI_API_KEY"]))
-        except KeyError:
-            self.logger.warning("No openAI key available")
+        openai_key = environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            self.logger.warning("No OPENAI_API_KEY available; LLM calls will be disabled")
+        elif self.interaction_conf.use_langgraph:
+            self.llm = ChatOpenAI(
+                api_key=SecretStr(openai_key),
+                model=environ.get("NARDIAL_OPENAI_MODEL", "gpt-4o-mini"),
+                temperature=0.7,
+            )
+        else:
+            self.gpt = GPT(conf=GPTConf(openai_key=openai_key))
+
+        if self.rag_enabled:
+            self._setup_rag(openai_key=openai_key)
         print('Complete')
 
         print("\n SETTING UP TTS")
@@ -206,12 +278,18 @@ class InteractionOrchestrator:
             raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
         print("Complete")
 
-        print("\n SETTING UP DIALOGFLOW")
-        self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=getattr(self, 'mic', None))
-        # flag to signal when the app should listen (i.e. transmit to dialogflow)
-        self.request_id = np.random.randint(10000)
-        self.dialogflow.register_callback(self._on_dialog)
-        print("Complete and ready for interaction!")
+        if self.interaction_conf.keyboard_input:
+            print("\n SKIPPING DIALOGFLOW (keyboard_input=True)")
+            self.dialogflow = None
+            self.request_id = np.random.randint(10000)
+            print("Ready for interaction (keyboard input mode)!")
+        else:
+            print("\n SETTING UP DIALOGFLOW")
+            self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=getattr(self, 'mic', None))
+            # flag to signal when the app should listen (i.e. transmit to dialogflow)
+            self.request_id = np.random.randint(10000)
+            self.dialogflow.register_callback(self._on_dialog)
+            print("Complete and ready for interaction!")
 
     def start_logging(self, log_id, init_data: dict):
         folder = Path("logs")
@@ -410,6 +488,29 @@ class InteractionOrchestrator:
         return audio_bytes
 
     def listen(self, context=None, timeout=10):
+        if self.interaction_conf.keyboard_input:
+            # Keyboard mode bypasses Dialogflow/STT and mirrors existing return contract.
+            try:
+                if context and context.get('answer_yesno'):
+                    raw = input("You (yes/no/dontknow): ").strip()
+                    low = raw.lower()
+                    if low in ("y", "yes", "yeah", "yep", "sure", "ok", "okay"):
+                        return "yes", "yesno_yes"
+                    if low in ("n", "no", "nope", "nah"):
+                        return "no", "yesno_no"
+                    if low in ("maybe", "unsure", "not sure", "idk", "dunno", "dontknow"):
+                        return "dontknow", "yesno_dontknow"
+                    if "yes" in low:
+                        return "yes", "yesno_yes"
+                    if "no" in low:
+                        return "no", "yesno_no"
+                    return raw or None, None
+
+                raw = input("You: ").strip()
+                return raw or None, None
+            except EOFError:
+                return None, None
+
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
         try:
@@ -444,9 +545,169 @@ class InteractionOrchestrator:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
+        if self.rag_enabled and user_prompt is not None and str(user_prompt).strip():
+            rag_context = self._retrieve_rag_context(str(user_prompt).strip())
+            if rag_context:
+                rag_prefix = (
+                    "Use the following retrieved knowledge as supporting context. "
+                    "If it conflicts with conversation context, note uncertainty instead of inventing facts.\n\n"
+                    f"{rag_context}"
+                )
+                if system_prompt:
+                    system_prompt = f"{system_prompt}\n\n{rag_prefix}"
+                else:
+                    system_prompt = rag_prefix
+
+        if self.interaction_conf.use_langgraph:
+            return self._request_from_langchain(user_prompt, context_messages, system_prompt, json_response)
+        return self._request_from_sic(user_prompt, context_messages, system_prompt, json_response)
+
+    def _setup_rag(self, openai_key: str | None):
+        if not openai_key:
+            self.logger.warning("RAG requested but OPENAI_API_KEY is missing; RAG will be disabled")
+            self.rag_enabled = False
+            return
+
+        rag_conf = RedisDatastoreConf(
+            host=environ.get("NARDIAL_REDIS_HOST", "127.0.0.1"),
+            port=int(environ.get("NARDIAL_REDIS_PORT", "6379")),
+            password=environ.get("NARDIAL_REDIS_PASSWORD", "changemeplease"),
+            namespace=environ.get("NARDIAL_REDIS_NAMESPACE", "nardial_rag"),
+            version=environ.get("NARDIAL_REDIS_VERSION", "v1"),
+            developer_id=environ.get("NARDIAL_REDIS_DEVELOPER_ID", "0"),
+        )
         try:
-            resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
+            self.datastore = RedisDatastore(conf=rag_conf)
+        except Exception as e:
+            self.logger.warning("Failed to initialize RedisDatastore for RAG: %s", e)
+            self.rag_enabled = False
+            return
+
+        if self.interaction_conf.ingest_docs:
+            self._ingest_rag_documents(openai_key=openai_key)
+
+    def _ingest_rag_documents(self, openai_key: str):
+        cfg = self.interaction_conf
+        try:
+            result = self.datastore.request(
+                IngestVectorDocsRequest(
+                    input_path=cfg.input_path,
+                    openai_api_key=openai_key,
+                    index_name=cfg.index_name,
+                    chunk_chars=cfg.chunk_chars,
+                    chunk_overlap=cfg.chunk_overlap,
+                    embedding_model=cfg.embedding_model,
+                    override_existing=cfg.override_existing,
+                    force_recreate_index=cfg.force_recreate_index,
+                )
+            )
+            if isinstance(result, VectorDBResultsMessage):
+                payload = result.payload or {}
+                if payload.get("ok"):
+                    self.logger.info("RAG ingestion completed for index '%s'", cfg.index_name)
+                else:
+                    self.logger.warning("RAG ingestion reported non-ok result: %s", payload)
+            else:
+                self.logger.warning("Unexpected response type during RAG ingestion: %s", type(result))
+        except Exception as e:
+            self.logger.warning("RAG ingestion failed: %s", e)
+
+    def _retrieve_rag_context(self, query_text: str, k: int = 3) -> str:
+        if not self.datastore:
+            return ""
+        cfg = self.interaction_conf
+        if not cfg.index_name:
+            self.logger.warning("RAG is enabled but index_name is empty; skipping retrieval")
+            return ""
+
+        openai_key = environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            return ""
+
+        try:
+            result = self.datastore.request(
+                QueryVectorDBRequest(
+                    index_name=cfg.index_name,
+                    query_text=query_text,
+                    openai_api_key=openai_key,
+                    k=k,
+                    embedding_model=cfg.embedding_model,
+                )
+            )
+            if not isinstance(result, VectorDBResultsMessage):
+                return ""
+
+            payload = result.payload or {}
+            docs = payload.get("results", []) or []
+            if not docs:
+                return ""
+
+            snippets = []
+            for idx, item in enumerate(docs, start=1):
+                content = str(item.get("content", "")).strip()
+                if not content:
+                    continue
+                score = item.get("score")
+                doc_path = str(item.get("doc_path", "unknown"))
+                snippets.append(
+                    f"[Doc {idx} | score={score} | source={doc_path}]\n{content}"
+                )
+            return "\n\n".join(snippets)
+        except Exception as e:
+            self.logger.warning("RAG retrieval failed: %s", e)
+            return ""
+
+    def _request_from_sic(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
+        if self.gpt is None:
+            self.logger.warning("LLM call requested but SIC GPT is not initialized")
+            return None
+        try:
+            resp = self.gpt.request(
+                GPTRequest(
+                    prompt=user_prompt if user_prompt is not None else "",
+                    context_messages=context_messages,
+                    system_message=system_prompt,
+                )
+            )
             text = (resp.response or "").strip()
+            if json_response:
+                return json.loads(text)
+            return text
+        except Exception as e:
+            print(f"Exception: {e}")
+            return None
+
+    def _request_from_langchain(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
+        if self.llm is None:
+            self.logger.warning("LLM call requested but ChatOpenAI is not initialized")
+            return None
+        try:
+            messages = []
+            if system_prompt:
+                messages.append(SystemMessage(content=str(system_prompt)))
+            for msg in (context_messages or []):
+                if msg is None:
+                    continue
+                text = str(msg).strip()
+                if text:
+                    messages.append(AIMessage(content=text))
+            if user_prompt is not None and str(user_prompt).strip():
+                messages.append(HumanMessage(content=str(user_prompt).strip()))
+
+            resp = self.llm.invoke(messages)
+            usage = {}
+            try:
+                usage = dict((resp.response_metadata or {}).get("token_usage") or {})
+            except Exception:
+                usage = {}
+            if usage:
+                self.logger.info(
+                    "LLM usage prompt=%s completion=%s total=%s",
+                    usage.get("prompt_tokens"),
+                    usage.get("completion_tokens"),
+                    usage.get("total_tokens"),
+                )
+            text = (resp.content or "").strip()
             if json_response:
                 return json.loads(text)
             return text

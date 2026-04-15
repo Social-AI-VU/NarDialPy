@@ -374,9 +374,20 @@ class LLMDialog(MiniDialog):
 
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-        if getattr(self, "_scripted_dialog_graph_app", None) is None:
-            self._scripted_dialog_graph_app = compile_scripted_mini_dialog_graph(self)
-        self._scripted_dialog_graph_app.invoke(initial_mini_dialog_state())
+        use_langgraph = bool(getattr(agent.orchestrator.interaction_conf, "use_langgraph", False))
+        if use_langgraph:
+            if getattr(self, "_scripted_dialog_graph_app", None) is None:
+                self._scripted_dialog_graph_app = compile_scripted_mini_dialog_graph(self)
+            self._scripted_dialog_graph_app.invoke(initial_mini_dialog_state())
+            return
+
+        # Legacy NarDial execution path without LangGraph compile/invoke.
+        self._run_llm_exchange(
+            prompt=self.prompt,
+            max_turns=self.max_turns,
+            quit_phrases=self.quit_phrases,
+            quit_signal=self.quit_signal,
+        )
 
 
 class ImprovisationDialog(MiniDialog):
@@ -394,11 +405,26 @@ class ImprovisationDialog(MiniDialog):
 
     def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-        run_improvisation_graph(
-            conversation_agent=self.conversation_agent,
-            session_history=self.session_history,
-            topics_of_interest=self.topics_of_interest,
-            user_model=self.user_model,
-            system_prompt=self.system_prompt,
-            stop_condition=self.stop_condition,
+        use_langgraph = bool(getattr(agent.orchestrator.interaction_conf, "use_langgraph", False))
+        if use_langgraph:
+            run_improvisation_graph(
+                conversation_agent=self.conversation_agent,
+                session_history=self.session_history,
+                topics_of_interest=self.topics_of_interest,
+                user_model=self.user_model,
+                system_prompt=self.system_prompt,
+                stop_condition=self.stop_condition,
+            )
+            return
+
+        # Legacy NarDial execution path without LangGraph compile/invoke.
+        sc = self.stop_condition or {}
+        max_turns = int(sc.get("max_turns", MAX_LLM_TURNS))
+        quit_phrases = [p for p in (sc.get("stop_phrases") or []) if p]
+        quit_signal = sc.get("quit_signal")
+        self._run_llm_exchange(
+            prompt=self.system_prompt,
+            max_turns=max_turns,
+            quit_phrases=quit_phrases,
+            quit_signal=quit_signal,
         )

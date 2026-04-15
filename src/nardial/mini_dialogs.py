@@ -237,19 +237,6 @@ class MiniDialog:
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
-        # Optional automatic personalized follow-up
-        if not move.personalize_followup:
-            return answer
-
-        try:
-            age_val = self.user_model.get('user_age', self.user_model.get('age', 9))
-            follow = self.conversation_agent.personalize(robot_input=move.text, user_age=age_val, user_input=(answer or ""), language="en")
-            if follow:
-                self.conversation_agent.say(follow)
-                self._record_robot("personalize_followup", follow, source_question=move.text)
-        except Exception as e:
-            self._record_system("error", "Error during personalize follow-up", stage="personalize_followup", error=str(e))
-
         return answer
 
     def handle_move_ask_options(self, move):

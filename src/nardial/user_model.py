@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 # Attempt to import the SIC Redis datastore message classes and client used by the demo.
@@ -101,7 +101,7 @@ class UserModel:
         self.update({
             _KEY_COMPLETED_DIALOGS: list(completed_dialogs),
             _KEY_TOPICS_OF_INTEREST: list(topics_of_interest),
-            _KEY_LAST_UPDATED: datetime.utcnow().isoformat(),
+            _KEY_LAST_UPDATED: datetime.now(timezone.utc).isoformat(),
         })
 
     # Mapping protocol

@@ -23,6 +23,7 @@ if __name__ == '__main__':
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
         openai_key_path=openai_key_path,
+        keyboard_input=True,
     )
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 

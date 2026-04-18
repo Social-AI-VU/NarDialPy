@@ -17,7 +17,8 @@ authors = [
 
 dependencies = [
   "social-interaction-cloud[dialogflow,google-tts,openai-gpt]",
-  "langgraph"
+  "langgraph",
+  "langchain-openai"
 ]
 
 [tool.setuptools.packages.find]

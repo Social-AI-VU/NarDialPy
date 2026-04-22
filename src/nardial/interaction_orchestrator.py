@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import importlib.util
 import json
 from json import load
 import queue
@@ -10,7 +12,10 @@ from os.path import exists, abspath, join
 from pathlib import Path
 import random as rand
 from threading import Thread
+import time
 from time import sleep, strftime
+from dataclasses import dataclass
+from typing import Any, Optional
 
 import numpy as np
 
@@ -105,6 +110,12 @@ class AnimationStyle(Enum):
     EXPLANATORY = 2
 
 
+@dataclass
+class MCPServers:
+    device: Any
+    dialogflow: Any
+
+
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
@@ -112,7 +123,8 @@ class InteractionConfig:
                  use_langgraph: bool = False, rag: bool = False, ingest_docs: bool = False,
                  input_path: str = "", index_name: str = "", embedding_model: str = "",
                  chunk_chars: int = 1200, chunk_overlap: int = 150,
-                 override_existing: bool = False, force_recreate_index: bool = False):
+                 override_existing: bool = False, force_recreate_index: bool = False,
+                 mcp_servers: Optional[MCPServers] = None):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -137,6 +149,7 @@ class InteractionConfig:
         self.chunk_overlap = chunk_overlap
         self.override_existing = override_existing
         self.force_recreate_index = force_recreate_index
+        self.mcp_servers = mcp_servers
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
@@ -211,6 +224,8 @@ class InteractionOrchestrator:
 
         # Interaction configuration
         self.interaction_conf = int_config
+        self.mcp_device = None
+        self.mcp_dialogflow = None
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -257,25 +272,13 @@ class InteractionOrchestrator:
             raise ValueError(f"Unknown tts_conf {self.tts_conf}")
         print("Complete")
 
-        print("\n SETTING UP DEVICE MANAGER")
+        print("\n SETTING UP MCP I/O")
         self.device_manager = device_manager
-        self.mic = self.device_manager.mic
+        self.mic = None
         self.speaker = None
         self.mini_api = None
         self.animation_futures = []
-        if self.interaction_conf.microphone_device:
-            print("\n Additional Microphone Device Detected")
-            self.mic = self.interaction_conf.microphone_device.mic
-        if isinstance(self.device_manager, Alphamini):
-            self.setup_alphamini()
-        elif isinstance(self.device_manager, Pepper):
-            self.setup_pepper()
-        elif isinstance(self.device_manager, Nao):
-            self.setup_nao()
-        elif isinstance(self.device_manager, Desktop):
-            self.setup_desktop()
-        else:
-            raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
+        self.setup_mcp_io()
         print("Complete")
 
         if self.interaction_conf.keyboard_input:
@@ -284,11 +287,9 @@ class InteractionOrchestrator:
             self.request_id = np.random.randint(10000)
             print("Ready for interaction (keyboard input mode)!")
         else:
-            print("\n SETTING UP DIALOGFLOW")
-            self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=getattr(self, 'mic', None))
-            # flag to signal when the app should listen (i.e. transmit to dialogflow)
+            print("\n USING MCP DIALOGFLOW (orchestrator push mode)")
+            self.dialogflow = None
             self.request_id = np.random.randint(10000)
-            self.dialogflow.register_callback(self._on_dialog)
             print("Complete and ready for interaction!")
 
     def start_logging(self, log_id, init_data: dict):
@@ -362,30 +363,43 @@ class InteractionOrchestrator:
         except Exception as e:
             self.logger.error("Failed to connect to elevenlabs", exc_info=e)
 
-    def setup_alphamini(self):
-        print("\n Device is ALPHAMINI")
-        print("Connecting to miniSDK")
-        self.speaker = self.device_manager.speaker
-        # Create asyncio event loop to keep connection open to miniSDK.
-        connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
-        try:
-            connect_to_mini_sdk_future.result()
-            self.animate_alphamini(AnimationType.ACTION, "009")  # Wake up
-            self.animate_alphamini(AnimationType.EXPRESSION, "codemao20")  # Blink
-        except Exception as e:
-            self.logger.error("Failed to connect to mini device", exc_info=e)
+    def setup_mcp_io(self):
+        servers = self.interaction_conf.mcp_servers
+        if servers is None:
+            try:
+                from sic_framework.mcp import mcp_desktop, mcp_dialogflow
+                servers = MCPServers(device=mcp_desktop, dialogflow=mcp_dialogflow)
+            except Exception:
+                mcp_dir = Path(__file__).resolve().parents[3] / "social-interaction-cloud" / "sic_framework" / "mcp"
+                desktop_path = mcp_dir / "mcp_desktop.py"
+                dialogflow_path = mcp_dir / "mcp_dialogflow.py"
 
-    def setup_pepper(self):
-        self.speaker = self.device_manager.speaker
-        print("\n Device is PEPPER")
+                desktop_spec = importlib.util.spec_from_file_location("mcp_desktop_local", str(desktop_path))
+                dialogflow_spec = importlib.util.spec_from_file_location("mcp_dialogflow_local", str(dialogflow_path))
+                if desktop_spec is None or desktop_spec.loader is None:
+                    raise RuntimeError(f"Unable to load MCP desktop module from {desktop_path}")
+                if dialogflow_spec is None or dialogflow_spec.loader is None:
+                    raise RuntimeError(f"Unable to load MCP dialogflow module from {dialogflow_path}")
 
-    def setup_nao(self):
-        self.speaker = self.device_manager.speaker
-        print("\n Device is NAO")
+                mcp_desktop = importlib.util.module_from_spec(desktop_spec)
+                mcp_dialogflow = importlib.util.module_from_spec(dialogflow_spec)
+                desktop_spec.loader.exec_module(mcp_desktop)
+                dialogflow_spec.loader.exec_module(mcp_dialogflow)
+                servers = MCPServers(device=mcp_desktop, dialogflow=mcp_dialogflow)
 
-    def setup_desktop(self):
-        print("\n Device is COMPUTER")
-        self.speaker = self.device_manager.speakers
+        self.mcp_device = servers.device
+        self.mcp_dialogflow = servers.dialogflow
+
+        device_connect_reply = self.mcp_device.connect()
+        self.logger.info("MCP Device connect reply: %s", device_connect_reply)
+
+        keyfile_json = json.load(open(self.interaction_conf.google_keyfile_path))
+        dialogflow_connect_reply = self.mcp_dialogflow.connect_dialogflow(
+            keyfile_json_str=json.dumps(keyfile_json),
+            language_code=self.interaction_conf.dialogflow_conf.language_code,
+            sample_rate_hertz=self.interaction_conf.dialogflow_conf.sample_rate_hertz,
+        )
+        self.logger.info("MCP Dialogflow connect reply: %s", dialogflow_connect_reply)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
@@ -402,13 +416,8 @@ class InteractionOrchestrator:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
 
     def naoqi_say(self, text, sleep_time=None, animated=False):
-        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
-            return
-
-        self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=self.interaction_conf.language))
-
-        if sleep_time and sleep_time > 0:
-            sleep(sleep_time)
+        # Device-specific NAO/Pepper path is intentionally removed from orchestrator I/O.
+        self.logger.warning("naoqi_say is not supported in MCP-only orchestrator mode.")
 
     def google_say(self, text, sleep_time=None, amplified=False,  always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
@@ -434,7 +443,10 @@ class InteractionOrchestrator:
                 audio_bytes = self._amplify_audio(audio_bytes)
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, sample_rate))
+            self.mcp_device.play_audio_bytes(
+                waveform_b64=base64.b64encode(audio_bytes).decode("ascii"),
+                sample_rate=sample_rate,
+            )
             self.log_utterance(speaker='robot', text=text)
 
             # Save to cache file
@@ -465,7 +477,10 @@ class InteractionOrchestrator:
             audio_bytes = self.elevenlabs_generate_chunk_audio(chunk, amplified)
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
+            self.mcp_device.play_audio_bytes(
+                waveform_b64=base64.b64encode(audio_bytes).decode("ascii"),
+                sample_rate=self.sample_rate,
+            )
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
@@ -511,19 +526,37 @@ class InteractionOrchestrator:
             except EOFError:
                 return None, None
 
-        if self.interaction_conf.signal_listening_behavior:
-            self.signal_listening_behavior(start=True)
-        try:
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
-            print("The detected intent:", reply.intent)
-            intent = reply.intent if reply.intent else None
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text, intent
-            return None, intent
-        except TimeoutError as e:
-            print("Error:", e)
-        if self.interaction_conf.signal_listening_behavior:
-            self.signal_listening_behavior(start=False)
+        return self._listen_via_mcp(context=context, timeout=timeout)
+
+    def _listen_via_mcp(self, context=None, timeout=10):
+        session_id = int(self.request_id)
+        self.mcp_device.listen(sample_rate=self.interaction_conf.dialogflow_conf.sample_rate_hertz)
+        self.mcp_dialogflow.start_listen_dialogflow(
+            session_id=session_id,
+            contexts_json=json.dumps(context or {}),
+        )
+
+        deadline = time.time() + float(timeout)
+        pushed_any = False
+        while time.time() < deadline:
+            chunk = self.mcp_device.read_audio_chunk(timeout_s=0.25)
+            if not isinstance(chunk, dict):
+                continue
+            if chunk.get("ok") and chunk.get("waveform_b64"):
+                self.mcp_dialogflow.push_audio_chunk_dialogflow(chunk["waveform_b64"])
+                pushed_any = True
+
+        result = self.mcp_dialogflow.finish_listen_dialogflow(timeout_s=max(1.0, float(timeout)))
+        self.mcp_device.stop_listen()
+
+        if not isinstance(result, dict) or not result.get("ok"):
+            err = result.get("error") if isinstance(result, dict) else "unknown"
+            self.logger.warning("MCP listen failed: %s", err)
+            return None, None
+
+        transcript = result.get("transcript") if pushed_any else None
+        intent = result.get("intent")
+        return transcript, intent
 
     def play_audio(self, audio_file, amplified=False, log=True):
         with wave.open(audio_file, 'rb') as wf:
@@ -540,7 +573,10 @@ class InteractionOrchestrator:
             if amplified:
                 audio = self._amplify_audio(audio)
 
-            self.speaker.request(AudioRequest(audio, framerate))
+            self.mcp_device.play_audio_bytes(
+                waveform_b64=base64.b64encode(audio).decode("ascii"),
+                sample_rate=framerate,
+            )
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
@@ -716,29 +752,23 @@ class InteractionOrchestrator:
             return None
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
-        if not isinstance(self.device_manager, Alphamini):
-            print(f'Animation played: {animation_type} [{animation_id}]')
-            return
-
-        try:
-            future = asyncio.run_coroutine_threadsafe(self.alphamini_animation_action(animation_id, animation_type), self.background_loop)
-        except Exception as e:
-            self.logger.error(f'Animation {animation_id} failed: {e}', exc_info=e)
-            return
-
-        self.animation_futures.append(future)
-        if not run_async:
-            future.result()
+        self.logger.info(
+            "Animation request ignored in MCP-only orchestrator mode: %s [%s]",
+            animation_type,
+            animation_id,
+        )
 
     def animate_naoqi(self, animation: str, block=True):
-        try:
-            self.device_manager.motion.request(NaoqiAnimationRequest(animation), block=block)
-        except Exception as e:
-            self.logger.error(f"Failed to play pepper animation: {animation}", exc_info=e)
+        self.logger.info("Animation request ignored in MCP-only orchestrator mode: %s", animation)
 
     def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
-        if isinstance(self.device_manager, Pepper):
-            self.device_manager.leds.request(NaoFadeRGBRequest(name, r, g, b, 0))
+        self.logger.info(
+            "LED request ignored in MCP-only orchestrator mode: %s rgb=(%s,%s,%s)",
+            name,
+            r,
+            g,
+            b,
+        )
 
     async def alphamini_animation_action(self, action_name, animation_type):
         try:
@@ -758,17 +788,11 @@ class InteractionOrchestrator:
                 self.logger.error("Failed to connect to mini device", exc_info=e)
 
     def set_alphamini_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000, run_async=False):
-        if not isinstance(self.device_manager, Alphamini):
-            print(f"Set mouth lamp: {color} {mode} {duration} {breath_duration}")
-            return
-
-        future = asyncio.run_coroutine_threadsafe(
-            self.alphamini_mouth_lamp_expression(color, mode, duration, breath_duration),
-            self.background_loop)
-        self.animation_futures.append(future)
-
-        if not run_async:
-            future.result()
+        self.logger.info(
+            "Mouth lamp request ignored in MCP-only orchestrator mode: %s %s",
+            color,
+            mode,
+        )
 
     @staticmethod
     async def alphamini_mouth_lamp_expression(color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000):
@@ -823,34 +847,14 @@ class InteractionOrchestrator:
         self.interaction_conf = interaction_conf
 
     def signal_listening_behavior(self, start=True):
-        if start:
-            if isinstance(self.device_manager, Alphamini):
-                self.set_alphamini_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
-                self.animate_naoqi_leds(g=1)
-        else:
-            if isinstance(self.device_manager, Alphamini):
-                self.set_alphamini_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
-                self.animate_naoqi_leds()
+        # Device-specific listening signals are intentionally outside MCP-only orchestrator.
+        return
 
     def animation(self):
-        if isinstance(self.device_manager, Alphamini):
-            self.animate_alphamini(AnimationType.EXPRESSION, self.random_alphamini_speaking_eye_expression(), run_async=True)
-            self.animate_alphamini(AnimationType.ACTION, self.random_alphamini_speaking_act(), run_async=True)
-        elif isinstance(self.device_manager, Pepper) or isinstance(self.device_manager, Nao):
-            self.device_manager.motion.request(NaoqiAnimationRequest(self.random_pepper_animation()), block=False)
+        return
 
     def play_motion(self, motion_name):
-        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
-            return
-        try:
-            # Play the recording
-            self.logger.info(f"Playing motion {motion_name}")
-            recording = NaoqiMotionRecording.load(motion_name)
-            self.device_manager.motion_record.request(PlayRecording(recording))
-        except Exception as e:
-            self.logger.error(f"Exception: {e}")
+        self.logger.info("Motion request ignored in MCP-only orchestrator mode: %s", motion_name)
 
     @staticmethod
     def random_alphamini_speaking_act():

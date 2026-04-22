@@ -1,8 +1,6 @@
 import json
 import re
-
-from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.device import SICDeviceManager
+from typing import Any
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -48,7 +46,7 @@ def read_yesno_answer_from_keyboard(prompt: str = "You (yes/no/dontknow): ") -> 
 
 
 class ConversationAgent:
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
+    def __init__(self, device_manager: Any = None, int_config: InteractionConfig = None):
         if int_config is None:
             int_config = InteractionConfig()
         self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
@@ -64,11 +62,10 @@ class ConversationAgent:
         self.orchestrator.play_motion(motion_sequence_file)
 
     def play_animation(self, animation_name, block=False):
-        if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
-            try:
-                self.orchestrator.animate_naoqi(animation_name, block)
-            except Exception as e:
-                print(f"Failed to play animation: {animation_name}", e)
+        try:
+            self.orchestrator.animate_naoqi(animation_name, block)
+        except Exception as e:
+            print(f"Failed to play animation: {animation_name}", e)
 
     def ask_yesno(self, question, max_attempts=1):
         attempts = 0

@@ -1,0 +1,42 @@
+import sys
+from os.path import abspath, join
+
+from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
+from sic_framework.devices.desktop import Desktop
+
+from nardial.conversation_agent import ConversationAgent
+from nardial.interaction_orchestrator import InteractionConfig
+from nardial.session_manager import SessionManager
+
+# setup key files paths
+google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
+openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
+dialog_json_path = abspath(join("..", "examples", "structured_conversation_dialogs.json"))
+
+if __name__ == '__main__':
+    # Select device
+    device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
+
+    # Create conversational agent
+    interaction_config = InteractionConfig(
+        google_keyfile_path=google_keyfile_path,
+        openai_key_path=openai_key_path,
+    )
+    agent = ConversationAgent(device_manager=device, int_config=interaction_config)
+
+    # A clear agenda for this structured demo: intro -> planning -> adaptation -> closing
+    session_agenda = [
+        "welcome_and_name",
+        "plan_activity",
+        "adapt_to_user_energy",
+        "structured_goodbye",
+    ]
+
+    session_manager = SessionManager(
+        session_agenda=session_agenda,
+        agent=agent,
+        dialog_json_path=dialog_json_path,
+    )
+    session_manager.run()
+
+    sys.exit()

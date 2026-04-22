@@ -5,7 +5,11 @@ Python implementation of the Narrative Dialog Management System.
 
 ## Demo 
 
-[Here](examples/demo_general_conversation.py) is a demo showcasing an agent-driven conversation utilizing Google Dialogflow, Google TTS, and OpenAI's GPT4
+[Here](examples/demo_general_conversation.py) is a demo showcasing an agent-driven conversation utilizing Google Dialogflow, Google TTS, and OpenAI's GPT4.
+
+For a structured, agenda-driven example with declarative branching and variable persistence, see:
+- [examples/demo_structured_conversation.py](examples/demo_structured_conversation.py)
+- [examples/structured_conversation_dialogs.json](examples/structured_conversation_dialogs.json)
 
 First, you need to set-up Google Cloud Console with dialogflow and Google TTS:
 

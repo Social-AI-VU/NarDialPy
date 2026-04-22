@@ -1,5 +1,5 @@
 import sys
-from os.path import abspath, join
+from os.path import abspath, dirname, join
 
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.devices.desktop import Desktop
@@ -8,10 +8,11 @@ from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
 
-# setup key files paths
-google_keyfile_path = abspath(join("..", "conf", "dialogflow", "google_keyfile.json"))
-openai_key_path = abspath(join("..", "conf", "openai", ".openai_env"))
-dialog_json_path = abspath(join("..", "examples", "structured_conversation_dialogs.json"))
+# setup key files paths (resolved from this file's location)
+_BASE_DIR = abspath(join(dirname(__file__), ".."))
+google_keyfile_path = join(_BASE_DIR, "conf", "dialogflow", "google_keyfile.json")
+openai_key_path = join(_BASE_DIR, "conf", "openai", ".openai_env")
+dialog_json_path = join(_BASE_DIR, "examples", "structured_conversation_dialogs.json")
 
 if __name__ == '__main__':
     # Select device

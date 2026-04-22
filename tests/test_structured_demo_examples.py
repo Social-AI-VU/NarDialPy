@@ -47,7 +47,12 @@ def test_structured_demo_declares_expected_agenda_order():
         if isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Name) and target.id == "session_agenda":
-                    session_agenda = [elt.value for elt in node.value.elts]
+                    session_agenda = []
+                    for elt in node.value.elts:
+                        if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                            session_agenda.append(elt.value)
+                        elif isinstance(elt, ast.Str):
+                            session_agenda.append(elt.s)
 
     assert session_agenda == [
         "welcome_and_name",

@@ -1,6 +1,6 @@
 # NarDialPy
 
-NarDialPy is a Python framework for building and running **narrative social-robot conversations**.
+NarDialPy is a Python framework for building and running **narrative dialogs**.
 
 It combines:
 - **Dialog blocks** written as JSON (`functional`, `narrative`, and `chitchat` dialogs)

@@ -54,8 +54,10 @@ pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
 
 1. Create Dialogflow credentials and save to:
    `conf/dialogflow/google_keyfile.json`
+   - Setup guide: https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key
 2. Create an OpenAI API key and save to:
    `conf/openai/.openai_env`
+   - API keys: https://platform.openai.com/api-keys
 
 Example `.openai_env`:
 
@@ -65,7 +67,14 @@ OPENAI_API_KEY="your key"
 
 > Never commit or share credential files.
 
-### 3) Start required services
+### 3) Configure the Dialogflow agent
+
+In your Dialogflow agent:
+- Remove default intents.
+- Go to **Settings → Import and Export**.
+- Import `resources/droomrobot_dialogflow_agent.zip` to load the intents/entities used by the demo.
+
+### 4) Start required services
 
 In separate terminals:
 
@@ -76,7 +85,7 @@ run-google-tts
 run-gpt
 ```
 
-### 4) Run the demo conversation
+### 5) Run the demo conversation
 
 From `examples/`:
 

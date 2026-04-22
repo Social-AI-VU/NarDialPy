@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
-from src.nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
-from src.nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH
+from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
+from nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH
 
 
 ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH}

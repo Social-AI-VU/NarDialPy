@@ -25,6 +25,7 @@ conf/openai/.openai_env
 
 # Ignore participants data
 participants/*
+examples/participants/*
 conversation_state.json
 
 # Ignore cache

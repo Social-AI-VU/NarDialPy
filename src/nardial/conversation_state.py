@@ -155,7 +155,11 @@ class ConversationState:
 
         # Continuity merges
         if completed_ids:
-            normalized_completed_ids = [str(i).strip() for i in completed_ids if str(i).strip()]
+            normalized_completed_ids = []
+            for i in completed_ids:
+                normalized = str(i).strip()
+                if normalized:
+                    normalized_completed_ids.append(normalized)
             if not sess.dialog_ids:
                 sess.dialog_ids = normalized_completed_ids
             self._merge_completed(normalized_completed_ids)

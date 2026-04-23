@@ -34,3 +34,19 @@ def test_loads_and_extends_state_from_participant_file(tmp_path):
 
     sid2 = second.start_session(participant_id=second.participant_id, run_id="run_002")
     assert sid2 == "sess_0002"
+
+
+def test_persists_and_reloads_when_participant_id_is_none(tmp_path):
+    state = ConversationState(base_dir=str(tmp_path), participant_id=None)
+    session_id = state.start_session(run_id="run_001")
+    state.end_session(session_id, completed_ids=["intro"], topics_of_interest=["art"])
+    state.save()
+
+    participant_file = tmp_path / "participants" / "__unknown__.json"
+    assert participant_file.exists()
+    assert not (tmp_path / "conversation_state.json").exists()
+
+    reloaded = ConversationState(base_dir=str(tmp_path), participant_id=None)
+    assert "intro" in reloaded.completed_dialogs
+    assert "art" in reloaded.topics_of_interest
+    assert len(reloaded.sessions) == 1

@@ -23,6 +23,7 @@ class Session:
 
 
 class ConversationState:
+    UNKNOWN_PARTICIPANT_ID = "__unknown__"
     """
     Minimal conversation history manager with per-participant transcripts:
     - continuity: completed_dialogs, user_model, topics_of_interest
@@ -33,9 +34,11 @@ class ConversationState:
 
     def __init__(
             self,
+            path: Optional[str] = None,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
+        _ = path
         self.participant_id = participant_id
 
         self.completed_dialogs: List[str] = []
@@ -71,8 +74,7 @@ class ConversationState:
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
     def save(self) -> None:
-        if self.participant_id:
-            self.save_participant_transcript(self.participant_id)
+        self.save_participant_transcript(self.participant_id)
 
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
         sid = f"sess_{len(self.sessions) + 1:04d}"
@@ -125,9 +127,8 @@ class ConversationState:
             self._merge_interests(topics_of_interest)
 
         # Write/update per-participant transcript if participant_id present
-        pid = sess.participant_id
-        if pid:
-            self.save_participant_transcript(pid)
+        pid = sess.participant_id if sess.participant_id is not None else self.participant_id
+        self.save_participant_transcript(pid)
 
     def _get_session(self, session_id: str) -> Session:
         for s in self.sessions:
@@ -163,11 +164,15 @@ class ConversationState:
         if ids:
             sess.dialog_ids = ids
 
-    def save_participant_transcript(self, participant_id: str) -> None:
+    def save_participant_transcript(self, participant_id: Optional[str]) -> None:
         safe_id = self._sanitize_participant_id(participant_id)
         path = Path(self.participants_dir) / f"{safe_id}.json"
+        target_id = self._sanitize_participant_id(participant_id)
 
-        sessions = [s for s in self.sessions if s.participant_id == participant_id]
+        sessions = [
+            s for s in self.sessions
+            if self._sanitize_participant_id(s.participant_id) == target_id
+        ]
 
         payload = {
             "participant_id": participant_id,
@@ -183,7 +188,9 @@ class ConversationState:
         self._atomic_write_json(path, payload)
 
     @staticmethod
-    def _sanitize_participant_id(participant_id: str) -> str:
+    def _sanitize_participant_id(participant_id: Optional[str]) -> str:
+        if participant_id is None:
+            return ConversationState.UNKNOWN_PARTICIPANT_ID
         s = str(participant_id).strip()
         s = re.sub(r"\s+", "_", s)
         s = re.sub(r"[^A-Za-z0-9._-]", "_", s)

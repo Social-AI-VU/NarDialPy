@@ -24,6 +24,7 @@ class Session:
 
 
 class ConversationState:
+    # Shared transcript key used when participant_id is None.
     ANONYMOUS_PARTICIPANT_ID = "__unknown__"
     """
     Minimal conversation history manager with per-participant transcripts:
@@ -180,7 +181,7 @@ class ConversationState:
         ]
 
         payload = {
-            "participant_id": participant_id,
+            "participant_id": participant_id if participant_id is not None else target_id,
             "sessions": [s.__dict__ for s in sessions],
             "summary": {
                 "total_sessions": len(sessions),

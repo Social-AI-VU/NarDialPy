@@ -45,6 +45,9 @@ def test_persists_and_reloads_when_participant_id_is_none(tmp_path):
     participant_file = tmp_path / "participants" / "__unknown__.json"
     assert participant_file.exists()
     assert not (tmp_path / "conversation_state.json").exists()
+    with open(participant_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert data["participant_id"] == "__unknown__"
 
     reloaded = ConversationState(base_dir=str(tmp_path), participant_id=None)
     assert "intro" in reloaded.completed_dialogs

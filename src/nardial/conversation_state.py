@@ -4,7 +4,6 @@ from datetime import datetime
 import os
 import json
 import re
-import warnings
 
 
 class Session:
@@ -40,12 +39,7 @@ class ConversationState:
     ) -> None:
         # Determine base directory
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        if path is not None:
-            warnings.warn(
-                "'path' is deprecated and ignored; conversation state is persisted under participants/ only.",
-                DeprecationWarning,
-                stacklevel=2
-            )
+        _ = path
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -61,6 +55,19 @@ class ConversationState:
 
         self.participant_id = participant_id
         self.load()
+
+    def overwrite_with_participant_info(self) -> None:
+        print(f"[INFO] Using participant_id={self.participant_id}")
+        pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
+
+        # For a new participant (no file), this will be empty -> fresh run
+        self.completed_dialogs = list(pid_completed) if pid_completed else []
+        self.topics_of_interest = pid_topics or []
+        self.user_model = {}
+
+        print(
+            f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
+            f"topics={self.topics_of_interest}")
 
     def load_participant_continuity(self, participant_id: str):
         try:
@@ -88,6 +95,7 @@ class ConversationState:
 
         safe_id = self._sanitize_participant_id(self.participant_id)
         path = self.participants_dir / f"{safe_id}.json"
+
         if not path.exists():
             self._initialize_empty_state()
             return
@@ -155,11 +163,7 @@ class ConversationState:
 
         # Continuity merges
         if completed_ids:
-            normalized_completed_ids = []
-            for i in completed_ids:
-                normalized = str(i).strip()
-                if normalized:
-                    normalized_completed_ids.append(normalized)
+            normalized_completed_ids = [str(did).strip() for did in completed_ids if str(did).strip()]
             if not sess.dialog_ids:
                 sess.dialog_ids = normalized_completed_ids
             self._merge_completed(normalized_completed_ids)

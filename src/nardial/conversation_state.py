@@ -39,10 +39,7 @@ class ConversationState:
     ) -> None:
         # Determine base directory
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-
-        # Default file location inside the caller's project
-        self.path = Path(path) if path else self.base_dir / "conversation_state.json"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _ = path  # kept for backwards compatibility
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -56,18 +53,15 @@ class ConversationState:
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
+        self.participant_id = participant_id if participant_id is not None else "default"
         self.load()
-
-        self.participant_id = participant_id
-        if self.participant_id is not None:
-            self.overwrite_with_participant_info()
 
     def overwrite_with_participant_info(self) -> None:
         print(f"[INFO] Using participant_id={self.participant_id}")
         pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
 
         # For a new participant (no file), this will be empty -> fresh run
-        self.completed_dialogs = pid_completed or set()
+        self.completed_dialogs = list(pid_completed or [])
         self.topics_of_interest = pid_topics or []
         self.user_model = {}
 
@@ -81,35 +75,41 @@ class ConversationState:
             path = self.participants_dir / f"{safe_id}.json"
 
             if not path.exists():
-                return set(), []
+                return [], []
 
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
 
             summary = data.get("summary") or {}
-            completed = set(summary.get("dialog_ids_seen") or [])
+            completed = list(summary.get("dialog_ids_seen") or [])
             topics = list(summary.get("topics_of_interest") or [])
 
             return completed, topics
         except Exception:
-            return set(), []
+            return [], []
 
     def load(self) -> None:
-        if not self.path.exists():
+        if self.participant_id is None:
+            self._initialize_empty_state()
+            return
+
+        safe_id = self._sanitize_participant_id(self.participant_id)
+        path = self.participants_dir / f"{safe_id}.json"
+        if not path.exists():
             self._initialize_empty_state()
             return
 
         try:
-            with open(self.path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
         except Exception:
-            # corrupted file fallback
             self._initialize_empty_state()
             return
 
-        self.completed_dialogs = data.get("completed_dialogs", [])
-        self.user_model = data.get("user_model", {})
-        self.topics_of_interest = data.get("topics_of_interest", [])
+        summary = data.get("summary") or {}
+        self.completed_dialogs = list(summary.get("dialog_ids_seen") or [])
+        self.user_model = {}
+        self.topics_of_interest = list(summary.get("topics_of_interest") or [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
     def _initialize_empty_state(self) -> None:
@@ -118,16 +118,9 @@ class ConversationState:
         self.topics_of_interest = []
         self.sessions = []
 
-        self.save()  # create file immediately
-
     def save(self) -> None:
-        data = {
-            "completed_dialogs": self.completed_dialogs,
-            "user_model": self.user_model,
-            "topics_of_interest": self.topics_of_interest,
-            "sessions": [s.__dict__ for s in self.sessions],
-        }
-        self._atomic_write_json(self.path, data)
+        if self.participant_id:
+            self.save_participant_transcript(self.participant_id)
 
     # ---------- per-session ----------
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
@@ -169,6 +162,8 @@ class ConversationState:
 
         # Continuity merges
         if completed_ids:
+            if not sess.dialog_ids:
+                sess.dialog_ids = [str(i).strip() for i in completed_ids if str(i).strip()]
             self._merge_completed(completed_ids)
         elif sess.dialog_ids:
             self._merge_completed(sess.dialog_ids)

@@ -36,16 +36,9 @@ class ConversationState:
 
     def __init__(
             self,
-            path: Optional[str] = None,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
-        if path is not None:
-            warnings.warn(
-                "'path' is deprecated and ignored; state is persisted under participants/ only.",
-                DeprecationWarning,
-                stacklevel=2
-            )
         self.participant_id = participant_id
 
         self.completed_dialogs: List[str] = []

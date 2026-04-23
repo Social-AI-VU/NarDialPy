@@ -38,7 +38,7 @@ class ConversationState:
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
-        _ = path
+        _ = path  # Backward-compatible constructor argument; intentionally ignored.
         self.participant_id = participant_id
 
         self.completed_dialogs: List[str] = []
@@ -165,9 +165,8 @@ class ConversationState:
             sess.dialog_ids = ids
 
     def save_participant_transcript(self, participant_id: Optional[str]) -> None:
-        safe_id = self._sanitize_participant_id(participant_id)
-        path = Path(self.participants_dir) / f"{safe_id}.json"
         target_id = self._sanitize_participant_id(participant_id)
+        path = Path(self.participants_dir) / f"{target_id}.json"
 
         sessions = [
             s for s in self.sessions

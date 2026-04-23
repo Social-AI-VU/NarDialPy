@@ -33,97 +33,47 @@ class ConversationState:
 
     def __init__(
             self,
-            path: Optional[str] = None,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
-        # Determine base directory
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        _ = path
+        self.participant_id = participant_id
 
-        # continuity
         self.completed_dialogs: List[str] = []
         self.user_model: Dict[str, Any] = {}
         self.topics_of_interest: List[str] = []
-
-        # all sessions (append-only)
         self.sessions: List[Session] = []
 
         # participants folder inside caller's project
+        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
-        self.participant_id = participant_id
         self.load()
 
-    def overwrite_with_participant_info(self) -> None:
-        print(f"[INFO] Using participant_id={self.participant_id}")
-        pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
-
-        # For a new participant (no file), this will be empty -> fresh run
-        self.completed_dialogs = list(pid_completed) if pid_completed else []
-        self.topics_of_interest = pid_topics or []
-        self.user_model = {}
-
-        print(
-            f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
-            f"topics={self.topics_of_interest}")
-
-    def load_participant_continuity(self, participant_id: str):
-        try:
-            safe_id = self._sanitize_participant_id(participant_id)
-            path = self.participants_dir / f"{safe_id}.json"
-
-            if not path.exists():
-                return set(), []
-
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f) or {}
-
-            summary = data.get("summary") or {}
-            completed = set(summary.get("dialog_ids_seen") or [])
-            topics = list(summary.get("topics_of_interest") or [])
-
-            return completed, topics
-        except Exception:
-            return set(), []
-
     def load(self) -> None:
-        if self.participant_id is None:
-            self._initialize_empty_state()
-            return
-
         safe_id = self._sanitize_participant_id(self.participant_id)
         path = self.participants_dir / f"{safe_id}.json"
 
         if not path.exists():
-            self._initialize_empty_state()
             return
 
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
-        except Exception:
-            self._initialize_empty_state()
+        except Exception as e:
+            print(f"[ERROR] Failed to load conversation state for participant {self.participant_id}: {e}")
             return
 
         summary = data.get("summary") or {}
-        self.completed_dialogs = list(summary.get("dialog_ids_seen") or [])
         self.user_model = {}
+        self.completed_dialogs = list(summary.get("dialog_ids_seen") or [])
         self.topics_of_interest = list(summary.get("topics_of_interest") or [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
-
-    def _initialize_empty_state(self) -> None:
-        self.completed_dialogs = []
-        self.user_model = {}
-        self.topics_of_interest = []
-        self.sessions = []
 
     def save(self) -> None:
         if self.participant_id:
             self.save_participant_transcript(self.participant_id)
 
-    # ---------- per-session ----------
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
         sid = f"sess_{len(self.sessions) + 1:04d}"
         session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
@@ -179,7 +129,6 @@ class ConversationState:
         if pid:
             self.save_participant_transcript(pid)
 
-    # ---------- helpers ----------
     def _get_session(self, session_id: str) -> Session:
         for s in self.sessions:
             if s.session_id == session_id:
@@ -214,7 +163,6 @@ class ConversationState:
         if ids:
             sess.dialog_ids = ids
 
-    # ---------- per-participant transcripts ----------
     def save_participant_transcript(self, participant_id: str) -> None:
         safe_id = self._sanitize_participant_id(participant_id)
         path = Path(self.participants_dir) / f"{safe_id}.json"
@@ -267,7 +215,6 @@ class ConversationState:
                         seen.add(k)
         return topics
 
-    # ---------- safe write ----------
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
         path = Path(path)

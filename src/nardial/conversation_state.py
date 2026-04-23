@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import json
 import re
+import warnings
 
 
 class Session:
@@ -39,7 +40,12 @@ class ConversationState:
     ) -> None:
         # Determine base directory
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        _ = path  # kept for backwards compatibility
+        if path is not None:
+            warnings.warn(
+                "'path' is deprecated and ignored; conversation state is persisted under participants/ only.",
+                DeprecationWarning,
+                stacklevel=2
+            )
 
         # continuity
         self.completed_dialogs: List[str] = []
@@ -53,21 +59,8 @@ class ConversationState:
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
-        self.participant_id = participant_id if participant_id is not None else "default"
+        self.participant_id = participant_id
         self.load()
-
-    def overwrite_with_participant_info(self) -> None:
-        print(f"[INFO] Using participant_id={self.participant_id}")
-        pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
-
-        # For a new participant (no file), this will be empty -> fresh run
-        self.completed_dialogs = list(pid_completed or [])
-        self.topics_of_interest = pid_topics or []
-        self.user_model = {}
-
-        print(
-            f"[DEBUG] Loaded participant continuity: completed={sorted(list(self.completed_dialogs))}, "
-            f"topics={self.topics_of_interest}")
 
     def load_participant_continuity(self, participant_id: str):
         try:

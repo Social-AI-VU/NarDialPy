@@ -181,6 +181,7 @@ class ConversationState:
         ]
 
         payload = {
+            # Keep provided participant_id for named users; use the shared anonymous key for None.
             "participant_id": participant_id if participant_id is not None else target_id,
             "sessions": [s.__dict__ for s in sessions],
             "summary": {

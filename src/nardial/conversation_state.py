@@ -68,18 +68,18 @@ class ConversationState:
             path = self.participants_dir / f"{safe_id}.json"
 
             if not path.exists():
-                return [], []
+                return set(), []
 
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
 
             summary = data.get("summary") or {}
-            completed = list(summary.get("dialog_ids_seen") or [])
+            completed = set(summary.get("dialog_ids_seen") or [])
             topics = list(summary.get("topics_of_interest") or [])
 
             return completed, topics
         except Exception:
-            return [], []
+            return set(), []
 
     def load(self) -> None:
         if self.participant_id is None:

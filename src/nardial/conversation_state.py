@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import json
 import re
+import warnings
 
 
 class Session:
@@ -38,7 +39,12 @@ class ConversationState:
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
-        _ = path  # Backward-compatible constructor argument; intentionally ignored.
+        if path is not None:
+            warnings.warn(
+                "'path' is deprecated and ignored; state is persisted under participants/ only.",
+                DeprecationWarning,
+                stacklevel=2
+            )
         self.participant_id = participant_id
 
         self.completed_dialogs: List[str] = []
@@ -127,8 +133,8 @@ class ConversationState:
             self._merge_interests(topics_of_interest)
 
         # Write/update per-participant transcript if participant_id present
-        pid = sess.participant_id if sess.participant_id is not None else self.participant_id
-        self.save_participant_transcript(pid)
+        target_participant_id = sess.participant_id if sess.participant_id is not None else self.participant_id
+        self.save_participant_transcript(target_participant_id)
 
     def _get_session(self, session_id: str) -> Session:
         for s in self.sessions:

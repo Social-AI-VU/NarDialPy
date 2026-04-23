@@ -67,7 +67,7 @@ class ConversationState:
         pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
 
         # For a new participant (no file), this will be empty -> fresh run
-        self.completed_dialogs = pid_completed or set()
+        self.completed_dialogs = pid_completed or []
         self.topics_of_interest = pid_topics or []
         self.user_model = {}
 

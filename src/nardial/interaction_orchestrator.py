@@ -93,6 +93,13 @@ class AnimationStyle(Enum):
     EXPLANATORY = 2
 
 
+def find_project_root(start: Path) -> Path:
+    for path in [start] + list(start.parents):
+        if (path / "conf").exists():
+            return path
+    raise FileNotFoundError("Could not find 'conf' directory")
+
+
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
@@ -109,6 +116,11 @@ class InteractionConfig:
         self.microphone_device = microphone_device
         self.google_keyfile_path = google_keyfile_path
         self.openai_key_path = openai_key_path
+        if not self.google_keyfile_path:
+            self.google_keyfile_path = abspath(join(find_project_root(Path.cwd()), "conf", "google", "google_keyfile.json"))
+        if not self.openai_key_path:
+            self.openai_key_path = abspath(join(find_project_root(Path.cwd()), "conf", "openai", ".openai_env"))
+
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
@@ -116,7 +128,7 @@ class InteractionConfig:
         self.chunk_audio = True
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
-            keyfile_json=json.load(open(google_keyfile_path)),
+            keyfile_json=json.load(open(self.google_keyfile_path)),
             sample_rate_hertz=44100,
             language=language
         )
@@ -269,11 +281,11 @@ class InteractionOrchestrator:
             raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable to initialize")
         self.sample_rate = 22050
         self.tts = ElevenLabsTTS(
-                            elevenlabs_key=environ["ELEVENLABS_API_KEY"],
-                             voice_id=self.tts_conf.voice_id,
-                             model_id=self.tts_conf.model_id,
-                             sample_rate=self.sample_rate,
-                             speaking_rate=self.tts_conf.speaking_rate
+            elevenlabs_key=environ["ELEVENLABS_API_KEY"],
+            voice_id=self.tts_conf.voice_id,
+            model_id=self.tts_conf.model_id,
+            sample_rate=self.sample_rate,
+            speaking_rate=self.tts_conf.speaking_rate
         )
         connect_to_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.connect(), self.background_loop)
         try:
@@ -332,7 +344,7 @@ class InteractionOrchestrator:
         if sleep_time and sleep_time > 0:
             sleep(sleep_time)
 
-    def google_say(self, text, sleep_time=None, amplified=False,  always_regenerate=False):
+    def google_say(self, text, sleep_time=None, amplified=False, always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -423,6 +435,7 @@ class InteractionOrchestrator:
             print("Error:", e)
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=False)
+        return None, None
 
     def play_audio(self, audio_file, amplified=False, log=True):
         with wave.open(audio_file, 'rb') as wf:

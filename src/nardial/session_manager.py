@@ -67,7 +67,7 @@ class SessionManager:
         for dialog in self.session_block:
             if not DialogLogic.is_dialog_eligible(dialog, self.conversation_state.completed_dialogs, self.conversation_state.user_model, self.dialogs):
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
-                # continue
+                continue
             self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
             session_history.append({"role": "system", "type": "dialog_start", "dialog_id": dialog.dialog_id})
             dialog.run(self.agent, session_history, self.conversation_state.topics_of_interest, self.conversation_state.user_model)

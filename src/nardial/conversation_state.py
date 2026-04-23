@@ -24,7 +24,7 @@ class Session:
 
 
 class ConversationState:
-    UNKNOWN_PARTICIPANT_ID = "__unknown__"
+    ANONYMOUS_PARTICIPANT_ID = "__unknown__"
     """
     Minimal conversation history manager with per-participant transcripts:
     - continuity: completed_dialogs, user_model, topics_of_interest
@@ -195,7 +195,7 @@ class ConversationState:
     @staticmethod
     def _sanitize_participant_id(participant_id: Optional[str]) -> str:
         if participant_id is None:
-            return ConversationState.UNKNOWN_PARTICIPANT_ID
+            return ConversationState.ANONYMOUS_PARTICIPANT_ID
         s = str(participant_id).strip()
         s = re.sub(r"\s+", "_", s)
         s = re.sub(r"[^A-Za-z0-9._-]", "_", s)

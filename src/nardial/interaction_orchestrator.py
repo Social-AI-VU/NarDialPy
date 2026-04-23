@@ -144,7 +144,7 @@ class InteractionOrchestrator:
         self.app = SICApplication()
         self.logger = self.app.get_app_logger()
         self.app.set_log_level(sic_logging.DEBUG)  # can be DEBUG, INFO, WARNING, ERROR, CRITICAL
-        self.app.set_log_file("./logs")
+        self.app.set_log_file_path("./logs")
 
         # Data logging
         self._log_queue = None

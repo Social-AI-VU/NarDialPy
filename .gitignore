@@ -20,7 +20,7 @@
 build
 
 # Ignore conf files
-conf/dialogflow/*.json
+conf/google/*.json
 conf/openai/.openai_env
 
 # Ignore participants data

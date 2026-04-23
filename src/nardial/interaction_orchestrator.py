@@ -435,6 +435,7 @@ class InteractionOrchestrator:
             print("Error:", e)
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=False)
+        return None, None
 
     def play_audio(self, audio_file, amplified=False, log=True):
         with wave.open(audio_file, 'rb') as wf:

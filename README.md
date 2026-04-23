@@ -1,56 +1,110 @@
 # NarDialPy
-Python implementation of the Narrative Dialog Management System.
 
---- 
+NarDialPy is a Python framework for building and running **narrative dialogs**.
 
-## Demo 
+It combines:
+- **Dialog blocks** written as JSON (`functional`, `narrative`, and `chitchat` dialogs)
+- **A session manager** that executes a chosen dialog agenda
+- **Voice / NLU / LLM services** (Dialogflow, Google TTS, OpenAI GPT via `social-interaction-cloud`)
 
-[Here](examples/demo_general_conversation.py) is a demo showcasing an agent-driven conversation utilizing Google Dialogflow, Google TTS, and OpenAI's GPT4
+The repository includes a complete demo conversation in the `examples/` folder that shows how these parts work together.
 
-First, you need to set-up Google Cloud Console with dialogflow and Google TTS:
+## Repository layout
 
-1. Dialogflow: https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key 
-2. TTS: https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/
-**Note:** you need to set-up a paid account with a credit card. You get $300,- free tokens, which is more then enough
-for testing this agent. So in practice it will not cost anything.
-3. Create a keyfile as instructed in (1) and save it conf/dialogflow/google_keyfile.json
-   **_(Never share the keyfile online!)_** 
+- `src/nardial/` – core runtime (dialog loading, move execution, session flow)
+- `examples/demo_general_conversation.py` – runnable demo entrypoint
+- `examples/dialogs.json` – demo dialogs (conversation content)
+- `web/authoring/` – browser-based dialog authoring UI
+- `tests/` – unit tests for move handling and dialog behavior
 
-Secondly you need to configure your dialogflow agent.
-4. In your empty dialogflow agent do the following things:
-   - Remove all default intents 
-   - Go to settings -> import and export -> and import the resources/droomrobot_dialogflow_agent.zip into your
-   dialogflow agent. That gives all the necessary intents and entities that are part of this example (and many more)
+## How the demo conversation works
 
-Thirdly, you need an openAI key:
-5. Generate your personal openai api key here: https://platform.openai.com/api-keys
-6. Either add your openai key to your systems variables or
-create a .openai_env file in the conf/openai folder and add your key there like this:
-OPENAI_API_KEY="your key"
+The demo script (`examples/demo_general_conversation.py`) creates a `ConversationAgent`, then runs a fixed agenda through `SessionManager`:
 
-Forth, the redis server, Dialogflow, Google TTS and OpenAI gpt service need to be running:
-
-7. Run:
-```bash 
-pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
-   ```
-8. Run: 
-```bash 
-conf/redis/redis-server.exe conf/redis/redis.conf
+```python
+session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]
 ```
-9. Run in new terminal: 
-```bash 
-run-dialogflow 
-```
-10. Run in new terminal: 
+
+Those dialog IDs are resolved from `examples/dialogs.json`, which contains declarative move sequences such as:
+- `say`
+- `ask_open`
+- `ask_yesno`
+- `ask_options`
+- `branch` (outcome-based branching)
+
+This makes it easy to edit conversation behavior without changing Python code.
+
+## Quick start (demo)
+
+### 1) Install
+
+From the repository root:
+
 ```bash
-run-google-tts
+pip install -e .
 ```
-11. Run in new terminal: 
-```bash 
+
+Install/update cloud integrations used by the demo:
+
+```bash
+pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
+```
+
+### 2) Configure credentials
+
+1. Create Dialogflow credentials and save to:
+   `conf/dialogflow/google_keyfile.json`
+   - Setup guide: https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key
+2. Create an OpenAI API key and save to:
+   `conf/openai/.openai_env`
+   - API keys: https://platform.openai.com/api-keys
+
+Example `.openai_env`:
+
+```bash
+OPENAI_API_KEY="your key"
+```
+
+> Never commit or share credential files.
+
+### 3) Configure the Dialogflow agent
+
+In your Dialogflow agent:
+- Remove default intents.
+- Go to **Settings → Import and Export**.
+- Import `resources/droomrobot_dialogflow_agent.zip` to load the intents/entities used by the demo.
+
+### 4) Start required services
+
+In separate terminals:
+
+```bash
+conf/redis/redis-server.exe conf/redis/redis.conf
+run-dialogflow
+run-google-tts
 run-gpt
 ```
-12. Connect a device e.g. desktop, nao, pepper, alphamini
-13. Run [this script](examples/demo_general_conversation.py) in  a new terminal. 
 
----
+### 5) Run the demo conversation
+
+From `examples/`:
+
+```bash
+python demo_general_conversation.py
+```
+
+Use a supported device configuration in the script (desktop by default).
+
+## Customizing conversations
+
+- Edit `examples/dialogs.json` to add or modify dialog blocks.
+- Update the `session_agenda` in `examples/demo_general_conversation.py` to change the order/content of a run.
+- Use `web/authoring/` if you prefer editing dialogs through the browser UI.
+
+## Development
+
+Run tests from the repository root:
+
+```bash
+python -m pytest -q
+```

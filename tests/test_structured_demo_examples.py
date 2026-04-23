@@ -37,6 +37,25 @@ def test_structured_dialog_json_includes_required_branching_patterns():
     set_variables = {m.get("set_variable") for m in moves if m.get("set_variable")}
     assert {"first_name", "preferred_activity", "energy_level", "recharge_habit"}.issubset(set_variables)
 
+    # Demo should include all move types used by MiniDialog runtime
+    move_types = {m.get("type") for m in moves}
+    assert {
+        "say",
+        "ask_open",
+        "ask_options",
+        "ask_yesno",
+        "ask_llm",
+        "play",
+        "motion_sequence",
+        "animation",
+        "branch",
+    }.issubset(move_types), "Demo must include all move types supported by MiniDialog runtime"
+
+    # llm_followup is currently supported on ask_open / ask_yesno / ask_options (not ask_llm)
+    assert any(
+        m.get("llm_followup") for m in moves if m.get("type") in {"ask_open", "ask_yesno", "ask_options"}
+    ), "Demo must demonstrate llm_followup on at least one ask_* move"
+
 
 def test_structured_demo_declares_expected_agenda_order():
     with open(DEMO_PATH, "r", encoding="utf-8") as f:

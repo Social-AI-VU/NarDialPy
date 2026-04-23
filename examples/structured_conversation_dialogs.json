@@ -69,6 +69,7 @@
         "type": "ask_yesno",
         "text": "Do you want to do that activity today?",
         "set_variable": "wants_activity_today",
+        "llm_followup": "Reply in one short, encouraging sentence that mirrors the user's answer and keeps the tone supportive.",
         "outcomes": { "yes": "activity_today_yes" },
         "default_outcome": "activity_today_no"
       },
@@ -132,6 +133,24 @@
             { "type": "say", "text": "Since your energy is low, begin with 10 calm minutes of %preferred_activity%." }
           ]
         }
+      },
+      {
+        "type": "play",
+        "audio": "audio/planning_chime.wav"
+      },
+      {
+        "type": "motion_sequence",
+        "motion_sequence": "motions/Stand/Emotions/Positive/Happy_1"
+      },
+      {
+        "type": "animation",
+        "animation_name": "animations/Stand/Gestures/Enthusiastic_4"
+      },
+      {
+        "type": "ask_llm",
+        "prompt": "Ask one concise follow-up question to help the user commit to their plan for today. Keep it friendly and practical.",
+        "max_turns": 1,
+        "set_variable": "plan_commitment"
       }
     ]
   },

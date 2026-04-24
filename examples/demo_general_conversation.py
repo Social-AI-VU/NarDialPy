@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
-    interaction_config = InteractionConfig()
+    interaction_config = InteractionConfig(post_speech_delay=2)
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 
     # all dialogs for now
@@ -27,6 +27,7 @@ if __name__ == '__main__':
         session_agenda=session_agenda,
         agent=agent,
         dialog_json_path=dialog_json_path,
+        participant_id="1",
     )
     session_manager.run()
 

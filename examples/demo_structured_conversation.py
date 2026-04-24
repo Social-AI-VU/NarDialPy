@@ -16,12 +16,13 @@ dialog_json_path = join(_BASE_DIR, "examples", "structured_conversation_dialogs.
 
 if __name__ == '__main__':
     # Select device
-    # device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
-    device = Pepper(ip="10.0.0.148")
+    device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
+    # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
+        post_speech_delay=0
     )
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 
@@ -37,7 +38,7 @@ if __name__ == '__main__':
         session_agenda=session_agenda,
         agent=agent,
         dialog_json_path=dialog_json_path,
-        participant_id="1",
+        participant_id="2",
     )
     session_manager.run()
 

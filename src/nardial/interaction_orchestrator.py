@@ -387,23 +387,28 @@ class InteractionOrchestrator:
 
         return audio_bytes
 
-    def listen(self, context=None, timeout=10):
+    def listen(self, timeout=10):
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
+
+        intent, response = None, None
         try:
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
+            reply = self.dialogflow.request(GetIntentRequest(self.request_id), timeout=timeout)
             print("The detected intent:", reply.intent)
             intent = reply.intent if reply.intent else None
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text, intent
-            return None, intent
+            response = reply.response.query_result.query_text if reply.response.query_result.query_text else None
         except TimeoutError as e:
             print("Error:", e)
+
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=False)
-        return None, None
+
+        return response, intent
 
     def play_audio(self, audio_file, amplified=False, log=True):
+        if not exists(audio_file):
+            self.logger.error(f"Audio file not found: {audio_file}")
+            return
         with wave.open(audio_file, 'rb') as wf:
             # Get parameters
             sample_width = wf.getsampwidth()

@@ -3,7 +3,6 @@ import base64
 import importlib.util
 import json
 from json import load
-import queue
 import re
 import wave
 from enum import Enum
@@ -14,7 +13,6 @@ import random as rand
 from threading import Thread
 import time
 from time import sleep, strftime
-from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -35,7 +33,6 @@ from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationReques
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.common_naoqi.naoqi_text_to_speech import NaoqiTextToSpeechRequest
 from sic_framework.devices.desktop import Desktop
-from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.dialogflow.dialogflow import (
     Dialogflow,
     DialogflowConf,
@@ -110,12 +107,6 @@ class AnimationStyle(Enum):
     EXPLANATORY = 2
 
 
-@dataclass
-class MCPServers:
-    device: Any
-    dialogflow: Any
-
-
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
@@ -124,7 +115,7 @@ class InteractionConfig:
                  input_path: str = "", index_name: str = "", embedding_model: str = "",
                  chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
-                 mcp_servers: Optional[MCPServers] = None):
+                 device_mcp: Any = None):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -149,7 +140,7 @@ class InteractionConfig:
         self.chunk_overlap = chunk_overlap
         self.override_existing = override_existing
         self.force_recreate_index = force_recreate_index
-        self.mcp_servers = mcp_servers
+        self.device_mcp = device_mcp
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
@@ -208,32 +199,30 @@ class InteractionConfig:
         return decorator
 
 
-class InteractionOrchestrator:
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig):
+class InteractionOrchestrator(SICApplication):
+    def __init__(self, device_mcp: Any = None, int_config: InteractionConfig = None):
+        super().__init__()
+        if int_config is None:
+            int_config = InteractionConfig()
 
-        print("\n SETTING UP BASIC PROCESSING")
         # Development Logging
-        self.app = SICApplication()
-        self.logger = self.app.get_app_logger()
-        self.app.set_log_level(sic_logging.DEBUG)  # can be DEBUG, INFO, WARNING, ERROR, CRITICAL
-        self.app.set_log_file_path("./logs")
-
-        # Data logging
-        self._log_queue = None
-        self._log_thread = None
+        self.logger = self.get_app_logger()
+        self.logger.info("\n SETTING UP BASIC PROCESSING")
+        self.set_log_level(sic_logging.DEBUG)  # can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+        self.set_log_file_path("./logs")
 
         # Interaction configuration
         self.interaction_conf = int_config
         self.mcp_device = None
-        self.mcp_dialogflow = None
+        self.dialogflow = None
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
         self.background_thread = Thread(target=self._start_loop, daemon=True)
         self.background_thread.start()
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP OPENAI")
+        self.logger.info("\n SETTING UP OPENAI")
         self.gpt = None
         self.llm = None
         self.datastore = None
@@ -254,9 +243,9 @@ class InteractionOrchestrator:
 
         if self.rag_enabled:
             self._setup_rag(openai_key=openai_key)
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP TTS")
+        self.logger.info("\n SETTING UP TTS")
         self.tts = None
         self.sample_rate = None
         self.elevenlabs = None
@@ -270,64 +259,26 @@ class InteractionOrchestrator:
             pass
         else:
             raise ValueError(f"Unknown tts_conf {self.tts_conf}")
-        print("Complete")
+        self.logger.info("Complete")
 
-        print("\n SETTING UP MCP I/O")
-        self.device_manager = device_manager
+        self.logger.info("\n SETTING UP MCP I/O")
+        self.device_mcp = device_mcp
         self.mic = None
         self.speaker = None
         self.mini_api = None
         self.animation_futures = []
         self.setup_mcp_io()
-        print("Complete")
+        self.logger.info("Complete")
 
         if self.interaction_conf.keyboard_input:
-            print("\n SKIPPING DIALOGFLOW (keyboard_input=True)")
+            self.logger.info("\n SKIPPING DIALOGFLOW (keyboard_input=True)")
             self.dialogflow = None
             self.request_id = np.random.randint(10000)
-            print("Ready for interaction (keyboard input mode)!")
+            self.logger.info("Ready for interaction (keyboard input mode)!")
         else:
-            print("\n USING MCP DIALOGFLOW (orchestrator push mode)")
-            self.dialogflow = None
+            self.logger.info("\n USING DIALOGFLOW COMPONENT")
             self.request_id = np.random.randint(10000)
-            print("Complete and ready for interaction!")
-
-    def start_logging(self, log_id, init_data: dict):
-        folder = Path("logs")
-        folder.mkdir(parents=True, exist_ok=True)
-        log_path = folder / f"{log_id}.log"
-        self._log_queue = queue.Queue()
-        self._log_thread = Thread(target=self.log_writer, args=(log_path,), daemon=True)
-        self._log_thread.start()
-
-        timestamp = strftime("%Y-%m-%d %H:%M:%S")
-        self._log_queue.put(f'[{timestamp}] ### START NEW LOG ###')
-        self._log_queue.put(', '.join(f"{k}: {v}" for k, v in init_data.items()))
-
-    def stop_logging(self):
-        if self._log_queue:
-            self._log_queue.put(None)
-        if self._log_thread:
-            self._log_thread.join()
-
-    def log_writer(self, log_path):
-        with open(log_path, 'a', encoding='utf-8') as f:
-            while True:
-                item = self._log_queue.get()
-                if item is None:
-                    break  # Exit signal
-                f.write(item + '\n')
-                f.flush()
-
-    def log_utterance(self, speaker, text):
-        if self._log_queue:
-            timestamp = strftime("%Y-%m-%d %H:%M:%S")
-            self._log_queue.put(f"[{timestamp}] {speaker}: {text}")
-
-    def log_recognition_result(self, recognition_result):
-        if self._log_queue:
-            timestamp = strftime("%Y-%m-%d %H:%M:%S")
-            self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
+            self.logger.info("Complete and ready for interaction!")
 
     def activate_google_tts(self):
         if self.interaction_conf.google_keyfile_path is None:
@@ -341,7 +292,7 @@ class InteractionOrchestrator:
                                                        voice_name=self.tts_conf.google_tts_voice_name,
                                                        ssml_gender=self.tts_conf.google_tts_voice_gender))
         self.sample_rate = init_reply.sample_rate
-        print('Google TTS activated')
+        self.logger.info('Google TTS activated')
 
     def activate_elevenlabs_tts(self):
         if "ELEVENLABS_API_KEY" not in environ:
@@ -359,47 +310,37 @@ class InteractionOrchestrator:
             connect_to_elevenlabs_future.result()
             asyncio.run_coroutine_threadsafe(self.tts.speak("Initializing text to speech"), self.background_loop).result()
             self.elevenlabs = ElevenLabs(api_key=environ["ELEVENLABS_API_KEY"])
-            print('Elevenlabs TTS activated')
+            self.logger.info('Elevenlabs TTS activated')
         except Exception as e:
             self.logger.error("Failed to connect to elevenlabs", exc_info=e)
 
     def setup_mcp_io(self):
-        servers = self.interaction_conf.mcp_servers
-        if servers is None:
+        device_mcp = self.device_mcp or self.interaction_conf.device_mcp
+        if device_mcp is None:
             try:
-                from sic_framework.mcp import mcp_desktop, mcp_dialogflow
-                servers = MCPServers(device=mcp_desktop, dialogflow=mcp_dialogflow)
+                from sic_framework.mcp import mcp_desktop
+                device_mcp = mcp_desktop
             except Exception:
                 mcp_dir = Path(__file__).resolve().parents[3] / "social-interaction-cloud" / "sic_framework" / "mcp"
                 desktop_path = mcp_dir / "mcp_desktop.py"
-                dialogflow_path = mcp_dir / "mcp_dialogflow.py"
-
                 desktop_spec = importlib.util.spec_from_file_location("mcp_desktop_local", str(desktop_path))
-                dialogflow_spec = importlib.util.spec_from_file_location("mcp_dialogflow_local", str(dialogflow_path))
                 if desktop_spec is None or desktop_spec.loader is None:
                     raise RuntimeError(f"Unable to load MCP desktop module from {desktop_path}")
-                if dialogflow_spec is None or dialogflow_spec.loader is None:
-                    raise RuntimeError(f"Unable to load MCP dialogflow module from {dialogflow_path}")
-
                 mcp_desktop = importlib.util.module_from_spec(desktop_spec)
-                mcp_dialogflow = importlib.util.module_from_spec(dialogflow_spec)
                 desktop_spec.loader.exec_module(mcp_desktop)
-                dialogflow_spec.loader.exec_module(mcp_dialogflow)
-                servers = MCPServers(device=mcp_desktop, dialogflow=mcp_dialogflow)
+                device_mcp = mcp_desktop
 
-        self.mcp_device = servers.device
-        self.mcp_dialogflow = servers.dialogflow
+        self.mcp_device = device_mcp
 
         device_connect_reply = self.mcp_device.connect()
         self.logger.info("MCP Device connect reply: %s", device_connect_reply)
 
-        keyfile_json = json.load(open(self.interaction_conf.google_keyfile_path))
-        dialogflow_connect_reply = self.mcp_dialogflow.connect_dialogflow(
-            keyfile_json_str=json.dumps(keyfile_json),
-            language_code=self.interaction_conf.dialogflow_conf.language_code,
-            sample_rate_hertz=self.interaction_conf.dialogflow_conf.sample_rate_hertz,
+        self.dialogflow = Dialogflow(
+            ip="localhost",
+            conf=self.interaction_conf.dialogflow_conf,
+            input_source=getattr(device_mcp, "mic", None),
         )
-        self.logger.info("MCP Dialogflow connect reply: %s", dialogflow_connect_reply)
+        self.dialogflow.register_callback(self._on_dialog)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
@@ -426,7 +367,7 @@ class InteractionOrchestrator:
 
         # If requested and available play cached speech audio
         if not always_regenerate and audio_file:
-            self.log_utterance(speaker='robot', text=f'{text} (cache)')
+            self.logger.info("robot: %s (cache)", text)
             self.play_audio(audio_file, log=False)
         else:  # Else generate new speech audio
             reply = self.tts.request(GetSpeechRequest(
@@ -447,7 +388,7 @@ class InteractionOrchestrator:
                 waveform_b64=base64.b64encode(audio_bytes).decode("ascii"),
                 sample_rate=sample_rate,
             )
-            self.log_utterance(speaker='robot', text=text)
+            self.logger.info("robot: %s", text)
 
             # Save to cache file
             self.tts_cacher.save_audio_file(tts_key, audio_bytes, sample_rate)
@@ -469,7 +410,7 @@ class InteractionOrchestrator:
             if not always_regenerate:
                 audio_file = self.tts_cacher.load_audio_file(tts_key)
                 if audio_file:
-                    self.log_utterance(speaker='robot', text=f'{chunk} (cache)')
+                    self.logger.info("robot: %s (cache)", chunk)
                     self.play_audio(audio_file, log=False)
                     continue
 
@@ -481,7 +422,7 @@ class InteractionOrchestrator:
                 waveform_b64=base64.b64encode(audio_bytes).decode("ascii"),
                 sample_rate=self.sample_rate,
             )
-            self.log_utterance(speaker='robot', text=f'{chunk}')
+            self.logger.info("robot: %s", chunk)
 
             # Sleep if requested
             if sleep_time and sleep_time > 0:
@@ -526,36 +467,22 @@ class InteractionOrchestrator:
             except EOFError:
                 return None, None
 
-        return self._listen_via_mcp(context=context, timeout=timeout)
+        return self._listen_via_dialogflow(context=context, timeout=timeout)
 
-    def _listen_via_mcp(self, context=None, timeout=10):
-        session_id = int(self.request_id)
-        self.mcp_device.listen(sample_rate=self.interaction_conf.dialogflow_conf.sample_rate_hertz)
-        self.mcp_dialogflow.start_listen_dialogflow(
-            session_id=session_id,
-            contexts_json=json.dumps(context or {}),
-        )
-
-        deadline = time.time() + float(timeout)
-        pushed_any = False
-        while time.time() < deadline:
-            chunk = self.mcp_device.read_audio_chunk(timeout_s=0.25)
-            if not isinstance(chunk, dict):
-                continue
-            if chunk.get("ok") and chunk.get("waveform_b64"):
-                self.mcp_dialogflow.push_audio_chunk_dialogflow(chunk["waveform_b64"])
-                pushed_any = True
-
-        result = self.mcp_dialogflow.finish_listen_dialogflow(timeout_s=max(1.0, float(timeout)))
-        self.mcp_device.stop_listen()
-
-        if not isinstance(result, dict) or not result.get("ok"):
-            err = result.get("error") if isinstance(result, dict) else "unknown"
-            self.logger.warning("MCP listen failed: %s", err)
+    def _listen_via_dialogflow(self, context=None, timeout=10):
+        if self.dialogflow is None:
+            self.logger.warning("Dialogflow is not initialized")
             return None, None
 
-        transcript = result.get("transcript") if pushed_any else None
-        intent = result.get("intent")
+        self.interaction_conf.dialogflow_conf.timeout = max(1.0, float(timeout))
+        reply = self.dialogflow.request(GetIntentRequest(int(self.request_id), context or {}))
+        if reply is None:
+            return None, None
+
+        transcript = None
+        intent = getattr(reply, "intent", None)
+        if getattr(reply, "response", None) and getattr(reply.response, "query_result", None):
+            transcript = reply.response.query_result.query_text
         return transcript, intent
 
     def play_audio(self, audio_file, amplified=False, log=True):
@@ -578,7 +505,7 @@ class InteractionOrchestrator:
                 sample_rate=framerate,
             )
             if log:
-                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+                self.logger.info("robot: plays %s", audio_file)
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
         if self.rag_enabled and user_prompt is not None and str(user_prompt).strip():
@@ -710,7 +637,7 @@ class InteractionOrchestrator:
                 return json.loads(text)
             return text
         except Exception as e:
-            print(f"Exception: {e}")
+            self.logger.info(f"Exception: {e}")
             return None
 
     def _request_from_langchain(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
@@ -748,7 +675,7 @@ class InteractionOrchestrator:
                 return json.loads(text)
             return text
         except Exception as e:
-            print(f"Exception: {e}")
+            self.logger.info(f"Exception: {e}")
             return None
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
@@ -826,9 +753,9 @@ class InteractionOrchestrator:
     def _on_dialog(self, message):
         if message.response:
             transcript = message.response.recognition_result.transcript
-            print("Transcript:", transcript)
+            self.logger.info("Transcript:", transcript)
             if message.response.recognition_result.is_final:
-                self.log_utterance(speaker='child', text=transcript)
+                self.logger.info("child: %s", transcript)
 
     def _start_loop(self):
         asyncio.set_event_loop(self.background_loop)

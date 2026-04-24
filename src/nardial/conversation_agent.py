@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, Optional
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -46,11 +46,11 @@ def read_yesno_answer_from_keyboard(prompt: str = "You (yes/no/dontknow): ") -> 
 
 
 class ConversationAgent:
-    def __init__(self, device_manager: Any = None, int_config: InteractionConfig = None):
+    def __init__(self, device_mcp: Any = None, int_config: Optional[InteractionConfig] = None):
         if int_config is None:
             int_config = InteractionConfig()
-        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
-        self.device = device_manager
+        self.orchestrator = InteractionOrchestrator(device_mcp=device_mcp, int_config=int_config)
+        self.device_mcp = device_mcp
 
     def say(self, text):
         self.orchestrator.say(text)

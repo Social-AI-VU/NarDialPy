@@ -11,16 +11,36 @@ from json import dumps, loads, load, dump
 
 
 class TTSService(Enum):
+    """
+        Enumeration of supported Text-to-Speech (TTS) services.
+
+        Attributes:
+            GOOGLE: Google Cloud Text-to-Speech service.
+            ELEVENLABS: ElevenLabs streaming TTS service.
+    """
     GOOGLE = 1
     ELEVENLABS = 2
 
 
 class TTSConf:
+    """
+        Base configuration class for Text-to-Speech services.
+
+        This class serves as a parent for specific TTS configuration types.
+    """
     def __init__(self):
         pass
 
 
 class GoogleTTSConf(TTSConf):
+    """
+        Configuration for Google Text-to-Speech.
+
+        Args:
+            speaking_rate (float): Speed of speech (1.0 = normal).
+            google_tts_voice_name (str): Voice name identifier.
+            google_tts_voice_gender (str): Voice gender (e.g., 'MALE', 'FEMALE').
+    """
 
     def __init__(self, speaking_rate=1.0, google_tts_voice_name="nl-NL-Standard-D", google_tts_voice_gender="FEMALE"):
         super().__init__()
@@ -30,6 +50,14 @@ class GoogleTTSConf(TTSConf):
 
 
 class ElevenLabsTTSConf(TTSConf):
+    """
+        Configuration for ElevenLabs Text-to-Speech.
+
+        Args:
+            speaking_rate (Optional[float]): Optional speaking speed override.
+            voice_id (str): Voice identifier in ElevenLabs.
+            model_id (str): Model identifier used for synthesis.
+    """
     def __init__(self, speaking_rate=None, voice_id='yO6w2xlECAQRFP6pX7Hw', model_id='eleven_flash_v2_5'):
         super().__init__()
         self.speaking_rate = None if speaking_rate == 1.0 else speaking_rate
@@ -38,12 +66,32 @@ class ElevenLabsTTSConf(TTSConf):
 
 
 class NaoqiTTSConf(TTSConf):
+    """
+        Configuration for NAOqi Text-to-Speech.
+
+        Args:
+            language (str): Language used by the NAOqi TTS engine.
+    """
     def __init__(self, language="English"):
         super().__init__()
         self.language = language
 
 
 class ElevenLabsTTS:
+    """
+        Asynchronous client for streaming speech synthesis using ElevenLabs.
+
+        This class manages a WebSocket connection to the ElevenLabs API
+        and streams audio responses for given text input.
+
+        Args:
+            elevenlabs_key (str): API key for ElevenLabs.
+            voice_id (str): Voice identifier.
+            model_id (str): Model identifier.
+            sample_rate (int): Audio sample rate (Hz).
+            speaking_rate (Optional[float]): Speech speed multiplier.
+            stability (float): Voice stability parameter.
+    """
     def __init__(self, elevenlabs_key, voice_id, model_id, sample_rate=22050, speaking_rate=None, stability=0.5):
         self.elevenlabs_key = elevenlabs_key
         self.voice_id = voice_id
@@ -56,6 +104,10 @@ class ElevenLabsTTS:
         self.logger = logging.getLogger("droomrobot")
 
     async def connect(self):
+        """
+                Establish a WebSocket connection to the ElevenLabs streaming API
+                and send initial voice configuration.
+        """
         uri = (
             f"wss://api.elevenlabs.io/v1/text-to-speech/{self.voice_id}/stream-input"
             f"?model_id={self.model_id}"
@@ -82,6 +134,9 @@ class ElevenLabsTTS:
         }))
 
     async def disconnect(self):
+        """
+                Gracefully close the WebSocket connection to the TTS service.
+        """
         if self.websocket:
             try:
                 await self.websocket.send(dumps({"text": ""}))  # end marker
@@ -92,6 +147,12 @@ class ElevenLabsTTS:
                 self.websocket = None
 
     async def ping_connection(self):
+        """
+                Check whether the current WebSocket connection is still alive.
+
+                Returns:
+                    bool: True if the connection is active, False otherwise.
+        """
         try:
             await self.websocket.ping()
             return True
@@ -99,6 +160,11 @@ class ElevenLabsTTS:
             return False
 
     async def drain_socket(self):
+        """
+                Clear any pending messages from the WebSocket buffer.
+
+                This prevents stale audio data from interfering with new requests.
+        """
         try:
             while True:
                 await asyncio.wait_for(self.websocket.recv(), timeout=0.2)
@@ -107,6 +173,15 @@ class ElevenLabsTTS:
             pass
 
     async def speak(self, text):
+        """
+                Send text to the ElevenLabs API and receive synthesized audio.
+
+                Args:
+                    text (str): Input text to synthesize.
+
+                Returns:
+                    Optional[bytes]: Raw PCM audio bytes if successful, otherwise None.
+        """
         # Reconnect if no active connection.
         if not self.websocket or self.websocket.closed:
             self.logger.warning("[TTS] Websocket not connected. Initiating reconnect.")
@@ -150,8 +225,22 @@ class ElevenLabsTTS:
 
 
 class TTSCacher:
+    """
+        Caching utility for storing and retrieving synthesized TTS audio.
+
+        Audio files are cached on disk and indexed using a hash key derived
+        from the input text and TTS configuration.
+    """
 
     def __init__(self, tts_cache_dir='tts_cache', tts_cache_map_file_name='tts_cache_map.json', subfolder_depth=2):
+        """
+                Initialize the TTS cache.
+
+                Args:
+                    tts_cache_dir (str): Directory where audio files are stored.
+                    tts_cache_map_file_name (str): JSON file mapping keys to file paths.
+                    subfolder_depth (int): Number of characters used for subfolder partitioning.
+        """
         self.tts_cache_dir = tts_cache_dir
         self.tts_cache_map_file = os.path.join(tts_cache_dir, tts_cache_map_file_name)
         self.subfolder_depth = subfolder_depth
@@ -160,13 +249,35 @@ class TTSCacher:
 
     @staticmethod
     def normalize_text(text: str) -> str:
-        """Lowercase, strip, remove punctuation for consistent caching"""
+        """
+                Normalize text for consistent cache key generation.
+
+                This includes lowercasing, trimming whitespace, and removing punctuation.
+
+                Args:
+                    text (str): Input text.
+
+                Returns:
+                    str: Normalized text.
+        """
         text = text.strip().lower()
         text = text.translate(str.maketrans("", "", string.punctuation))
         return text
 
     def make_tts_key(self, text: str, voice_conf: TTSConf) -> str:
-        """Generate a hash key based on text + TTS parameters"""
+        """
+        Generate a unique hash key based on input text and TTS configuration.
+
+        Args:
+            text (str): Input text.
+            voice_conf (TTSConf): TTS configuration object.
+
+        Returns:
+            str: MD5 hash key representing the input combination.
+
+        Raises:
+            ValueError: If the provided TTS configuration is unsupported.
+        """
         if isinstance(voice_conf, GoogleTTSConf):
             payload = {
                 "text": self.normalize_text(text),
@@ -191,6 +302,16 @@ class TTSCacher:
         return hashlib.md5(canonical.encode("utf-8")).hexdigest()
 
     def save_audio_file(self, tts_key: str, audio_bytes: bytes, sample_rate: int, sample_width: int = 2, channels: int = 1):
+        """
+                Save synthesized audio to disk and update the cache index.
+
+                Args:
+                    tts_key (str): Unique cache key.
+                    audio_bytes (bytes): Raw audio data.
+                    sample_rate (int): Audio sample rate.
+                    sample_width (int): Bytes per sample (default: 2 for 16-bit audio).
+                    channels (int): Number of audio channels.
+        """
         subfolder = os.path.join(self.tts_cache_dir, tts_key[:self.subfolder_depth])
         os.makedirs(subfolder, exist_ok=True)
         filename = os.path.join(subfolder, f"{tts_key}.wav")
@@ -205,6 +326,15 @@ class TTSCacher:
         self._save_cache()
 
     def load_audio_file(self, tts_key):
+        """
+                Retrieve a cached audio file path if it exists.
+
+                Args:
+                    tts_key (str): Cache key.
+
+                Returns:
+                    Optional[str]: Path to the cached audio file, or None if not found.
+        """
         if tts_key in self.tts_cache:
             # Cached audio exists, play it
             audio_file = self.tts_cache[tts_key]
@@ -215,11 +345,20 @@ class TTSCacher:
         return None
 
     def _load_cache(self) -> dict:
+        """
+                Load the cache index from disk.
+
+                Returns:
+                    dict: Mapping of TTS keys to file paths.
+        """
         if os.path.exists(self.tts_cache_map_file):
             with open(self.tts_cache_map_file, "r") as f:
                 return load(f)
         return {}
 
     def _save_cache(self):
+        """
+                Persist the cache index to disk as a JSON file.
+        """
         with open(self.tts_cache_map_file, "w") as f:
             dump(self.tts_cache, f, indent=2)

@@ -1,3 +1,14 @@
+"""Low-level interaction orchestrator for social robots.
+
+This module provides:
+
+* :class:`InteractionConfig` – runtime configuration (TTS backend, language,
+  post-speech delay, animation flags, …).
+* :class:`InteractionOrchestrator` – connects to the SIC device, sets up TTS,
+  Dialogflow, and GPT, and exposes unified ``say``/``listen``/``animate``
+  primitives used by :class:`~nardial.conversation_agent.ConversationAgent`.
+"""
+
 import asyncio
 import json
 from json import load
@@ -48,16 +59,37 @@ from elevenlabs import ElevenLabs
 
 
 class AnimationType(Enum):
+    """Type of animation to request from the Alphamini robot SDK."""
+
     ACTION = 1
     EXPRESSION = 2
 
 
 class AnimationStyle(Enum):
+    """Speaking animation repertoire used when the robot talks.
+
+    ``EXPRESSIVE`` enables a wider, more emotion-rich set of animations,
+    while ``EXPLANATORY`` favours smaller, didactic gestures.
+    """
+
     EXPRESSIVE = 1
     EXPLANATORY = 2
 
 
 def find_project_root(start: Path) -> Path:
+    """Walk up the directory tree from *start* until a ``conf/`` folder is found.
+
+    Args:
+        start: Directory from which to begin the search.
+
+    Returns:
+        The first ancestor directory (inclusive) that contains a ``conf``
+        subdirectory.
+
+    Raises:
+        FileNotFoundError: If the ``conf`` directory cannot be located in any
+            ancestor.
+    """
     for path in [start] + list(start.parents):
         if (path / "conf").exists():
             return path
@@ -65,6 +97,30 @@ def find_project_root(start: Path) -> Path:
 
 
 class InteractionConfig:
+    """Runtime configuration for :class:`InteractionOrchestrator`.
+
+    Collects all knobs that control TTS backend, listening behaviour,
+    post-speech delays, and animation style.  Default values are designed
+    for English speech using Google TTS.
+
+    Args:
+        language: BCP-47 language tag used for TTS and Dialogflow
+            (default ``"en"``).
+        tts_conf: TTS backend configuration.  When ``None`` a
+            :class:`~nardial.tts_manager.GoogleTTSConf` with a standard
+            English voice is used.
+        microphone_device: Optional separate SIC device to use as the
+            microphone source.
+        google_keyfile_path: Path to the Google service-account JSON key
+            file.  Resolved automatically from the ``conf/google/`` folder
+            when ``None``.
+        openai_key_path: Path to a ``.env`` file that contains the
+            ``OPENAI_API_KEY`` variable.  Resolved automatically from
+            ``conf/openai/`` when ``None``.
+        post_speech_delay: Seconds to pause after each utterance.
+        signal_listening_behavior: When ``True``, the robot shows a visual
+            cue (LED colour change) to indicate it is listening.
+    """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
                  openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True):
@@ -100,6 +156,20 @@ class InteractionConfig:
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
+        """Decorator that fills missing keyword arguments from an instance config object.
+
+        When a decorated method is called without a keyword argument that
+        appears in *param_names*, the value is pulled from the attribute
+        ``getattr(self, config_attr)`` instead.
+
+        Args:
+            config_attr: Name of the instance attribute that holds the
+                configuration object.
+            param_names: List of parameter names to fill from the config.
+
+        Returns:
+            A decorator function.
+        """
         def decorator(func):
             def wrapper(self, *args, **kwargs):
                 config = getattr(self, config_attr)
@@ -114,6 +184,22 @@ class InteractionConfig:
 
 
 class InteractionOrchestrator:
+    """Core engine that connects a SIC robot to TTS, ASR, and LLM services.
+
+    On construction the orchestrator:
+
+    1. Configures application-level logging.
+    2. Connects to OpenAI GPT (if a key is available).
+    3. Initialises the selected TTS backend (Google, ElevenLabs, or NaoQi).
+    4. Sets up the robot-specific hardware (speaker, microphone, animations).
+    5. Connects to Dialogflow for intent-based speech recognition.
+
+    Args:
+        device_manager: SIC device manager for the target robot.
+        int_config: Interaction configuration instance that controls TTS
+            backend, language, post-speech delay, and animation behaviour.
+    """
+
     def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig):
 
         print("\n SETTING UP BASIC PROCESSING")
@@ -191,6 +277,16 @@ class InteractionOrchestrator:
         print("Complete and ready for interaction!")
 
     def start_logging(self, log_id, init_data: dict):
+        """Start an asynchronous log writer thread.
+
+        Creates a ``logs/<log_id>.log`` file and begins writing log messages
+        from an internal queue.
+
+        Args:
+            log_id: Base name (without extension) for the log file.
+            init_data: Metadata dict whose key/value pairs are written as the
+                first line of the log.
+        """
         folder = Path("logs")
         folder.mkdir(parents=True, exist_ok=True)
         log_path = folder / f"{log_id}.log"
@@ -203,12 +299,20 @@ class InteractionOrchestrator:
         self._log_queue.put(', '.join(f"{k}: {v}" for k, v in init_data.items()))
 
     def stop_logging(self):
+        """Signal the log-writer thread to finish and wait for it to exit."""
         if self._log_queue:
             self._log_queue.put(None)
         if self._log_thread:
             self._log_thread.join()
 
     def log_writer(self, log_path):
+        """Background thread target: drain the log queue and write to *log_path*.
+
+        Runs until a ``None`` sentinel is received from the queue, then exits.
+
+        Args:
+            log_path: Path object pointing to the destination log file.
+        """
         with open(log_path, 'a', encoding='utf-8') as f:
             while True:
                 item = self._log_queue.get()
@@ -218,16 +322,37 @@ class InteractionOrchestrator:
                 f.flush()
 
     def log_utterance(self, speaker, text):
+        """Append a timestamped utterance line to the log.
+
+        Args:
+            speaker: Label identifying who spoke (e.g. ``"robot"`` or
+                ``"child"``).
+            text: Transcription or TTS text to log.
+        """
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] {speaker}: {text}")
 
     def log_recognition_result(self, recognition_result):
+        """Append a raw Dialogflow recognition result to the log.
+
+        Args:
+            recognition_result: The recognition result object or string
+                returned by Dialogflow.
+        """
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
 
     def activate_google_tts(self):
+        """Initialise the Google Cloud TTS service and verify connectivity.
+
+        Sends a warm-up request to confirm the service is reachable and to
+        determine the sample rate used by subsequent audio playback.
+
+        Raises:
+            ValueError: If no Google keyfile path has been configured.
+        """
         if self.interaction_conf.google_keyfile_path is None:
             raise ValueError("Google TTS requires a google keyfile to initialize")
         google_tts_conf = Text2SpeechConf(
@@ -242,6 +367,15 @@ class InteractionOrchestrator:
         print('Google TTS activated')
 
     def activate_elevenlabs_tts(self):
+        """Initialise the ElevenLabs streaming TTS websocket.
+
+        Connects to the ElevenLabs API, sends a warm-up phrase, and stores a
+        synchronous ``ElevenLabs`` client for non-streaming calls.
+
+        Raises:
+            ValueError: If the ``ELEVENLABS_API_KEY`` environment variable is
+                not set.
+        """
         if "ELEVENLABS_API_KEY" not in environ:
             raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable to initialize")
         self.sample_rate = 22050
@@ -262,6 +396,7 @@ class InteractionOrchestrator:
             self.logger.error("Failed to connect to elevenlabs", exc_info=e)
 
     def setup_alphamini(self):
+        """Configure the Alphamini robot device, connect to the Mini SDK, and run wake-up animations."""
         print("\n Device is ALPHAMINI")
         print("Connecting to miniSDK")
         self.speaker = self.device_manager.speaker
@@ -275,19 +410,39 @@ class InteractionOrchestrator:
             self.logger.error("Failed to connect to mini device", exc_info=e)
 
     def setup_pepper(self):
+        """Configure the Pepper robot device."""
         self.speaker = self.device_manager.speaker
         print("\n Device is PEPPER")
 
     def setup_nao(self):
+        """Configure the Nao robot device."""
         self.speaker = self.device_manager.speaker
         print("\n Device is NAO")
 
     def setup_desktop(self):
+        """Configure a desktop computer as the audio output device."""
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+        """Synthesise *text* with the configured TTS backend and play it.
+
+        The appropriate backend (NaoQi, Google TTS, or ElevenLabs) is chosen
+        automatically based on ``interaction_conf.tts_conf``.
+
+        Args:
+            text: Utterance to speak.
+            post_speech_delay: Seconds to wait after speaking.  Defaults to
+                the value in ``interaction_conf``.
+            animated: If ``True``, trigger a speaking animation concurrently.
+            amplified: If ``True``, apply dynamic-range compression before
+                playback.
+            always_regenerate: If ``True``, bypass the TTS cache and
+                regenerate audio even if a cached file exists.
+            chunk_audio: If ``True``, split long utterances into smaller
+                chunks for more responsive playback (ElevenLabs only).
+        """
         if animated:
             self.animation()
 
@@ -302,6 +457,15 @@ class InteractionOrchestrator:
 
 
     def naoqi_say(self, text, post_speech_delay=None, animated=False):
+        """Speak *text* using the NaoQi TTS service on Pepper or Nao.
+
+        This method is a no-op on non-NaoQi devices.
+
+        Args:
+            text: Utterance text.
+            post_speech_delay: Optional pause (seconds) after speaking.
+            animated: If ``True``, request an animated TTS rendition.
+        """
         if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
             return
 
@@ -311,6 +475,15 @@ class InteractionOrchestrator:
             sleep(post_speech_delay)
 
     def google_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False):
+        """Speak *text* using Google Cloud TTS, with optional caching.
+
+        Args:
+            text: Utterance text.
+            post_speech_delay: Optional pause (seconds) after speaking.
+            amplified: If ``True``, boost audio volume before playback.
+            always_regenerate: If ``True``, skip the cache and request fresh
+                audio from Google.
+        """
         # Generate cache key and load cached speech audio if available.
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -345,6 +518,18 @@ class InteractionOrchestrator:
             sleep(post_speech_delay)
 
     def elevenlabs_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False, chunking=True):
+        """Speak *text* using the ElevenLabs streaming TTS service.
+
+        Args:
+            text: Utterance text.
+            post_speech_delay: Optional pause (seconds) after each chunk.
+            amplified: If ``True``, boost audio volume before playback.
+            always_regenerate: If ``True``, bypass the cache and regenerate all
+                audio.
+            chunking: If ``True``, split long text into shorter chunks for
+                lower latency (disabled automatically for the ``eleven_v3``
+                model).
+        """
         if not chunking or self.interaction_conf.tts_conf.model_id == 'eleven_v3':
             text_chunks = [text]
         else:
@@ -373,6 +558,16 @@ class InteractionOrchestrator:
                 sleep(post_speech_delay)
 
     def elevenlabs_generate_chunk_audio(self, text, amplified=False):
+        """Generate and cache audio bytes for a single text chunk via ElevenLabs.
+
+        Args:
+            text: Text chunk to synthesise.
+            amplified: If ``True``, apply dynamic-range compression to the
+                returned audio.
+
+        Returns:
+            Raw PCM audio bytes (int16).
+        """
         # Normalize and hash text
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
 
@@ -388,6 +583,20 @@ class InteractionOrchestrator:
         return audio_bytes
 
     def listen(self, context=None, timeout=10):
+        """Listen for user speech and return the transcript and detected intent.
+
+        Optionally signals listening behaviour (e.g. LED change) before and
+        after the capture window.
+
+        Args:
+            context: Dialogflow context dict that biases intent recognition.
+            timeout: Maximum seconds to wait for a response from Dialogflow.
+
+        Returns:
+            A tuple ``(transcript, intent)`` where *transcript* is the
+            recognised text (or ``None``) and *intent* is the matched
+            Dialogflow intent name (or ``None``).
+        """
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
         try:
@@ -404,6 +613,19 @@ class InteractionOrchestrator:
         return None, None
 
     def play_audio(self, audio_file, amplified=False, log=True):
+        """Read and play a WAV audio file through the robot's speaker.
+
+        Only 16-bit PCM WAV files are supported.
+
+        Args:
+            audio_file: Path to the ``.wav`` file to play.
+            amplified: If ``True``, apply dynamic-range compression before
+                playback.
+            log: If ``True``, write a log entry noting which file was played.
+
+        Raises:
+            ValueError: If the WAV file is not in 16-bit format.
+        """
         with wave.open(audio_file, 'rb') as wf:
             # Get parameters
             sample_width = wf.getsampwidth()
@@ -423,6 +645,19 @@ class InteractionOrchestrator:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
+        """Send a prompt to OpenAI GPT and return the response.
+
+        Args:
+            user_prompt: User-turn text to include in the request.
+            context_messages: List of prior conversation messages for context.
+            system_prompt: System-level instruction string.
+            json_response: If ``True``, parse the response text as JSON and
+                return the resulting Python object.
+
+        Returns:
+            The response text (or parsed JSON object when *json_response* is
+            ``True``), or ``None`` if the request fails.
+        """
         try:
             resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
             text = (resp.response or "").strip()
@@ -434,6 +669,18 @@ class InteractionOrchestrator:
             return None
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
+        """Trigger an Alphamini animation action or expression.
+
+        On non-Alphamini devices the call is printed to stdout and returns
+        immediately (useful for development on desktop).
+
+        Args:
+            animation_type: Whether to run an :attr:`AnimationType.ACTION` or
+                :attr:`AnimationType.EXPRESSION`.
+            animation_id: ID string of the animation to play.
+            run_async: If ``True``, schedule the animation without waiting for
+                it to finish.
+        """
         if not isinstance(self.device_manager, Alphamini):
             print(f'Animation played: {animation_type} [{animation_id}]')
             return
@@ -449,16 +696,43 @@ class InteractionOrchestrator:
             future.result()
 
     def animate_naoqi(self, animation: str, block=True):
+        """Play a NaoQi animation on Pepper or Nao.
+
+        Args:
+            animation: NaoQi animation path string.
+            block: If ``True``, wait for the animation to complete before
+                returning.
+        """
         try:
             self.device_manager.motion.request(NaoqiAnimationRequest(animation), block=block)
         except Exception as e:
             self.logger.error(f"Failed to play pepper animation: {animation}", exc_info=e)
 
     def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
+        """Set a Pepper LED group to a specific RGB colour.
+
+        This method is a no-op on non-Pepper devices.
+
+        Args:
+            r: Red channel intensity (0.0–1.0).
+            g: Green channel intensity (0.0–1.0).
+            b: Blue channel intensity (0.0–1.0).
+            name: NaoQi LED group name (default ``"FaceLeds"``).
+        """
         if isinstance(self.device_manager, Pepper):
             self.device_manager.leds.request(NaoFadeRGBRequest(name, r, g, b, 0))
 
     async def alphamini_animation_action(self, action_name, animation_type):
+        """Coroutine that executes a single Alphamini action or expression.
+
+        On failure the method logs the error and attempts to reconnect to the
+        Mini SDK before returning.
+
+        Args:
+            action_name: Name of the action or expression to execute.
+            animation_type: :attr:`AnimationType.ACTION` or
+                :attr:`AnimationType.EXPRESSION`.
+        """
         try:
             if animation_type == AnimationType.ACTION:
                 action: PlayAction = PlayAction(action_name=action_name)
@@ -476,6 +750,18 @@ class InteractionOrchestrator:
                 self.logger.error("Failed to connect to mini device", exc_info=e)
 
     def set_alphamini_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000, run_async=False):
+        """Control the Alphamini mouth LED lamp.
+
+        On non-Alphamini devices the parameters are printed to stdout.
+
+        Args:
+            color: Desired lamp colour (see :class:`mini.MouthLampColor`).
+            mode: Lamp mode such as ``NORMAL`` or ``BREATH``.
+            duration: Duration in milliseconds for ``NORMAL`` mode (``-1``
+                means indefinite).
+            breath_duration: Duration of one breath cycle in milliseconds.
+            run_async: If ``True``, schedule without waiting for completion.
+        """
         if not isinstance(self.device_manager, Alphamini):
             print(f"Set mouth lamp: {color} {mode} {duration} {breath_duration}")
             return
@@ -490,6 +776,15 @@ class InteractionOrchestrator:
 
     @staticmethod
     async def alphamini_mouth_lamp_expression(color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000):
+        """Coroutine that executes a mouth-lamp command on the Alphamini.
+
+        Args:
+            color: Desired lamp colour.
+            mode: Lamp mode (``NORMAL`` or ``BREATH``).
+            duration: Duration in milliseconds (``NORMAL`` mode only).
+            breath_duration: Duration of one breath cycle in milliseconds
+                (``BREATH`` mode only).
+        """
         if mode == MouthLampMode.BREATH:
             mouth_lamp_action: SetMouthLamp = SetMouthLamp(color=color, mode=MouthLampMode.BREATH,
                                                            breath_duration=breath_duration)
@@ -498,6 +793,12 @@ class InteractionOrchestrator:
         await mouth_lamp_action.execute()
 
     def disconnect(self):
+        """Gracefully shut down all active connections and the background loop.
+
+        Disconnects from ElevenLabs (if active), cancels pending Alphamini
+        animation futures, releases the Mini SDK, and stops the asyncio event
+        loop thread.
+        """
         if isinstance(self.tts_conf, ElevenLabsTTSConf):
             disconnect_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.disconnect(), self.background_loop)
             disconnect_elevenlabs_future.result()
@@ -518,6 +819,11 @@ class InteractionOrchestrator:
         self.background_thread.join()
 
     def _on_dialog(self, message):
+        """Dialogflow callback that logs interim and final transcriptions.
+
+        Args:
+            message: Dialogflow recognition result message.
+        """
         if message.response:
             transcript = message.response.recognition_result.transcript
             print("Transcript:", transcript)
@@ -525,22 +831,40 @@ class InteractionOrchestrator:
                 self.log_utterance(speaker='child', text=transcript)
 
     def _start_loop(self):
+        """Thread target: run the background asyncio event loop until stopped."""
         asyncio.set_event_loop(self.background_loop)
         self.background_loop.run_forever()
 
     async def _connect_once(self):
+        """Coroutine that connects to the Alphamini device if not already connected."""
         if not self.mini_api:
             self.mini_api = await MiniSdk.get_device_by_name(self.mini_id, 10)
             await MiniSdk.connect(self.mini_api)
 
     @staticmethod
     async def _disconnect_alphamini_api():
+        """Coroutine that releases the Alphamini Mini SDK connection."""
         await MiniSdk.release()
 
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
+        """Replace the current interaction configuration at runtime.
+
+        Args:
+            interaction_conf: New :class:`InteractionConfig` instance to use
+                for subsequent interactions.
+        """
         self.interaction_conf = interaction_conf
 
     def signal_listening_behavior(self, start=True):
+        """Toggle the robot's visual listening indicator.
+
+        On Alphamini, changes the mouth lamp colour; on Pepper/Nao, changes
+        the face LED colour.
+
+        Args:
+            start: ``True`` to activate the "listening" indicator, ``False``
+                to revert to the default idle indicator.
+        """
         if start:
             if isinstance(self.device_manager, Alphamini):
                 self.set_alphamini_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
@@ -553,6 +877,7 @@ class InteractionOrchestrator:
                 self.animate_naoqi_leds()
 
     def animation(self):
+        """Trigger a random speaking animation appropriate for the current device."""
         if isinstance(self.device_manager, Alphamini):
             self.animate_alphamini(AnimationType.EXPRESSION, self.random_alphamini_speaking_eye_expression(), run_async=True)
             self.animate_alphamini(AnimationType.ACTION, self.random_alphamini_speaking_act(), run_async=True)
@@ -560,6 +885,13 @@ class InteractionOrchestrator:
             self.device_manager.motion.request(NaoqiAnimationRequest(self.random_pepper_animation()), block=False)
 
     def play_motion(self, motion_name):
+        """Replay a recorded motion sequence on Pepper or Nao.
+
+        This method is a no-op on non-NaoQi devices.
+
+        Args:
+            motion_name: Path to the NaoQi motion-sequence recording file.
+        """
         if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
             return
         try:
@@ -572,6 +904,11 @@ class InteractionOrchestrator:
 
     @staticmethod
     def random_alphamini_speaking_act():
+        """Return a randomly chosen Alphamini speaking-action animation ID.
+
+        Returns:
+            One of the ``speakingAct*`` animation IDs.
+        """
         speaking_acts = [
             "speakingAct1",
             "speakingAct2",
@@ -595,6 +932,11 @@ class InteractionOrchestrator:
 
     @staticmethod
     def random_alphamini_speaking_eye_expression():
+        """Return a randomly chosen Alphamini speaking eye-expression ID.
+
+        Returns:
+            One of the ``codemao*`` expression IDs.
+        """
         speaking_expressions = [
             "codemao1", "codemao2", "codemao3", "codemao4", "codemao5",
             "codemao6", "codemao7", "codemao8", "codemao9", "codemao10",
@@ -603,6 +945,12 @@ class InteractionOrchestrator:
         return rand.choice(speaking_expressions)
 
     def random_pepper_animation(self):
+        """Return a randomly chosen Pepper animation path for the configured style.
+
+        Returns:
+            A NaoQi animation path string suitable for use with
+            :meth:`animate_naoqi`.
+        """
         if self.interaction_conf.animation_style == AnimationStyle.EXPRESSIVE:
             animations = [
                 "animations/Stand/Emotions/Positive/Happy_4",

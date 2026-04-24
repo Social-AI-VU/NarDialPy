@@ -1,10 +1,46 @@
+"""Dialog selection and scheduling logic.
+
+This module contains :class:`DialogLogic`, a collection of static utility
+methods that determine which dialogs are eligible to run, rank candidates by
+relevance, and assemble the sequence of dialogs for a session.
+"""
+
 import random
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
 class DialogLogic:
+    """Stateless helper that encapsulates session-planning and eligibility rules.
+
+    All methods are static so that :class:`DialogLogic` can be used without
+    instantiation.  Dialog authors and :class:`~nardial.session_manager.SessionManager`
+    call these methods to build and filter the list of dialogs that should run
+    in a given session.
+    """
     @staticmethod
     def is_dialog_eligible(dialog, completed_ids, user_model, all_dialogs=None):
+        """Determine whether *dialog* can be executed in the current session.
+
+        A dialog is eligible when:
+
+        * It has not already been completed.
+        * All of its ``dependencies`` appear in *completed_ids*.
+        * All required ``variable_dependencies`` are satisfied in *user_model*.
+        * For :class:`~nardial.mini_dialogs.NarrativeDialog` instances, no
+          earlier dialog in the same thread remains pending.
+
+        Args:
+            dialog: The :class:`~nardial.mini_dialogs.MiniDialog` candidate to
+                evaluate.
+            completed_ids: Collection of dialog IDs that have already run.
+            user_model: Mapping of user-model variable names to their current
+                values.
+            all_dialogs: Full list of dialogs used to check narrative thread
+                ordering.  Ignored for non-narrative dialogs.
+
+        Returns:
+            ``True`` if the dialog may run, ``False`` otherwise.
+        """
         # check if dialog can be run based on dependencies and user model variables
         # if narrative dialog, check position in thread and if previous narratives in thread have been completed
         # Block any dialog that is already completed (including greeting/farewell)
@@ -31,6 +67,21 @@ class DialogLogic:
 
     @staticmethod
     def matches_user_interests(dialog, topics_of_interest):
+        """Return whether any of *dialog*'s topics appear in *topics_of_interest*.
+
+        When *topics_of_interest* is empty or ``None``, every dialog is
+        considered a match so that no dialog is unfairly excluded by default.
+
+        Args:
+            dialog: A :class:`~nardial.mini_dialogs.MiniDialog` instance with
+                a ``topics`` attribute.
+            topics_of_interest: List of topic strings accumulated from
+                previous user answers.
+
+        Returns:
+            ``True`` when there is at least one overlapping topic, or when
+            *topics_of_interest* is empty.
+        """
         # checks if the dialog has at least one topic that matches the user’s topics of interest
         if not topics_of_interest:
             return True
@@ -144,6 +195,31 @@ class DialogLogic:
 
     @staticmethod
     def build_dialog_session(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
+        """Assemble a complete session sequence from the available dialogs.
+
+        The resulting list follows this structure:
+
+        1. Greeting (prefer a fresh variant; fall back to any greeting).
+        2. First narrative in *thread*.
+        3. One themed chitchat (topic-biased and dependency-aware).
+        4. Second narrative in *thread*.
+        5. Another chitchat.
+        6. Farewell (prefer a fresh variant; fall back to any farewell).
+
+        Args:
+            mini_dialogs: Iterable of all available
+                :class:`~nardial.mini_dialogs.MiniDialog` objects.
+            thread: Preferred narrative thread to draw from.
+            theme: Preferred chitchat theme.
+            topics_of_interest: User topics used to bias chitchat selection.
+            completed_ids: Dialog IDs that have already been run in previous
+                sessions.  Used to avoid repetition and to satisfy dependency
+                checks.
+
+        Returns:
+            Ordered list of :class:`~nardial.mini_dialogs.MiniDialog` objects
+            representing the planned session.
+        """
         session = []
         pool = list(mini_dialogs)
         completed_ids = set(completed_ids or set())

@@ -1,3 +1,10 @@
+"""High-level conversational agent that wraps the interaction orchestrator.
+
+This module provides :class:`ConversationAgent`, the main entry point for
+dialog authors who want to drive a robot through spoken interaction without
+dealing with low-level device management.
+"""
+
 import json
 import re
 
@@ -7,6 +14,21 @@ from nardial.interaction_orchestrator import InteractionOrchestrator, Interactio
 
 
 class ConversationAgent:
+    """High-level interface for controlling a social robot during a conversation.
+
+    :class:`ConversationAgent` wraps an :class:`~nardial.interaction_orchestrator.InteractionOrchestrator`
+    and exposes simple, dialog-oriented methods (say, listen, ask) so that
+    :class:`~nardial.mini_dialogs.MiniDialog` subclasses do not need to interact
+    with hardware or TTS services directly.
+
+    Args:
+        device_manager: A SIC device manager for the target robot (e.g. Desktop,
+            Pepper, Nao, or Alphamini).
+        int_config: Optional interaction configuration.  A default
+            :class:`~nardial.interaction_orchestrator.InteractionConfig` is used when
+            *None* is supplied.
+    """
+
     def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
         if int_config is None:
             int_config = InteractionConfig()
@@ -14,15 +36,40 @@ class ConversationAgent:
         self.device = device_manager
 
     def say(self, text):
+        """Synthesise and play *text* through the robot's speakers.
+
+        Args:
+            text: The utterance to speak aloud.
+        """
         self.orchestrator.say(text)
 
     def play_audio(self, audio_file):
+        """Play a pre-recorded WAV audio file through the robot's speakers.
+
+        Args:
+            audio_file: Absolute or relative path to the ``.wav`` file.
+        """
         self.orchestrator.play_audio(audio_file)
 
     def play_motion_sequence(self, motion_sequence_file):
+        """Replay a recorded motion sequence on the robot.
+
+        Args:
+            motion_sequence_file: Path to the motion-sequence recording file.
+        """
         self.orchestrator.play_motion(motion_sequence_file)
 
     def play_animation(self, animation_name, block=False):
+        """Play a named NaoQi animation on Pepper or Nao robots.
+
+        The call is silently ignored on devices that do not support NaoQi
+        animations (e.g. Desktop or Alphamini).
+
+        Args:
+            animation_name: NaoQi animation identifier string.
+            block: If ``True``, wait for the animation to finish before
+                returning.
+        """
         if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
             try:
                 self.orchestrator.animate_naoqi(animation_name, block)
@@ -30,6 +77,20 @@ class ConversationAgent:
                 print(f"Failed to play animation: {animation_name}", e)
 
     def ask_yesno(self, question, max_attempts=1):
+        """Ask a yes/no question and return the recognised intent.
+
+        The agent speaks *question*, then listens for a yes/no/don't-know
+        response via Dialogflow intent recognition.
+
+        Args:
+            question: The question to speak.
+            max_attempts: Maximum number of listen attempts before giving up.
+
+        Returns:
+            ``"yes"``, ``"no"``, ``"dontknow"`` on a successful match, or
+            ``None`` when no recognised intent is detected within
+            *max_attempts*.
+        """
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
@@ -48,6 +109,16 @@ class ConversationAgent:
         return None
 
     def ask_open(self, question, max_attempts=2):
+        """Ask an open-ended question and return the transcribed user reply.
+
+        Args:
+            question: The question to speak.
+            max_attempts: Maximum number of listen attempts before giving up.
+
+        Returns:
+            The transcribed reply string, or ``None`` when no speech is
+            detected within *max_attempts*.
+        """
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
@@ -58,6 +129,20 @@ class ConversationAgent:
         return None
 
     def ask_options(self, question, options, max_attempts=2):
+        """Ask a question and match the reply against a list of valid options.
+
+        The user's free-text response is compared (case-insensitively) against
+        each item in *options*.  The first matching option is returned.
+
+        Args:
+            question: The question to speak.
+            options: List of expected option strings to match against the reply.
+            max_attempts: Maximum number of listen attempts before giving up.
+
+        Returns:
+            The matched option string, or ``None`` when no option is found in
+            the reply.
+        """
         answer = self.ask_open(question, max_attempts=max_attempts)
         if answer:
             answer_lower = answer.lower()
@@ -121,4 +206,15 @@ class ConversationAgent:
             return _heuristic(raw_topics)
 
     def ask_llm(self, user_prompt, context_messages, system_prompt):
+        """Forward a prompt to the configured LLM and return the response text.
+
+        Args:
+            user_prompt: The user-turn text to send to the LLM.
+            context_messages: List of previous conversation turns used as
+                context for the request.
+            system_prompt: System-level instruction string for the LLM.
+
+        Returns:
+            The LLM response string, or ``None`` if the request fails.
+        """
         return self.orchestrator.request_from_gpt(user_prompt, context_messages, system_prompt)

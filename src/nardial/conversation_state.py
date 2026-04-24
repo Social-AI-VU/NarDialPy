@@ -1,3 +1,11 @@
+"""Persistent conversation state management.
+
+This module tracks cross-session continuity for individual participants,
+including completed dialog identifiers, user-model variables, and topics of
+interest.  Per-participant data is persisted as JSON files inside a
+``participants/`` directory.
+"""
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
@@ -7,6 +15,25 @@ import re
 
 
 class Session:
+    """Lightweight data container for a single conversation session.
+
+    Args:
+        session_id: Unique identifier for this session (e.g. ``"sess_0001"``).
+        participant_id: Optional identifier for the participant.
+        run_id: Optional identifier for the experimental run.
+        metadata: Arbitrary key/value metadata attached to the session.
+        started_at: ISO-8601 timestamp of session start.  Defaults to the
+            current UTC time when not provided.
+        ended_at: ISO-8601 timestamp of session end.  ``None`` until the
+            session is finalised via
+            :meth:`ConversationState.end_session`.
+        events: Ordered list of event dicts (robot utterances, user replies,
+            system markers, …).
+        dialog_ids: Ordered list of dialog identifiers executed during this
+            session.
+        summary: Arbitrary summary data stored after the session ends.
+    """
+
     def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None,
                  metadata: Optional[Dict[str, Any]] = None, started_at: Optional[str] = None, ended_at: Optional[str] = None,
                  events: Optional[List[Dict[str, Any]]] = None, dialog_ids: Optional[List[str]] = None,
@@ -53,6 +80,12 @@ class ConversationState:
         self.load()
 
     def load(self) -> None:
+        """Load persisted state for the current participant from disk.
+
+        If no transcript file exists yet (e.g. first session for a
+        participant), this method returns without error and the state
+        remains at its default (empty) values.
+        """
         safe_id = self._sanitize_participant_id(self.participant_id)
         path = self.participants_dir / f"{safe_id}.json"
 
@@ -73,15 +106,39 @@ class ConversationState:
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
     def save(self) -> None:
+        """Persist the current participant's state to disk.
+
+        Delegates to :meth:`save_participant_transcript` using the instance's
+        own ``participant_id``.
+        """
         self.save_participant_transcript(self.participant_id)
 
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
+        """Create a new :class:`Session` and register it in the session list.
+
+        Args:
+            metadata: Arbitrary key/value metadata to attach to the session.
+            participant_id: Override participant ID for the new session.
+            run_id: Identifier for the experimental run.
+
+        Returns:
+            The newly created session ID string (e.g. ``"sess_0001"``).
+        """
         sid = f"sess_{len(self.sessions) + 1:04d}"
         session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
         self.sessions.append(session)
         return sid
 
     def add_events(self, session_id: str, events: List[Dict[str, Any]]) -> None:
+        """Append a list of event dicts to the identified session.
+
+        Args:
+            session_id: ID of the target session.
+            events: List of event dicts to append.
+
+        Raises:
+            KeyError: If *session_id* does not match any known session.
+        """
         sess = self._get_session(session_id)
         sess.events.extend(list(events or []))
 
@@ -130,16 +187,40 @@ class ConversationState:
         self.save_participant_transcript(target_participant_id)
 
     def _get_session(self, session_id: str) -> Session:
+        """Return the :class:`Session` object for *session_id*.
+
+        Args:
+            session_id: Identifier of the session to retrieve.
+
+        Returns:
+            The matching :class:`Session` instance.
+
+        Raises:
+            KeyError: If no session with *session_id* exists.
+        """
         for s in self.sessions:
             if s.session_id == session_id:
                 return s
         raise KeyError(f"Session {session_id} not found")
 
     def _merge_completed(self, completed_ids: Union[List[str], set]) -> None:
+        """Merge *completed_ids* into the running set of completed dialog IDs.
+
+        Args:
+            completed_ids: Collection of dialog ID strings to add.
+        """
         prev = set(self.completed_dialogs)
         self.completed_dialogs = list(prev.union(set(completed_ids)))
 
     def _merge_interests(self, topics: List[str]) -> None:
+        """Add new topics to ``topics_of_interest``, skipping duplicates.
+
+        Comparison is case-insensitive; the original casing of the first
+        occurrence is preserved.
+
+        Args:
+            topics: List of topic strings to merge.
+        """
         seen = {str(x).strip().lower() for x in self.topics_of_interest}
         for t in topics or []:
             k = str(t).strip().lower()
@@ -164,6 +245,15 @@ class ConversationState:
             sess.dialog_ids = ids
 
     def save_participant_transcript(self, participant_id: Optional[str]) -> None:
+        """Write a participant's full transcript to disk as JSON.
+
+        The file is written atomically (write to a ``.tmp`` file, then
+        rename) to avoid leaving a half-written file on disk.
+
+        Args:
+            participant_id: Identifier of the participant whose data should be
+                saved.  ``None`` maps to the shared anonymous key.
+        """
         target_id = self._sanitize_participant_id(participant_id)
         path = Path(self.participants_dir) / f"{target_id}.json"
 
@@ -188,6 +278,20 @@ class ConversationState:
 
     @staticmethod
     def _sanitize_participant_id(participant_id: Optional[str]) -> str:
+        """Return a filesystem-safe version of *participant_id*.
+
+        Whitespace is replaced with underscores, characters that are
+        invalid in file names are replaced with underscores, and Windows
+        reserved names are prefixed with an underscore.
+
+        Args:
+            participant_id: Raw participant identifier, or ``None`` for
+                anonymous participants.
+
+        Returns:
+            A sanitised string suitable for use as a file name (without
+            extension).
+        """
         if participant_id is None:
             return ConversationState.ANONYMOUS_PARTICIPANT_ID
         s = str(participant_id).strip()
@@ -200,6 +304,14 @@ class ConversationState:
 
     @staticmethod
     def _collect_dialog_ids(sessions: List[Session]) -> List[str]:
+        """Collect unique dialog IDs from a list of sessions in order of first occurrence.
+
+        Args:
+            sessions: List of :class:`Session` objects to inspect.
+
+        Returns:
+            Ordered list of unique dialog ID strings.
+        """
         seen, ids = set(), []
         for s in sessions:
             for did in s.dialog_ids or []:
@@ -211,6 +323,14 @@ class ConversationState:
 
     @staticmethod
     def _collect_topics_from_summaries(sessions: List[Session]) -> List[str]:
+        """Collect unique topics of interest from session summaries in order of first occurrence.
+
+        Args:
+            sessions: List of :class:`Session` objects to inspect.
+
+        Returns:
+            Ordered list of unique topic strings (preserving original casing).
+        """
         seen, topics = set(), []
         for s in sessions:
             for t in (s.summary or {}).get("topics_of_interest") or []:
@@ -223,6 +343,15 @@ class ConversationState:
 
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
+        """Serialise *data* to *path* atomically using a temporary file.
+
+        The data is first written to ``<path>.tmp`` and then renamed to
+        *path*, which is an atomic operation on most operating systems.
+
+        Args:
+            path: Destination file path (created if it does not exist).
+            data: JSON-serialisable dictionary to write.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 

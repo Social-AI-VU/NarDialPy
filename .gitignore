@@ -29,3 +29,7 @@ examples/participants/*
 
 # Ignore cache
 examples/tts_cache/
+
+# environment files
+conf/.env
+*.env

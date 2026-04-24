@@ -31,7 +31,7 @@ class DialogLogic:
 
     @staticmethod
     def matches_user_interests(dialog, topics_of_interest):
-        # checks if the dialog has at least one topic that matches the user’s topics of interest
+        # checks if the dialog has at least one topic that matches the user's topics of interest
         if not topics_of_interest:
             return True
         interests = [str(t).lower() for t in topics_of_interest]
@@ -41,7 +41,7 @@ class DialogLogic:
     @staticmethod
     def sort_chitchat_dialogs(pool, theme=None, topics_of_interest=None):
         """
-        Prioritize chitchat candidates by deps∧interests > interests > deps > others
+        Prioritize chitchat candidates by deps&interests > interests > deps > others
         """
         cands = [d for d in pool if isinstance(d, ChitchatDialog) and (theme is None or d.theme == theme)]
         if not cands:
@@ -99,7 +99,7 @@ class DialogLogic:
         if not cands:
             return False
         for c in cands:
-            # Effective completion set: dialogs already in this session ∪ continuity
+            # Effective completion set: dialogs already in this session plus continuity
             completed_so_far = {d.dialog_id for d in session}
             effective_completed = set(completed_so_far)
             if completed_ids:

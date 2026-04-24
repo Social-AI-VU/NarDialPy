@@ -69,7 +69,7 @@
         "type": "ask_yesno",
         "text": "Do you want to do that activity today?",
         "set_variable": "wants_activity_today",
-        "llm_followup": "Reply in one short, encouraging sentence that mirrors the user's answer and keeps the tone supportive.",
+        "llm_followup": "Reply in one short, encouraging sentence that mirrors the user's answer and keeps the tone supportive."
       }
     ]
   },

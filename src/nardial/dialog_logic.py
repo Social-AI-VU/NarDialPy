@@ -87,6 +87,7 @@ class DialogLogic:
         bool
             True if at least one topic overlaps, or if no interests are defined.
         """
+        # checks if the dialog has at least one topic that matches the user's topics of interest
         if not topics_of_interest:
             return True
 
@@ -119,6 +120,7 @@ class DialogLogic:
         -------
         list of ChitchatDialog
             Sorted list of candidate dialogs.
+        Prioritize chitchat candidates by deps&interests > interests > deps > others
         """
         cands = [d for d in pool if isinstance(d, ChitchatDialog) and (theme is None or d.theme == theme)]
         if not cands:
@@ -222,6 +224,7 @@ class DialogLogic:
             return False
 
         for c in cands:
+            # Effective completion set: dialogs already in this session plus continuity
             completed_so_far = {d.dialog_id for d in session}
             effective_completed = set(completed_so_far)
 

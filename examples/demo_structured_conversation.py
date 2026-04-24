@@ -11,7 +11,7 @@ from nardial.session_manager import SessionManager
 
 """
 =========================
-Demo – Pre-run Setup
+Demo - Pre-run Setup
 =========================
 Before running this demo, make sure you have completed the required setup steps.
 This demo depends on external services for speech, language understanding, and LLM responses.
@@ -31,7 +31,7 @@ You MUST create the following files:
 Example `.openai_env` file:
     OPENAI_API_KEY="your key"
 
-⚠️ Never commit these files to version control.
+WARNING: Never commit these files to version control.
 -------------------------
 3. Start required services
 -------------------------
@@ -45,7 +45,7 @@ You MUST run these in separate terminals BEFORE starting the demo:
 """
 
 # Path to your Google credentials (used for speech recognition + TTS if using Google)
-# 👉 You can replace this with your own path or environment-based config
+# You can replace this with your own path or environment-based config
 google_keyfile_path = join("..", "conf", "google", "google_keyfile.json")
 
 if __name__ == '__main__':
@@ -58,12 +58,12 @@ if __name__ == '__main__':
 
     device = Desktop(
         speakers_conf=SpeakersConf(
-            sample_rate=22050  # 👉 You can change audio quality (higher = better, but heavier)
+            sample_rate=22050  # You can change audio quality (higher = better, but heavier)
         )
     )
 
     # Uncomment to use Pepper instead:
-    # device = Pepper(ip="10.0.0.148")  # 👉 Replace with your robot's IP
+    # device = Pepper(ip="10.0.0.148")  # Replace with your robot's IP
 
     # =========================
     # 2. CONFIGURE INTERACTION
@@ -72,28 +72,29 @@ if __name__ == '__main__':
 
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
+        keyboard_input=True
 
-        # 👉 Change language (affects ASR + TTS + dialogflow)
+        # Change language (affects ASR + TTS + dialogflow)
         # language="nl",
 
-        # 👉 Optional: specify microphone manually
+        # Optional: specify microphone manually
         # microphone_device=1,
 
-        # 👉 Optional: path to OpenAI key (if not using default location)
+        # Optional: path to OpenAI key (if not using default location)
         # openai_key_path="path/to/.openai_env",
 
-        # 👉 Add a pause after the agent speaks (seconds)
+        # Add a pause after the agent speaks (seconds)
         # post_speech_delay=0.5,
 
-        # 👉 Visual/behavior cue while listening (useful for robots)
+        # Visual/behavior cue while listening (useful for robots)
         # signal_listening_behavior=True,
     )
 
-    # 💡 ADVANCED (inside InteractionConfig defaults):
+    # ADVANCED (inside InteractionConfig defaults):
     # - Change voice via GoogleTTSConf (voice name, speaking_rate)
-    # - animated = True → enable gestures (for embodied agents)
-    # - always_regenerate = True → disable audio caching
-    # - chunk_audio = True → stream audio in chunks (lower latency)
+    # - animated = True -> enable gestures (for embodied agents)
+    # - always_regenerate = True -> disable audio caching
+    # - chunk_audio = True -> stream audio in chunks (lower latency)
 
     # =========================
     # 3. CREATE AGENT
@@ -111,13 +112,13 @@ if __name__ == '__main__':
     # Each string must match a dialog_id in your JSON file.
 
     session_agenda = [
-        "welcome_and_name",  # 👉 greeting + collect user name
-        "plan_activity",  # 👉 collaborative planning
-        "adapt_to_user_energy",  # 👉 dynamic behavior based on user state
-        "structured_goodbye",  # 👉 closing the interaction
+        "welcome_and_name",  # greeting + collect user name
+        "plan_activity",  # collaborative planning
+        "adapt_to_user_energy",  # dynamic behavior based on user state
+        "structured_goodbye",  # closing the interaction
     ]
 
-    # 💡 You can:
+    # You can:
     # - Reorder steps to change flow
     # - Remove items for shorter sessions
     # - Add new dialog_ids from your dialog JSON
@@ -132,14 +133,14 @@ if __name__ == '__main__':
 
         agent=agent,
 
-        # 👉 Path to your dialog definitions
+        # Path to your dialog definitions
         dialog_json_path="structured_conversation_dialogs.json",
 
-        # 👉 Optional: identify the user (used for personalization/memory)
+        # Optional: identify the user (used for personalization/memory)
         participant_id="2",
     )
 
-    # 💡 Internally, SessionManager:
+    # Internally, SessionManager:
     # - Loads dialogs from JSON
     # - Filters them based on eligibility (DialogLogic)
     # - Tracks conversation state (topics, completed dialogs)

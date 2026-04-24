@@ -90,7 +90,7 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True):
+                 openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False):
         """
         Initialize interaction configuration.
 
@@ -104,6 +104,7 @@ class InteractionConfig:
             signal_listening_behavior (bool): Whether to show listening indicators.
         """
         self.language = language
+        self.keyboard_input = keyboard_input
 
         self.tts_conf = tts_conf
         if not tts_conf:
@@ -244,7 +245,8 @@ class InteractionOrchestrator:
         print("Complete")
 
         print("\n SETTING UP DIALOGFLOW")
-        self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=getattr(self, 'mic', None))
+        df_input = None if self.interaction_conf.keyboard_input else getattr(self, 'mic', None)
+        self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=df_input)
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
         self.dialogflow.register_callback(self._on_dialog)
@@ -447,19 +449,29 @@ class InteractionOrchestrator:
 
         return audio_bytes
 
-    def listen(self, timeout=10):
+    def listen(self, context=None, timeout=10):
+
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
-
-        intent, response = None, None
-        try:
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id), timeout=timeout)
-            print("The detected intent:", reply.intent)
-            intent = reply.intent if reply.intent else None
-            response = reply.response.query_result.query_text if reply.response.query_result.query_text else None
-        except TimeoutError as e:
-            print("Error:", e)
-
+        if self.interaction_conf.keyboard_input:
+            try:
+                line = input("Your reply: ").strip()
+            except EOFError:
+                return None, None
+            if not line:
+                return None, None
+            self.log_utterance(speaker="child", text=line)
+            return line, None
+        else:
+            try:
+                reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
+                print("The detected intent:", reply.intent)
+                intent = reply.intent if reply.intent else None
+                if reply.response.query_result.query_text:
+                    return reply.response.query_result.query_text, intent
+                return None, intent
+            except TimeoutError as e:
+                print("Error:", e)
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=False)
 

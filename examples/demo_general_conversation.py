@@ -17,7 +17,7 @@ if __name__ == '__main__':
     # device = Pepper(ip="10.0.0.148")
 
     # Create conversational agent
-    interaction_config = InteractionConfig(post_speech_delay=2)
+    interaction_config = InteractionConfig(post_speech_delay=2, keyboard_input=True)
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 
     # all dialogs for now

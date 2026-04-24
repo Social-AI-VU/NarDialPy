@@ -1,10 +1,30 @@
 from typing import Any, Dict, List
 
 from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
-from nardial.moves import MOVE_SAY, MOVE_ASK_OPEN, MOVE_ASK_YESNO, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH
+from nardial.moves import (
+    MOVE_SAY,
+    MOVE_ASK_OPEN,
+    MOVE_ASK_YESNO,
+    MOVE_ASK_OPTIONS,
+    MOVE_ASK_LLM,
+    MOVE_PLAY_AUDIO,
+    MOVE_MOTION_SEQUENCE,
+    MOVE_ANIMATION,
+    MOVE_BRANCH,
+)
 
 
-ALLOWED_MOVE_TYPES = {MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_BRANCH}
+ALLOWED_MOVE_TYPES = {
+    MOVE_SAY,
+    MOVE_ASK_YESNO,
+    MOVE_ASK_OPEN,
+    MOVE_ASK_OPTIONS,
+    MOVE_ASK_LLM,
+    MOVE_PLAY_AUDIO,
+    MOVE_MOTION_SEQUENCE,
+    MOVE_ANIMATION,
+    MOVE_BRANCH,
+}
 
 
 class MoveFactory:
@@ -22,10 +42,19 @@ class MoveFactory:
         if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for {mt}")
+        if mt == MOVE_ASK_LLM:
+            if not isinstance(move.get("prompt"), str):
+                errs.append(f"moves[{idx}].prompt must be string for ask_llm")
         if mt == "ask_options":
             opts = move.get("options")
             if not isinstance(opts, list) or not all(isinstance(o, str) for o in opts):
                 errs.append(f"moves[{idx}].options must be a list of strings for ask_options")
+        if mt == MOVE_PLAY_AUDIO and not isinstance(move.get("audio"), str):
+            errs.append(f"moves[{idx}].audio must be string for play")
+        if mt == MOVE_MOTION_SEQUENCE and not isinstance(move.get("motion_sequence"), str):
+            errs.append(f"moves[{idx}].motion_sequence must be string for motion_sequence")
+        if mt == MOVE_ANIMATION and not isinstance(move.get("animation_name"), str):
+            errs.append(f"moves[{idx}].animation_name must be string for animation")
         if "set_variable" in move and not isinstance(move.get("set_variable"), str):
             errs.append(f"moves[{idx}].set_variable must be string if present")
         if mt == MOVE_BRANCH:

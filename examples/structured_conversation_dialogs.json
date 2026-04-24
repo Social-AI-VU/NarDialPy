@@ -70,20 +70,6 @@
         "text": "Do you want to do that activity today?",
         "set_variable": "wants_activity_today",
         "llm_followup": "Reply in one short, encouraging sentence that mirrors the user's answer and keeps the tone supportive.",
-        "outcomes": { "yes": "activity_today_yes" },
-        "default_outcome": "activity_today_no"
-      },
-      {
-        "type": "branch",
-        "on": "outcome",
-        "cases": {
-          "activity_today_yes": [
-            { "type": "say", "text": "Awesome. Let's make a simple plan for today." }
-          ],
-          "activity_today_no": [
-            { "type": "say", "text": "No problem. We can keep it as an idea for later." }
-          ]
-        }
       }
     ]
   },

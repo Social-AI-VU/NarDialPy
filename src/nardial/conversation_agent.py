@@ -33,7 +33,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, intent = self.orchestrator.listen(context={'answer_yesno': 1})
+            reply, intent = self.orchestrator.listen()
 
             if intent:
                 print(f'context: answer_yesno, recognized_intent: {str(intent)}')

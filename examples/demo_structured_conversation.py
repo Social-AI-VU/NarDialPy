@@ -22,7 +22,6 @@ if __name__ == '__main__':
     # Create conversational agent
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
-        post_speech_delay=0
     )
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 

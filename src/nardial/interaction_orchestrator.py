@@ -48,16 +48,35 @@ from elevenlabs import ElevenLabs
 
 
 class AnimationType(Enum):
+    """
+    Enumeration of animation types supported by the system.
+    """
     ACTION = 1
     EXPRESSION = 2
 
 
 class AnimationStyle(Enum):
+    """
+    Enumeration of animation styles for robot behavior.
+    """
     EXPRESSIVE = 1
     EXPLANATORY = 2
 
 
 def find_project_root(start: Path) -> Path:
+    """
+    Locate the project root directory by searching upward
+    for a folder containing a 'conf' directory.
+
+    Args:
+        start (Path): Starting directory for the search.
+
+    Returns:
+        Path: Path to the project root directory.
+
+    Raises:
+        FileNotFoundError: If no 'conf' directory is found.
+    """
     for path in [start] + list(start.parents):
         if (path / "conf").exists():
             return path
@@ -65,9 +84,25 @@ def find_project_root(start: Path) -> Path:
 
 
 class InteractionConfig:
+    """
+    Configuration class for managing interaction settings,
+    including TTS, API keys, and behavioral parameters.
+    """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
                  openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False):
+        """
+        Initialize interaction configuration.
+
+        Args:
+            language (str): Language code (default: 'en').
+            tts_conf (TTSConf, optional): Text-to-speech configuration.
+            microphone_device: Optional external microphone device.
+            google_keyfile_path (str, optional): Path to Google credentials file.
+            openai_key_path (str, optional): Path to OpenAI credentials file.
+            post_speech_delay (float, optional): Delay after speech playback.
+            signal_listening_behavior (bool): Whether to show listening indicators.
+        """
         self.language = language
         self.keyboard_input = keyboard_input
 
@@ -101,8 +136,33 @@ class InteractionConfig:
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
+        """
+        Decorator factory that injects default values from a configuration object
+        into function arguments when they are not explicitly provided.
+
+        Args:
+            config_attr (str): Name of the attribute containing the config object.
+            param_names (list[str]): List of parameter names to fill from config.
+
+        Returns:
+            callable: Decorator that wraps a function to apply defaults.
+        """
         def decorator(func):
+            """
+            Decorator that applies configuration defaults to a function.
+            """
             def wrapper(self, *args, **kwargs):
+                """
+                Wrapper function that fills missing keyword arguments
+                with values from the configuration object.
+
+                Args:
+                    *args: Positional arguments.
+                    **kwargs: Keyword arguments.
+
+                Returns:
+                    Any: Result of the wrapped function.
+                """
                 config = getattr(self, config_attr)
                 for name in param_names:
                     if kwargs.get(name) is None:

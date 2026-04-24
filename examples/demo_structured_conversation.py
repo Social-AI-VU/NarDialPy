@@ -9,10 +9,7 @@ from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
 
-# setup key files paths (resolved from this file's location)
-_BASE_DIR = abspath(join(dirname(__file__), ".."))
-google_keyfile_path = join(_BASE_DIR, "conf", "google", "google_keyfile.json")
-dialog_json_path = join(_BASE_DIR, "examples", "structured_conversation_dialogs.json")
+google_keyfile_path = join("..", "conf", "google", "google_keyfile.json")
 
 if __name__ == '__main__':
     # Select device
@@ -36,7 +33,7 @@ if __name__ == '__main__':
     session_manager = SessionManager(
         session_agenda=session_agenda,
         agent=agent,
-        dialog_json_path=dialog_json_path,
+        dialog_json_path="structured_conversation_dialogs.json",
         participant_id="2",
     )
     session_manager.run()

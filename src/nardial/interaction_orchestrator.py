@@ -2,37 +2,19 @@ import asyncio
 import base64
 import importlib.util
 import json
-from json import load
 import re
 import wave
-from enum import Enum
-from os import environ, fsync
-from os.path import exists, abspath, join
+from os import environ
 from pathlib import Path
-import random as rand
 from threading import Thread
 import time
-from time import sleep, strftime
+from time import sleep
 from typing import Any, Optional
 
 import numpy as np
 
-import mini.mini_sdk as MiniSdk
-from sic_framework.devices.alphamini import Alphamini
-
-from mini import MouthLampColor, MouthLampMode
-from mini.apis.api_action import PlayAction
-from mini.apis.api_expression import SetMouthLamp, PlayExpression
-
 from sic_framework.core import sic_logging
-from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.core.sic_application import SICApplication
-from sic_framework.devices import Pepper, Nao
-from sic_framework.devices.common_naoqi.naoqi_leds import NaoFadeRGBRequest
-from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
-from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
-from sic_framework.devices.common_naoqi.naoqi_text_to_speech import NaoqiTextToSpeechRequest
-from sic_framework.devices.desktop import Desktop
 from sic_framework.services.dialogflow.dialogflow import (
     Dialogflow,
     DialogflowConf,
@@ -57,7 +39,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from pydantic import SecretStr
 
-from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
+from nardial.tts_manager import TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
 
 """
@@ -97,16 +79,6 @@ Forth, the redis server, Dialogflow, Google TTS and OpenAI gpt service need to b
 """
 
 
-class AnimationType(Enum):
-    ACTION = 1
-    EXPRESSION = 2
-
-
-class AnimationStyle(Enum):
-    EXPRESSIVE = 1
-    EXPLANATORY = 2
-
-
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
@@ -142,7 +114,6 @@ class InteractionConfig:
         self.force_recreate_index = force_recreate_index
         self.device_mcp = device_mcp
         self.animated = True
-        self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
         self._validate_rag_config()
@@ -255,18 +226,12 @@ class InteractionOrchestrator(SICApplication):
             self.activate_google_tts()
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
             self.activate_elevenlabs_tts()
-        elif isinstance(self.tts_conf, NaoqiTTSConf):
-            pass
         else:
             raise ValueError(f"Unknown tts_conf {self.tts_conf}")
         self.logger.info("Complete")
 
         self.logger.info("\n SETTING UP MCP I/O")
         self.device_mcp = device_mcp
-        self.mic = None
-        self.speaker = None
-        self.mini_api = None
-        self.animation_futures = []
         self.setup_mcp_io()
         self.logger.info("Complete")
 
@@ -344,21 +309,12 @@ class InteractionOrchestrator(SICApplication):
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
-        if animated:
-            self.animation()
-
-        if isinstance(self.tts_conf, NaoqiTTSConf):
-            self.naoqi_say(text, sleep_time=sleep_time, animated=animated)
-        elif isinstance(self.tts_conf, GoogleTTSConf):
+        if isinstance(self.tts_conf, GoogleTTSConf):
             self.google_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
             self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
         else:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
-
-    def naoqi_say(self, text, sleep_time=None, animated=False):
-        # Device-specific NAO/Pepper path is intentionally removed from orchestrator I/O.
-        self.logger.warning("naoqi_say is not supported in MCP-only orchestrator mode.")
 
     def google_say(self, text, sleep_time=None, amplified=False,  always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
@@ -678,71 +634,13 @@ class InteractionOrchestrator(SICApplication):
             self.logger.info(f"Exception: {e}")
             return None
 
-    def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
-        self.logger.info(
-            "Animation request ignored in MCP-only orchestrator mode: %s [%s]",
-            animation_type,
-            animation_id,
-        )
-
     def animate_naoqi(self, animation: str, block=True):
         self.logger.info("Animation request ignored in MCP-only orchestrator mode: %s", animation)
-
-    def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
-        self.logger.info(
-            "LED request ignored in MCP-only orchestrator mode: %s rgb=(%s,%s,%s)",
-            name,
-            r,
-            g,
-            b,
-        )
-
-    async def alphamini_animation_action(self, action_name, animation_type):
-        try:
-            if animation_type == AnimationType.ACTION:
-                action: PlayAction = PlayAction(action_name=action_name)
-                await action.execute()
-            elif animation_type == AnimationType.EXPRESSION:
-                action: PlayExpression = PlayExpression(express_name=action_name)
-                await action.execute()
-        except Exception as e:
-            self.logger.error(f'Animation action {action_name} failed {e}', exc_info=e)
-            self.logger.info('Reconnecting to Mini')
-            connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
-            try:
-                connect_to_mini_sdk_future.result()
-            except Exception as e:
-                self.logger.error("Failed to connect to mini device", exc_info=e)
-
-    def set_alphamini_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000, run_async=False):
-        self.logger.info(
-            "Mouth lamp request ignored in MCP-only orchestrator mode: %s %s",
-            color,
-            mode,
-        )
-
-    @staticmethod
-    async def alphamini_mouth_lamp_expression(color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000):
-        if mode == MouthLampMode.BREATH:
-            mouth_lamp_action: SetMouthLamp = SetMouthLamp(color=color, mode=MouthLampMode.BREATH,
-                                                           breath_duration=breath_duration)
-        else:
-            mouth_lamp_action: SetMouthLamp = SetMouthLamp(color=color, mode=MouthLampMode.NORMAL, duration=duration)
-        await mouth_lamp_action.execute()
 
     def disconnect(self):
         if isinstance(self.tts_conf, ElevenLabsTTSConf):
             disconnect_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.disconnect(), self.background_loop)
             disconnect_elevenlabs_future.result()
-
-        if self.device_name == 'alphamini':
-            for fut in self.animation_futures:
-                fut.cancel()
-
-            # Disconnect from miniSDK
-            disconnect_alphamini_future = asyncio.run_coroutine_threadsafe(self._disconnect_alphamini_api(),
-                                                                           self.background_loop)
-            disconnect_alphamini_future.result()
 
         # Schedule loop shutdown
         if self.background_loop.is_running():
@@ -761,15 +659,6 @@ class InteractionOrchestrator(SICApplication):
         asyncio.set_event_loop(self.background_loop)
         self.background_loop.run_forever()
 
-    async def _connect_once(self):
-        if not self.mini_api:
-            self.mini_api = await MiniSdk.get_device_by_name(self.mini_id, 10)
-            await MiniSdk.connect(self.mini_api)
-
-    @staticmethod
-    async def _disconnect_alphamini_api():
-        await MiniSdk.release()
-
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf
 
@@ -782,96 +671,6 @@ class InteractionOrchestrator(SICApplication):
 
     def play_motion(self, motion_name):
         self.logger.info("Motion request ignored in MCP-only orchestrator mode: %s", motion_name)
-
-    @staticmethod
-    def random_alphamini_speaking_act():
-        speaking_acts = [
-            "speakingAct1",
-            "speakingAct2",
-            "speakingAct3",
-            "speakingAct4",
-            "speakingAct5",
-            "speakingAct6",
-            "speakingAct7",
-            "speakingAct8",
-            "speakingAct9",
-            "speakingAct10",
-            "speakingAct11",
-            "speakingAct12",
-            "speakingAct13",
-            "speakingAct14",
-            "speakingAct15",
-            "speakingAct16",
-            "speakingAct17"
-        ]
-        return rand.choice(speaking_acts)
-
-    @staticmethod
-    def random_alphamini_speaking_eye_expression():
-        speaking_expressions = [
-            "codemao1", "codemao2", "codemao3", "codemao4", "codemao5",
-            "codemao6", "codemao7", "codemao8", "codemao9", "codemao10",
-            "codemao11", "codemao12", "codemao13", "codemao14", "codemao15",
-            "codemao16", "codemao17", "codemao18", "codemao19", "codemao20"]
-        return rand.choice(speaking_expressions)
-
-    def random_pepper_animation(self):
-        if self.interaction_conf.animation_style == AnimationStyle.EXPRESSIVE:
-            animations = [
-                "animations/Stand/Emotions/Positive/Happy_4",
-                "animations/Stand/Emotions/Positive/Peaceful_1",
-                "animations/Stand/Gestures/But_1",
-                "animations/Stand/Gestures/CalmDown_6",
-                "animations/Stand/Gestures/Enthusiastic_4",
-                "animations/Stand/Gestures/Everything_3",
-                "animations/Stand/Gestures/Everything_4",
-                "animations/Stand/Gestures/Explain_1",
-                "animations/Stand/Gestures/Explain_10",
-                "animations/Stand/Gestures/Explain_11",
-                "animations/Stand/Gestures/Far_1",
-                "animations/Stand/Gestures/Far_2",
-                "animations/Stand/Gestures/Far_3",
-                "animations/Stand/Gestures/ShowSky_1",
-                "animations/Stand/Gestures/ShowSky_5",
-                "animations/Stand/Gestures/ShowSky_7",
-                "animations/Stand/Gestures/ShowSky_8",
-                "animations/Stand/Gestures/IDontKnow_1",
-                "animations/Stand/Gestures/IDontKnow_2",
-                "animations/Stand/Gestures/No_1",
-                "animations/Stand/Gestures/No_2",
-                "animations/Stand/Gestures/No_9",
-                "animations/Stand/Gestures/Yes_1",
-                "animations/Stand/Gestures/Yes_2",
-            ]
-        else:
-            animations = [
-                "animations/Stand/Gestures/Everything_2",
-                "animations/Stand/Gestures/Explain_1",
-                "animations/Stand/Gestures/Explain_10",
-                "animations/Stand/Gestures/Explain_2",
-                "animations/Stand/Gestures/Explain_4",
-                "animations/Stand/Gestures/Explain_5",
-                "animations/Stand/Gestures/Give_3",
-                "animations/Stand/Gestures/Give_5",
-                "animations/Stand/Gestures/IDontKnow_1",
-                "animations/Stand/Gestures/IDontKnow_2",
-                "animations/Stand/Gestures/Me_1",
-                "animations/Stand/Gestures/Me_4",
-                "animations/Stand/Gestures/No_1",
-                "animations/Stand/Gestures/No_2",
-                "animations/Stand/Gestures/No_9",
-                "animations/Stand/Gestures/ShowFloor_3",
-                "animations/Stand/Gestures/ShowFloor_4",
-                "animations/Stand/Gestures/ShowSky_6",
-                "animations/Stand/Gestures/Thinking_1",
-                "animations/Stand/Gestures/Thinking_3",
-                "animations/Stand/Gestures/Thinking_6",
-                "animations/Stand/Gestures/Yes_1",
-                "animations/Stand/Gestures/Yes_2",
-                "animations/Stand/Gestures/YouKnowWhat_2",
-                "animations/Stand/Gestures/You_1"
-            ]
-        return rand.choice(animations)
 
     @staticmethod
     def _amplify_audio(waveform_bytes, compression_strength=2.0, target_level=0.9):

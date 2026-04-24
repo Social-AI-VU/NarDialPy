@@ -7,6 +7,37 @@ import re
 
 
 class Session:
+    """
+    Represents a single conversation session.
+
+    A session contains:
+    - Metadata about the interaction (participant, run_id, timestamps)
+    - The ordered sequence of events (dialog execution history)
+    - Dialog IDs executed during the session
+    - A summary (e.g., extracted topics, user model updates)
+
+    Parameters
+    ----------
+    session_id : str
+        Unique identifier for the session (e.g., "sess_0001").
+    participant_id : str, optional
+        Identifier of the user participating in the session.
+    run_id : str, optional
+        Identifier for this execution run (useful for experiments/logging).
+    metadata : dict, optional
+        Arbitrary metadata associated with the session.
+    started_at : str, optional
+        ISO timestamp when the session started (auto-generated if not provided).
+    ended_at : str, optional
+        ISO timestamp when the session ended.
+    events : list of dict, optional
+        Event history (e.g., dialog start/end, user/system actions).
+    dialog_ids : list of str, optional
+        Ordered list of dialog IDs executed in this session.
+    summary : dict, optional
+        Aggregated session-level information (topics, user model, etc.).
+    """
+
     def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None,
                  metadata: Optional[Dict[str, Any]] = None, started_at: Optional[str] = None, ended_at: Optional[str] = None,
                  events: Optional[List[Dict[str, Any]]] = None, dialog_ids: Optional[List[str]] = None,
@@ -23,21 +54,61 @@ class Session:
 
 
 class ConversationState:
+    """
+    Manages persistent conversation state across sessions and participants.
+
+    This class provides:
+    - Session tracking (start/end, events, dialog execution)
+    - Cross-session continuity:
+        * completed_dialogs
+        * user_model (arbitrary structured data)
+        * topics_of_interest
+    - Persistent storage of per-participant transcripts
+
+    Data is stored as JSON files under:
+        <base_dir>/participants/{participant_id}.json
+
+    If no participant_id is provided, a shared anonymous transcript is used.
+
+    Attributes
+    ----------
+    participant_id : str or None
+        Current participant identifier.
+    completed_dialogs : list of str
+        Dialog IDs that have been completed across sessions.
+    user_model : dict
+        Accumulated user-specific information.
+    topics_of_interest : list of str
+        Extracted topics from past interactions.
+    sessions : list of Session
+        All sessions associated with the current participant.
+
+    Notes
+    -----
+    - State is automatically loaded on initialization.
+    - State must be explicitly saved (via `save()` or `end_session()`).
+    - Dialog continuity is maintained across sessions.
+    """
+
     # Shared transcript key used when participant_id is None.
     ANONYMOUS_PARTICIPANT_ID = "__unknown__"
-    """
-    Minimal conversation history manager with per-participant transcripts:
-    - continuity: completed_dialogs, user_model, topics_of_interest
-    - per-session history: events (your session_history), metadata
-    - session-level dialog_ids: ordered, unique IDs used in the session
-    - per-participant transcript files under participants/{participant_id}.json
-    """
 
     def __init__(
             self,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
     ) -> None:
+        """
+        Initialize the conversation state manager.
+
+        Parameters
+        ----------
+        base_dir : str, optional
+            Base directory for storing participant transcripts.
+            Defaults to the current working directory.
+        participant_id : str, optional
+            Identifier for the current user.
+        """
         self.participant_id = participant_id
 
         self.completed_dialogs: List[str] = []
@@ -53,6 +124,16 @@ class ConversationState:
         self.load()
 
     def load(self) -> None:
+        """
+        Load existing conversation state for the current participant from disk.
+
+        If no file exists, initializes an empty state.
+
+        Behavior
+        --------
+        - Restores completed dialogs, topics, and sessions
+        - Ignores corrupted or unreadable files (logs an error instead)
+        """
         safe_id = self._sanitize_participant_id(self.participant_id)
         path = self.participants_dir / f"{safe_id}.json"
 
@@ -73,20 +154,61 @@ class ConversationState:
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
     def save(self) -> None:
+        """
+        Persist the current state to disk for the active participant.
+        """
         self.save_participant_transcript(self.participant_id)
 
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
+        """
+        Create and register a new session.
+
+        Parameters
+        ----------
+        metadata : dict, optional
+            Additional session metadata.
+        participant_id : str, optional
+            Override participant ID for this session.
+        run_id : str, optional
+            Identifier for this run.
+
+        Returns
+        -------
+        str
+            The generated session ID.
+        """
         sid = f"sess_{len(self.sessions) + 1:04d}"
         session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
         self.sessions.append(session)
         return sid
 
     def add_events(self, session_id: str, events: List[Dict[str, Any]]) -> None:
+        """
+        Append events to a session.
+
+        Parameters
+        ----------
+        session_id : str
+            Target session ID.
+        events : list of dict
+            Events to append (e.g., dialog start/end markers).
+        """
         sess = self._get_session(session_id)
         sess.events.extend(list(events or []))
 
     def add_dialog_id(self, session_id: str, dialog_id: str) -> None:
-        """Use this if you want to record dialog IDs during the run."""
+        """
+        Record a dialog ID executed during a session.
+
+        Ensures uniqueness while preserving order.
+
+        Parameters
+        ----------
+        session_id : str
+            Target session ID.
+        dialog_id : str
+            Dialog identifier.
+        """
         sess = self._get_session(session_id)
         if sess.dialog_ids is None:
             sess.dialog_ids = []
@@ -99,7 +221,30 @@ class ConversationState:
                     user_model: Optional[Dict[str, Any]] = None,
                     topics_of_interest: Optional[List[str]] = None,
                     extra_summary: Optional[Dict[str, Any]] = None) -> None:
-        """Finalize a session, merge continuity, and derive dialog_ids if needed."""
+        """
+        Finalize a session and merge results into global state.
+
+        Parameters
+        ----------
+        session_id : str
+            Session to finalize.
+        completed_ids : list or set, optional
+            Dialog IDs completed during the session.
+        user_model : dict, optional
+            Updates to the persistent user model.
+        topics_of_interest : list of str, optional
+            Topics extracted from the session.
+        extra_summary : dict, optional
+            Additional summary fields.
+
+        Behavior
+        --------
+        - Sets session end timestamp
+        - Updates session summary
+        - Merges dialog continuity across sessions
+        - Updates user model and interests
+        - Saves transcript to disk
+        """
         sess = self._get_session(session_id)
         sess.ended_at = datetime.utcnow().isoformat()
         sess.summary = {
@@ -108,11 +253,9 @@ class ConversationState:
             **(extra_summary or {})
         }
 
-        # If caller didn't pass completed_ids, derive dialog_ids once from events
         if not completed_ids and not sess.dialog_ids:
             self._derive_dialog_ids_from_events(sess)
 
-        # Continuity merges
         if completed_ids:
             normalized_completed_ids = [str(did).strip() for did in completed_ids if str(did).strip()]
             if not sess.dialog_ids:
@@ -120,26 +263,31 @@ class ConversationState:
             self._merge_completed(normalized_completed_ids)
         elif sess.dialog_ids:
             self._merge_completed(sess.dialog_ids)
+
         if user_model:
             self.user_model.update(user_model)
         if topics_of_interest:
             self._merge_interests(topics_of_interest)
 
-        # Write/update per-participant transcript if participant_id present
         target_participant_id = sess.participant_id if sess.participant_id is not None else self.participant_id
         self.save_participant_transcript(target_participant_id)
 
+    # --- Internal helpers below ---
+
     def _get_session(self, session_id: str) -> Session:
+        """Retrieve a session by ID."""
         for s in self.sessions:
             if s.session_id == session_id:
                 return s
         raise KeyError(f"Session {session_id} not found")
 
     def _merge_completed(self, completed_ids: Union[List[str], set]) -> None:
+        """Merge completed dialog IDs into global state."""
         prev = set(self.completed_dialogs)
         self.completed_dialogs = list(prev.union(set(completed_ids)))
 
     def _merge_interests(self, topics: List[str]) -> None:
+        """Merge and deduplicate topics of interest."""
         seen = {str(x).strip().lower() for x in self.topics_of_interest}
         for t in topics or []:
             k = str(t).strip().lower()
@@ -149,7 +297,11 @@ class ConversationState:
 
     @staticmethod
     def _derive_dialog_ids_from_events(sess: Session) -> None:
-        """Build ordered unique dialog_ids from system events in the session history."""
+        """
+        Derive dialog IDs from session events if not explicitly recorded.
+
+        Looks for 'dialog_start' and 'dialog_end' events.
+        """
         ids: List[str] = []
         seen = set()
         for ev in sess.events or []:
@@ -164,6 +316,14 @@ class ConversationState:
             sess.dialog_ids = ids
 
     def save_participant_transcript(self, participant_id: Optional[str]) -> None:
+        """
+        Save all sessions for a participant to a JSON transcript file.
+
+        Parameters
+        ----------
+        participant_id : str or None
+            Target participant identifier.
+        """
         target_id = self._sanitize_participant_id(participant_id)
         path = Path(self.participants_dir) / f"{target_id}.json"
 
@@ -173,7 +333,6 @@ class ConversationState:
         ]
 
         payload = {
-            # Keep provided participant_id for named users; use the shared anonymous key for None.
             "participant_id": participant_id if participant_id is not None else target_id,
             "sessions": [s.__dict__ for s in sessions],
             "summary": {
@@ -188,6 +347,9 @@ class ConversationState:
 
     @staticmethod
     def _sanitize_participant_id(participant_id: Optional[str]) -> str:
+        """
+        Normalize participant IDs to safe filesystem names.
+        """
         if participant_id is None:
             return ConversationState.ANONYMOUS_PARTICIPANT_ID
         s = str(participant_id).strip()
@@ -200,6 +362,7 @@ class ConversationState:
 
     @staticmethod
     def _collect_dialog_ids(sessions: List[Session]) -> List[str]:
+        """Collect unique dialog IDs across sessions."""
         seen, ids = set(), []
         for s in sessions:
             for did in s.dialog_ids or []:
@@ -211,6 +374,7 @@ class ConversationState:
 
     @staticmethod
     def _collect_topics_from_summaries(sessions: List[Session]) -> List[str]:
+        """Collect unique topics across session summaries."""
         seen, topics = set(), []
         for s in sessions:
             for t in (s.summary or {}).get("topics_of_interest") or []:
@@ -223,6 +387,11 @@ class ConversationState:
 
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
+        """
+        Safely write JSON to disk using an atomic replace.
+
+        Prevents file corruption if the process is interrupted.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -240,4 +409,4 @@ class ConversationState:
 
         os.replace(tmp_path, path)
 
-        print (f"[INFO] Saved conversation state to {path}")
+        print(f"[INFO] Saved conversation state to {path}")

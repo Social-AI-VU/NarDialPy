@@ -67,7 +67,7 @@ def find_project_root(start: Path) -> Path:
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, sleep_time=None, signal_listening_behavior=True):
+                 openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -85,7 +85,7 @@ class InteractionConfig:
         if not self.openai_key_path:
             self.openai_key_path = abspath(join(find_project_root(Path.cwd()), "conf", "openai", ".openai_env"))
 
-        self.sleep_time = sleep_time
+        self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
@@ -286,31 +286,31 @@ class InteractionOrchestrator:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['sleep_time', 'animated', 'always_regenerate', 'chunk_audio'])
-    def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+    @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
+    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         if animated:
             self.animation()
 
         if isinstance(self.tts_conf, NaoqiTTSConf):
-            self.naoqi_say(text, sleep_time=sleep_time, animated=animated)
+            self.naoqi_say(text, post_speech_delay=post_speech_delay, animated=animated)
         elif isinstance(self.tts_conf, GoogleTTSConf):
-            self.google_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate)
+            self.google_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate)
         elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
+            self.elevenlabs_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
         else:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
 
 
-    def naoqi_say(self, text, sleep_time=None, animated=False):
+    def naoqi_say(self, text, post_speech_delay=None, animated=False):
         if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
             return
 
         self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=self.interaction_conf.language))
 
-        if sleep_time and sleep_time > 0:
-            sleep(sleep_time)
+        if post_speech_delay and post_speech_delay > 0:
+            sleep(post_speech_delay)
 
-    def google_say(self, text, sleep_time=None, amplified=False, always_regenerate=False):
+    def google_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False):
         # Generate cache key and load cached speech audio if available.
         tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -341,10 +341,10 @@ class InteractionOrchestrator:
             self.tts_cacher.save_audio_file(tts_key, audio_bytes, sample_rate)
 
         # Sleep if requested
-        if sleep_time and sleep_time > 0:
-            sleep(sleep_time)
+        if post_speech_delay and post_speech_delay > 0:
+            sleep(post_speech_delay)
 
-    def elevenlabs_say(self, text, sleep_time=None, amplified=False, always_regenerate=False, chunking=True):
+    def elevenlabs_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False, chunking=True):
         if not chunking or self.interaction_conf.tts_conf.model_id == 'eleven_v3':
             text_chunks = [text]
         else:
@@ -369,8 +369,8 @@ class InteractionOrchestrator:
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
-            if sleep_time and sleep_time > 0:
-                sleep(sleep_time)
+            if post_speech_delay and post_speech_delay > 0:
+                sleep(post_speech_delay)
 
     def elevenlabs_generate_chunk_audio(self, text, amplified=False):
         # Normalize and hash text

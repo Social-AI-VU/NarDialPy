@@ -61,7 +61,6 @@ def make_mock_agent():
         agent.play_audio = Mock()
         agent.play_motion_sequence = Mock()
         agent.play_animation = Mock()
-        agent.personalize = Mock(return_value=None)
         return agent
 
     return _make

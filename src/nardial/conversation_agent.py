@@ -1,217 +1,235 @@
 import json
-import wave
-from os import environ
 import re
 
-
-import numpy as np
-from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
-from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.device import SICDeviceManager
-from sic_framework.services.google_tts.google_tts import Text2Speech, Text2SpeechConf, GetSpeechRequest, SpeechResult
-from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.services.llm.openai_gpt import GPT
-from sic_framework.services.llm import GPTConf, GPTRequest
-from dotenv import load_dotenv
-
-from sic_framework.devices.desktop import Desktop
-from sic_framework.services.dialogflow.dialogflow import (
-    Dialogflow,
-    DialogflowConf,
-    GetIntentRequest,
-)
+from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
 class ConversationAgent:
-    def __init__(self, device_manager: SICDeviceManager, google_keyfile_path, sample_rate_dialogflow_hertz=44100, dialogflow_language="en",
-                 google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE", default_speaking_rate=1.0,
-                 openai_key_path=None):
+    """
+    High-level interface for running conversational interactions with a user.
 
-        if openai_key_path:
-            load_dotenv(openai_key_path)
+    This class wraps the lower-level `InteractionOrchestrator` and provides
+    convenient methods for:
+    - Speaking (`say`)
+    - Playing audio and animations
+    - Asking different types of questions (yes/no, open, options)
+    - Calling LLMs (e.g., GPT) for reasoning or post-processing
 
-        # Setup GPT client
-        conf = GPTConf(openai_key=environ["OPENAI_API_KEY"])
-        self.gpt = GPT(conf=conf)
-        print("OpenAI GPT4 Ready")
+    It abstracts away device-specific behavior (e.g., Desktop vs Pepper robot)
+    and external services (Dialogflow, TTS, GPT).
 
-        # Setup TTS
-        self.google_tts_voice_name = google_tts_voice_name
-        self.google_tts_voice_gender = google_tts_voice_gender
-        self.tts = Text2Speech(conf=Text2SpeechConf(keyfile_json=json.load(open(google_keyfile_path)),
-                                                    speaking_rate=default_speaking_rate))
-        init_reply = self.tts.request(GetSpeechRequest(text="I am initializing",
-                                                       voice_name=self.google_tts_voice_name,
-                                                       ssml_gender=self.google_tts_voice_gender))
-        self.tts_sample_rate = init_reply.sample_rate
-        print("Google TTS ready")
+    Parameters
+    ----------
+    device_manager : SICDeviceManager
+        The device interface (e.g., Desktop, Pepper, Nao) that handles I/O.
+    int_config : InteractionConfig, optional
+        Configuration for language, TTS, APIs, and interaction behavior.
+        If not provided, a default configuration is used.
 
-        # Setup Device Manager
-        if isinstance(device_manager, Pepper) or isinstance(device_manager, Nao):
-            self.device = device_manager
-            self.speaker = device_manager.speaker
-        elif isinstance(device_manager, Desktop):
-            self.device = Desktop(speakers_conf=SpeakersConf(sample_rate=self.tts_sample_rate))
-            self.speaker = self.device.speakers
-        else:
-            raise ValueError(f"DeviceManager {device_manager} is currently not supported")
-        self.mic = self.device.mic
-        print("Device connected")
+    Notes
+    -----
+    Most methods internally rely on:
+    - Speech recognition (Dialogflow)
+    - Text-to-speech (Google TTS or configured backend)
+    - LLM calls (OpenAI GPT)
 
-        # Set up Dialogflow
-        dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)),
-                                         sample_rate_hertz=sample_rate_dialogflow_hertz, language=dialogflow_language)
-        self.dialogflow = Dialogflow(ip="localhost", conf=dialogflow_conf, input_source=self.mic)
-        # flag to signal when the app should listen (i.e. transmit to dialogflow)
-        self.request_id = np.random.randint(10000)
-        print("Dialogflow Ready")
+    Ensure required services are running before using this class.
+    """
 
-    def say(self, text, speaking_rate=1.0):
-        print('Saying', text)
-        reply = self.tts.request(GetSpeechRequest(text=text,
-                                                  voice_name=self.google_tts_voice_name,
-                                                  ssml_gender=self.google_tts_voice_gender,
-                                                  speaking_rate=speaking_rate))
-        print(f'Speech generated with sample rate: {reply.sample_rate}')
-        self.speaker.request(AudioRequest(reply.waveform, reply.sample_rate))
-        print('Sent to device speaker')
+    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
+        if int_config is None:
+            int_config = InteractionConfig()
+        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
+        self.device = device_manager
+
+    def say(self, text):
+        """
+        Speak a piece of text using the configured TTS system.
+
+        Parameters
+        ----------
+        text : str
+            The text to be spoken aloud.
+        """
+        self.orchestrator.say(text)
 
     def play_audio(self, audio_file):
-        with wave.open(audio_file, 'rb') as wf:
-            # Get parameters
-            sample_width = wf.getsampwidth()
-            framerate = wf.getframerate()
-            n_frames = wf.getnframes()
+        """
+        Play a pre-recorded audio file.
 
-            # Ensure format is 16-bit (2 bytes per sample)
-            if sample_width != 2:
-                raise ValueError("WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width))
-
-            audio = wf.readframes(n_frames)
-            self.speaker.request(AudioRequest(audio, framerate))
+        Parameters
+        ----------
+        audio_file : str
+            Path to an audio file.
+        """
+        self.orchestrator.play_audio(audio_file)
 
     def play_motion_sequence(self, motion_sequence_file):
-        if isinstance(self.device, Desktop):
-            return
-        try:
-            recording = NaoqiMotionRecording.load(motion_sequence_file)
-            self.device.motion_record.request(PlayRecording(recording))
-        except Exception as e:
-            print(f"Exception: {e}")
+        """
+        Execute a predefined motion sequence (if supported by the device).
 
-    def play_animation(self, animation_name):
-        if isinstance(self.device, Desktop):
-            return
-        try:
-            self.device.motion.request(NaoqiAnimationRequest(animation_name), block=True)
-        except Exception as e:
-            print(f"Failed to play animation: {animation_name}", e)
+        Parameters
+        ----------
+        motion_sequence_file : str
+            Path to a motion sequence file.
+        """
+        self.orchestrator.play_motion(motion_sequence_file)
 
-    def ask_yesno(self, question, max_attempts=2):
+    def play_animation(self, animation_name, block=False):
+        """
+        Trigger a built-in animation on supported robot platforms (Pepper, Nao).
+
+        Parameters
+        ----------
+        animation_name : str
+            Name of the animation (NAOqi animation key).
+        block : bool, optional
+            Whether to block execution until the animation completes.
+
+        Notes
+        -----
+        This only works on Pepper/Nao devices. On Desktop, this call is ignored.
+        """
+        if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
+            try:
+                self.orchestrator.animate_naoqi(animation_name, block)
+            except Exception as e:
+                print(f"Failed to play animation: {animation_name}", e)
+
+    def ask_yesno(self, question, max_attempts=1):
+        """
+        Ask a yes/no question and interpret the response using intent recognition.
+
+        Parameters
+        ----------
+        question : str
+            The question to ask the user.
+        max_attempts : int, optional
+            Number of retries if no valid answer is detected.
+
+        Returns
+        -------
+        str or None
+            One of: "yes", "no", "dontknow", or None if no valid response.
+
+        Notes
+        -----
+        Requires Dialogflow intents:
+        - yesno_yes
+        - yesno_no
+        - yesno_dontknow
+        """
         attempts = 0
         while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
+            self.say(question)
+            reply, intent = self.orchestrator.listen()
 
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, {'answer_yesno': 1}))
-
-            print("The detected intent:", reply.intent)
-
-            # return answer
-            if reply.intent:
-                if "yesno_yes" in reply.intent:
+            if intent:
+                print(f'context: answer_yesno, recognized_intent: {str(intent)}')
+                if intent == "yesno_yes":
                     return "yes"
-                elif "yesno_no" in reply.intent:
+                elif intent == "yesno_no":
                     return "no"
-                elif "yesno_dontknow" in reply.intent:
+                elif intent == "yesno_dontknow":
                     return "dontknow"
-            attempts += 1
-        return None
 
-    def ask_entity(self, question, context, target_intent, target_entity, max_attempts=2):
-        attempts = 0
-
-        while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
-
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id, context))
-
-            print("The detected intent:", reply.intent)
-
-            # Return entity
-            if reply.intent:
-                if target_intent in reply.intent:
-                    if reply.response.query_result.parameters and target_entity in reply.response.query_result.parameters:
-                        return reply.response.query_result.parameters[target_entity]
             attempts += 1
         return None
 
     def ask_open(self, question, max_attempts=2):
+        """
+        Ask an open-ended question and return the user's spoken response.
+
+        Parameters
+        ----------
+        question : str
+            The question to ask.
+        max_attempts : int, optional
+            Number of retries if no response is captured.
+
+        Returns
+        -------
+        str or None
+            The recognized user response, or None if no input is captured.
+        """
         attempts = 0
-
         while attempts < max_attempts:
-            # ask question
-            tts_reply = self.tts.request(GetSpeechRequest(text=question,
-                                                          voice_name=self.google_tts_voice_name,
-                                                          ssml_gender=self.google_tts_voice_gender))
-            self.speaker.request(AudioRequest(tts_reply.waveform, tts_reply.sample_rate))
-
-            # listen for answer
-            # TODO: Wrap this listening logic in reusable `listen()` function(s).
-            reply = self.dialogflow.request(GetIntentRequest(self.request_id))
-
-            print("The detected intent:", reply.intent)
-
-            # Return entity
-            if reply.response.query_result.query_text:
-                return reply.response.query_result.query_text
+            self.say(question)
+            reply, _ = self.orchestrator.listen()
+            if reply:
+                return reply
             attempts += 1
         return None
 
     def ask_options(self, question, options, max_attempts=2):
         """
-        Ask a multiple-choice question and return the chosen option as a string.
-        Uses ask_open under the hood and matches the answer to one of the options.
+        Ask a question and match the response against a set of predefined options.
+
+        Parameters
+        ----------
+        question : str
+            The question to ask.
+        options : list of str
+            List of expected keywords/options to match against the response.
+        max_attempts : int, optional
+            Number of retries.
+
+        Returns
+        -------
+        str or None
+            The matched option, or None if no match is found.
+
+        Notes
+        -----
+        Matching is case-insensitive and based on substring presence.
         """
-        attempts = 0
-        options_lower = [opt.lower() for opt in options]
-        while attempts < max_attempts:
-            answer = self.ask_open(question)
-            if answer:
-                answer_lower = answer.lower()
-                for opt in options_lower:
-                    if opt in answer_lower:
-                        return opt
-            attempts += 1
+        answer = self.ask_open(question, max_attempts=max_attempts)
+        if answer:
+            answer_lower = answer.lower()
+            for opt in options:
+                if opt in answer_lower:
+                    return opt
         return None
 
     def extract_topics_with_gpt(self, raw_topics):
-        """Condense raw topics (often full sentences) into 1-2 single-word, lowercase keywords.
-
-        Returns a de-duplicated list preserving order. Falls back to a simple local heuristic
-        if the GPT response can't be parsed.
         """
+        Extract concise topic keywords from a list of raw user utterances.
+
+        This method uses GPT to condense free-form text into 1–2 keyword(s)
+        per input item. If GPT fails, a local heuristic fallback is used.
+
+        Parameters
+        ----------
+        raw_topics : list of str
+            Raw topic descriptions (often full sentences).
+
+        Returns
+        -------
+        list of str
+            De-duplicated list of lowercase topic keywords.
+
+        Behavior
+        --------
+        - Prefers specific nouns (e.g., "dogs", "music", "travel")
+        - Removes stopwords and short tokens
+        - Ensures uniqueness and order preservation
+
+        Fallback
+        --------
+        If GPT is unavailable or returns invalid output, a regex-based
+        keyword extraction heuristic is applied locally.
+        """
+
         def _heuristic(lines):
             if not lines:
                 return []
             stop = {
-                "the","a","an","and","or","but","if","then","than","that","this","these","those",
-                "i","you","he","she","it","we","they","me","my","mine","your","yours","his","her","its","our","ours","their","theirs",
-                "to","in","on","at","from","for","with","about","as","of","is","are","was","were","be","been","am","do","does","did",
-                "yes","no","maybe","okay","ok","yeah","yep","nope","uh","um","favorite","favourite","because","thing","things","think"
+                "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this", "these", "those",
+                "i", "you", "he", "she", "it", "we", "they", "me", "my", "mine", "your", "yours", "his", "her", "its", "our", "ours", "their", "theirs",
+                "to", "in", "on", "at", "from", "for", "with", "about", "as", "of", "is", "are", "was", "were", "be", "been", "am", "do", "does", "did",
+                "yes", "no", "maybe", "okay", "ok", "yeah", "yep", "nope", "uh", "um", "favorite", "favourite", "because", "thing", "things", "think"
             }
             out, seen = [], set()
             for t in lines:
@@ -219,10 +237,10 @@ class ConversationAgent:
                 picked = [w for w in words if len(w) > 2 and w not in stop]
                 if not picked and words:
                     picked = [words[0]]
-                # take up to 2 keywords per input line
                 for w in picked[:2]:
                     if w not in seen:
-                        out.append(w); seen.add(w)
+                        out.append(w)
+                        seen.add(w)
             return out
 
         raw_topics = [str(x) for x in (raw_topics or []) if str(x).strip()]
@@ -235,9 +253,7 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            resp = self.gpt.request(GPTRequest(prompt))
-            text = (resp.response or "").strip()
-            data = json.loads(text)
+            data = self.orchestrator.request_from_gpt(system_prompt=prompt)
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -246,62 +262,28 @@ class ConversationAgent:
                     continue
                 w = re.sub(r"[^A-Za-z]+", "", item.lower())
                 if len(w) > 2 and w not in seen:
-                    out.append(w); seen.add(w)
+                    out.append(w)
+                    seen.add(w)
             return out or _heuristic(raw_topics)
         except Exception:
             return _heuristic(raw_topics)
 
-    def personalize(self, robot_input: str, user_age: int | str, user_input: str, language: str = "en") -> str:
-        """
-        Generate a short, supportive, age-aware follow-up line based on the robot's last question and the user's reply.
-
-        Inputs:
-        - robot_input: what the robot just asked/said
-        - user_age: age of the child (int or string)
-        - user_input: user's reply as captured
-        - language: only English ('en') is used; parameter kept for compatibility
-
-        Returns one sentence (<= 25 words). Falls back to a simple template on failure.
-        """
-        try:
-            age_txt = str(user_age).strip()
-            # Always use English prompt for consistency
-            system_preamble = (
-                f"You are a social robot talking to a child aged {age_txt}. "
-                "The child is in the hospital. Your goal is to be warm, positive, and brief. "
-                "Use simple words, be encouraging, and you may ask one short follow-up question. "
-                "Respond in exactly one sentence (max 25 words)."
-            )
-            prompt = (
-                f"Context: {system_preamble}\n"
-                f"Robot asked/said: {robot_input}\n"
-                f"Child replied: \"{user_input}\"\n"
-                "Now generate an appropriate one-sentence response."
-            )
-
-            resp = self.gpt.request(GPTRequest(prompt))
-            text = (resp.response or "").strip()
-            # Trim surrounding quotes/newlines if present
-            text = re.sub(r'^[\s\"\']+|[\s\"\']+$', "", text)
-            # Ensure it ends with a period/question mark for TTS prosody
-            if text and text[-1] not in ".!?":
-                text += "."
-            # Keep it reasonably short
-            words = text.split()
-            if len(words) > 28:
-                text = " ".join(words[:28]) + "…"
-            return text or "Thanks for sharing. Would you like to tell me a bit more?"
-        except Exception:
-            return "Thanks for sharing. Would you like to tell me a bit more?"
-
     def ask_llm(self, user_prompt, context_messages, system_prompt):
-        try:
-            resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
-            text = (resp.response or "").strip()
-            return text
-        except Exception as e:
-            print(f"Exception: {e}")
-            return None
+        """
+        Send a request to the configured LLM (e.g., GPT) and return the response.
 
-    def greet(self):
-        self.say("Hello, I am your companion robot")
+        Parameters
+        ----------
+        user_prompt : str
+            The user's input or query.
+        context_messages : list
+            Conversation history or additional context.
+        system_prompt : str
+            Instruction defining the assistant's behavior.
+
+        Returns
+        -------
+        Any
+            The parsed response from the LLM (format depends on orchestrator).
+        """
+        return self.orchestrator.request_from_gpt(user_prompt, context_messages, system_prompt)

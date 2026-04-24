@@ -5,6 +5,8 @@ import os
 import json
 import re
 
+from .user_model import UserModel
+
 
 class Session:
     """
@@ -97,6 +99,7 @@ class ConversationState:
             self,
             base_dir: Optional[str] = None,
             participant_id: Optional[str] = None,
+            use_json_file: bool = False,
     ) -> None:
         """
         Initialize the conversation state manager.
@@ -108,11 +111,20 @@ class ConversationState:
             Defaults to the current working directory.
         participant_id : str, optional
             Identifier for the current user.
+        use_json_file : bool, optional
+            If True, persist/load shared continuity JSON in addition to participant transcripts.
+            If False (default), continuity is backed by UserModel.
         """
         self.participant_id = participant_id
+        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
+        self.use_json_file = use_json_file
+
+        # Optional shared continuity file.
+        self.path = self.base_dir / "conversation_state.json"
+        if self.use_json_file:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
         self.completed_dialogs: List[str] = []
-        self.user_model: Dict[str, Any] = {}
         self.topics_of_interest: List[str] = []
         self.sessions: List[Session] = []
 
@@ -121,42 +133,82 @@ class ConversationState:
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
-        self.load()
+        if self.use_json_file:
+            self.load_state_from_json()
 
-    def load(self) -> None:
-        """
-        Load existing conversation state for the current participant from disk.
+        self.user_model = UserModel(participant_id=self.participant_id)
 
-        If no file exists, initializes an empty state.
+        if self.participant_id is not None:
+            self.restore_participant_state()
 
-        Behavior
-        --------
-        - Restores completed dialogs, topics, and sessions
-        - Ignores corrupted or unreadable files (logs an error instead)
-        """
-        safe_id = self._sanitize_participant_id(self.participant_id)
+    def restore_participant_state(self) -> None:
+        print(f"[INFO] Using participant_id={self.participant_id}")
+        self.user_model.set_participant(self.participant_id)
+
+        # Load continuity from Redis (default) or JSON file (opt-in).
+        if self.use_json_file:
+            pid_completed, pid_topics = self.load_participant_continuity(participant_id=self.participant_id)
+            self.completed_dialogs = list(pid_completed or [])
+            self.topics_of_interest = pid_topics or []
+        else:
+            self.completed_dialogs = list(self.user_model.get_completed_dialogs())
+            self.topics_of_interest = self.user_model.get_topics_of_interest()
+
+    def load_participant_continuity(self, participant_id: Optional[str]) -> tuple[set[str], List[str]]:
+        safe_id = self._sanitize_participant_id(participant_id)
         path = self.participants_dir / f"{safe_id}.json"
-
         if not path.exists():
-            return
+            return set(), []
 
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f) or {}
-        except Exception as e:
-            print(f"[ERROR] Failed to load conversation state for participant {self.participant_id}: {e}")
+
+            summary = data.get("summary") or {}
+            completed = set(summary.get("dialog_ids_seen") or [])
+            topics = list(summary.get("topics_of_interest") or [])
+
+            return completed, topics
+        except Exception:
+            return set(), []
+
+    def load_state_from_json(self) -> None:
+        if not self.path.exists():
+            self._initialize_empty_state()
             return
 
-        summary = data.get("summary") or {}
-        self.user_model = {}
-        self.completed_dialogs = list(summary.get("dialog_ids_seen") or [])
-        self.topics_of_interest = list(summary.get("topics_of_interest") or [])
+        try:
+            with open(self.path, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        except Exception:
+            # corrupted file fallback
+            self._initialize_empty_state()
+            return
+
+        self.completed_dialogs = data.get("completed_dialogs", [])
+        self.topics_of_interest = data.get("topics_of_interest", [])
         self.sessions = [Session(**s) for s in data.get("sessions", [])]
 
+    def _initialize_empty_state(self) -> None:
+        self.completed_dialogs = []
+        self.topics_of_interest = []
+        self.sessions = []
+
+        if self.use_json_file:
+            self.save_state_to_json()  # create file immediately
+
+    def save_state_to_json(self) -> None:
+        if not self.use_json_file:
+            return
+        data = {
+            "completed_dialogs": self.completed_dialogs,
+            "topics_of_interest": self.topics_of_interest,
+            "sessions": [s.__dict__ for s in self.sessions],
+        }
+        self._atomic_write_json(self.path, data)
+
+    # Backward-compatible wrapper for existing callers/tests.
     def save(self) -> None:
-        """
-        Persist the current state to disk for the active participant.
-        """
         self.save_participant_transcript(self.participant_id)
 
     def start_session(self, metadata: Optional[Dict[str, Any]] = None, *, participant_id: Optional[str] = None, run_id: Optional[str] = None) -> str:
@@ -247,8 +299,22 @@ class ConversationState:
         """
         sess = self._get_session(session_id)
         sess.ended_at = datetime.utcnow().isoformat()
+        user_model_snapshot: Dict[str, Any] = {}
+        if isinstance(user_model, dict):
+            user_model_snapshot = dict(user_model)
+        elif isinstance(user_model, UserModel):
+            try:
+                user_model_snapshot = dict(user_model.as_dict())
+            except Exception:
+                user_model_snapshot = {}
+        elif user_model is not None:
+            try:
+                user_model_snapshot = dict(user_model)
+            except Exception:
+                user_model_snapshot = {}
+
         sess.summary = {
-            "user_model": user_model or {},
+            "user_model": user_model_snapshot,
             "topics_of_interest": topics_of_interest or [],
             **(extra_summary or {})
         }
@@ -269,10 +335,18 @@ class ConversationState:
         if topics_of_interest:
             self._merge_interests(topics_of_interest)
 
+        # Persist continuity to Redis (always, regardless of use_json_file).
+        pid = sess.participant_id
+        if pid:
+            self.user_model.set_participant(pid)
+            self.user_model.save_continuity(
+                completed_dialogs=list(self.completed_dialogs),
+                topics_of_interest=list(self.topics_of_interest),
+            )
+
+        # Write per-participant JSON transcript.
         target_participant_id = sess.participant_id if sess.participant_id is not None else self.participant_id
         self.save_participant_transcript(target_participant_id)
-
-    # --- Internal helpers below ---
 
     def _get_session(self, session_id: str) -> Session:
         """Retrieve a session by ID."""

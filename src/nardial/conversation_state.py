@@ -299,8 +299,22 @@ class ConversationState:
         """
         sess = self._get_session(session_id)
         sess.ended_at = datetime.utcnow().isoformat()
+        user_model_snapshot: Dict[str, Any] = {}
+        if isinstance(user_model, dict):
+            user_model_snapshot = dict(user_model)
+        elif isinstance(user_model, UserModel):
+            try:
+                user_model_snapshot = dict(user_model.as_dict())
+            except Exception:
+                user_model_snapshot = {}
+        elif user_model is not None:
+            try:
+                user_model_snapshot = dict(user_model)
+            except Exception:
+                user_model_snapshot = {}
+
         sess.summary = {
-            "user_model": user_model or {},
+            "user_model": user_model_snapshot,
             "topics_of_interest": topics_of_interest or [],
             **(extra_summary or {})
         }

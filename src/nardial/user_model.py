@@ -1,21 +1,30 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+import json
 
 # Attempt to import the SIC Redis datastore message classes and client used by the demo.
 # The proxy will hide these details and gracefully fall back to in-memory behavior when unavailable.
 try:
     from sic_framework.services.datastore.redis_datastore import (
-        SetUsermodelValuesRequest,
-        GetUsermodelRequest,
-        DeleteUsermodelValuesRequest,
-        DeleteUserRequest,
-        UsermodelKeyValuesMessage,
+        SetScopedKeyValuesRequest,
+        GetScopedRecordRequest,
+        DeleteScopedKeyValuesRequest,
+        DeleteScopedRecordRequest,
+        ScopedKeyValuesMessage,
         SICSuccessMessage,
         RedisDatastoreConf,
         RedisDatastore,
     )
     _HAS_REDIS_DS = True
 except Exception:
+    SetScopedKeyValuesRequest = None
+    GetScopedRecordRequest = None
+    DeleteScopedKeyValuesRequest = None
+    DeleteScopedRecordRequest = None
+    ScopedKeyValuesMessage = None
+    SICSuccessMessage = None
+    RedisDatastoreConf = None
+    RedisDatastore = None
     _HAS_REDIS_DS = False
 
 # Reserved keys used internally to persist continuity data alongside regular user-model values.
@@ -40,7 +49,7 @@ class UserModel:
         self._datastore = None
 
         # Attempt to create a default RedisDatastore.
-        if _HAS_REDIS_DS:
+        if _HAS_REDIS_DS and RedisDatastoreConf and RedisDatastore:
             try:
                 conf = RedisDatastoreConf(
                     host="127.0.0.1",
@@ -65,16 +74,49 @@ class UserModel:
 
     def _ensure_loaded(self) -> None:
         # If we have a datastore and a participant id, try to load the full user model from Redis.
-        if not self._datastore or not self._pid:
+        if not self._datastore or not self._pid or not GetScopedRecordRequest:
             return
         try:
-            resp = self._datastore.request(GetUsermodelRequest(user_id=self._pid))
-            if isinstance(resp, UsermodelKeyValuesMessage):
-                # overwrite local cache with canonical values
-                self._cache = dict(resp.keyvalues or {})
+            resp = self._datastore.request(GetScopedRecordRequest(scope_id=self._pid))
+            keyvalues = getattr(resp, "keyvalues", None)
+            if isinstance(keyvalues, dict):
+                self._cache = {
+                    k: self._decode_value(v)
+                    for k, v in keyvalues.items()
+                }
         except Exception:
             # On any failure, silently keep the current cache (fallback behavior)
             return
+
+    @staticmethod
+    def _encode_value(value: Any) -> Any:
+        """
+        Redis hash fields accept scalar values.
+        Encode complex Python values as tagged JSON strings.
+        """
+        if isinstance(value, (str, int, float)) or value is None:
+            return value
+        if isinstance(value, bool):
+            # bool is a subclass of int; keep string form explicit.
+            return "true" if value else "false"
+        try:
+            return "__json__:" + json.dumps(value, ensure_ascii=False)
+        except Exception:
+            # Last-resort fallback keeps write path robust.
+            return str(value)
+
+    @staticmethod
+    def _decode_value(value: Any) -> Any:
+        """
+        Decode values previously encoded by _encode_value.
+        """
+        if isinstance(value, str) and value.startswith("__json__:"):
+            raw = value[len("__json__:"):]
+            try:
+                return json.loads(raw)
+            except Exception:
+                return value
+        return value
 
     # ---- continuity helpers (completed_dialogs, topics_of_interest, metadata) ----
 
@@ -120,10 +162,10 @@ class UserModel:
 
     def __setitem__(self, key: str, value: Any) -> None:
         # write-through to datastore when available, otherwise update local cache
-        if self._datastore and self._pid:
+        if self._datastore and self._pid and SetScopedKeyValuesRequest:
             try:
-                kv = {key: value}
-                resp = self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=kv))
+                kv = {key: self._encode_value(value)}
+                self._datastore.request(SetScopedKeyValuesRequest(scope_id=self._pid, keyvalues=kv))
                 # On success or failure, update cache as best-effort
                 self._cache[key] = value
             except Exception:
@@ -136,9 +178,13 @@ class UserModel:
         items.update(kwargs)
         if not items:
             return
-        if self._datastore and self._pid:
+        if self._datastore and self._pid and SetScopedKeyValuesRequest:
             try:
-                resp = self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=items))
+                encoded_items = {
+                    k: self._encode_value(v)
+                    for k, v in items.items()
+                }
+                self._datastore.request(SetScopedKeyValuesRequest(scope_id=self._pid, keyvalues=encoded_items))
                 self._cache.update(items)
             except Exception:
                 self._cache.update(items)
@@ -158,9 +204,9 @@ class UserModel:
         return dict(self._cache)
 
     def __delitem__(self, key: str) -> None:
-        if self._datastore and self._pid:
+        if self._datastore and self._pid and DeleteScopedKeyValuesRequest:
             try:
-                resp = self._datastore.request(DeleteUsermodelValuesRequest(user_id=self._pid, keys=[key]))
+                self._datastore.request(DeleteScopedKeyValuesRequest(scope_id=self._pid, keys=[key]))
                 self._cache.pop(key, None)
             except Exception:
                 self._cache.pop(key, None)
@@ -169,11 +215,10 @@ class UserModel:
 
     def clear_remote(self) -> None:
         # Delete the entire user from datastore if available
-        if self._datastore and self._pid:
+        if self._datastore and self._pid and DeleteScopedRecordRequest:
             try:
-                resp = self._datastore.request(DeleteUserRequest(user_id=self._pid))
-                if isinstance(resp, SICSuccessMessage):
-                    self._cache.clear()
+                self._datastore.request(DeleteScopedRecordRequest(scope_id=self._pid))
+                self._cache.clear()
             except Exception:
                 pass
         else:

@@ -33,3 +33,8 @@ examples/tts_cache/
 # environment files
 conf/.env
 *.env
+
+# Redis datastore files
+*.aof
+*.rdb
+*.manifest

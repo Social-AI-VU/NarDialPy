@@ -46,42 +46,6 @@ from dotenv import load_dotenv
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
 
-"""
-Demo: AlphaMini recognizes user intent and replies using Dialogflow/Text-to-Speech and an LLM.
-
-IMPORTANT
-First, you need to set-up Google Cloud Console with dialogflow and Google TTS:
-
-1. Dialogflow: https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key 
-2. TTS: https://console.cloud.google.com/apis/api/texttospeech.googleapis.com/ 
-2a. note: you need to set-up a paid account with a credit card. You get $300,- free tokens, which is more then enough
-for testing this agent. So in practice it will not cost anything.
-3. Create a keyfile as instructed in (1) and save it conf/dialogflow/google-key.json
-3a. note: never share the keyfile online. 
-
-Secondly you need to configure your dialogflow agent.
-4. In your empty dialogflow agent do the following things:
-4a. remove all default intents
-4b. go to settings -> import and export -> and import the resources/droomrobot_dialogflow_agent.zip into your
-dialogflow agent. That gives all the necessary intents and entities that are part of this example (and many more)
-
-Thirdly, you need an openAI key:
-5. Generate your personal openai api key here: https://platform.openai.com/api-keys
-6. Either add your openai key to your systems variables or
-create a .openai_env file in the conf/openai folder and add your key there like this:
-OPENAI_API_KEY="your key"
-
-Forth, the redis server, Dialogflow, Google TTS and OpenAI gpt service need to be running:
-
-7. pip install --upgrade social_interaction_cloud[dialogflow,google-tts,openai-gpt,alphamini]
-8. run: conf/redis/redis-server.exe conf/redis/redis.conf
-9. run in new terminal: run-dialogflow 
-10. run in new terminal: run-google-tts
-11. run in new terminal: run-gpt
-12. add in the main: the ip address, id, and password of the alphamini and the ip-address of the redis server (= ip address of you laptop)
-13. Run this script
-"""
-
 
 class AnimationType(Enum):
     ACTION = 1
@@ -103,7 +67,7 @@ def find_project_root(start: Path) -> Path:
 class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, signal_listening_behavior=True):
+                 openai_key_path=None, sleep_time=None, signal_listening_behavior=True):
         self.language = language
 
         self.tts_conf = tts_conf
@@ -121,6 +85,7 @@ class InteractionConfig:
         if not self.openai_key_path:
             self.openai_key_path = abspath(join(find_project_root(Path.cwd()), "conf", "openai", ".openai_env"))
 
+        self.sleep_time = sleep_time
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
@@ -321,7 +286,7 @@ class InteractionOrchestrator:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['animated', 'always_regenerate', 'chunk_audio'])
+    @InteractionConfig.apply_config_defaults('interaction_conf', ['sleep_time', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, sleep_time=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         if animated:
             self.animation()
@@ -334,6 +299,7 @@ class InteractionOrchestrator:
             self.elevenlabs_say(text, sleep_time=sleep_time, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
         else:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+
 
     def naoqi_say(self, text, sleep_time=None, animated=False):
         if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):

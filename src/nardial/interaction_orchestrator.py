@@ -97,7 +97,7 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
+                 env_file_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False):
@@ -109,7 +109,7 @@ class InteractionConfig:
             tts_conf (TTSConf, optional): Text-to-speech configuration.
             microphone_device: Optional external microphone device.
             google_keyfile_path (str, optional): Path to Google credentials file.
-            openai_key_path (str, optional): Path to OpenAI credentials file.
+            env_file_path (str, optional): Path to environment variable file.
             post_speech_delay (float, optional): Delay after speech playback.
             signal_listening_behavior (bool): Whether to show listening indicators.
         """
@@ -125,11 +125,14 @@ class InteractionConfig:
 
         self.microphone_device = microphone_device
         self.google_keyfile_path = google_keyfile_path
-        self.openai_key_path = openai_key_path
+        self.env_file_path = env_file_path
         if not self.google_keyfile_path:
             self.google_keyfile_path = abspath(join(find_project_root(Path.cwd()), "conf", "google", "google_keyfile.json"))
-        if not self.openai_key_path:
-            self.openai_key_path = abspath(join(find_project_root(Path.cwd()), "conf", "openai", ".openai_env"))
+        if not self.env_file_path:
+            project_root = find_project_root(Path.cwd())
+            default_env_file_path = abspath(join(project_root, "conf", ".env"))
+            legacy_openai_env_path = abspath(join(project_root, "conf", "openai", ".openai_env"))
+            self.env_file_path = legacy_openai_env_path if exists(legacy_openai_env_path) else default_env_file_path
 
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
@@ -249,8 +252,8 @@ class InteractionOrchestrator:
         self.gpt = None
         self.datastore = None
         self.rag_enabled = bool(self.interaction_conf.rag)
-        if self.interaction_conf.openai_key_path:
-            load_dotenv(self.interaction_conf.openai_key_path)
+        if self.interaction_conf.env_file_path:
+            load_dotenv(self.interaction_conf.env_file_path)
         openai_key = environ.get("OPENAI_API_KEY")
         try:
             self.gpt = GPT(conf=GPTConf(openai_key=environ["OPENAI_API_KEY"]))
@@ -574,6 +577,85 @@ class InteractionOrchestrator:
         except Exception as e:
             print(f"Exception: {e}")
             return None
+
+    def _setup_rag(self, openai_key=None):
+        if not openai_key:
+            self.logger.warning("RAG is enabled, but OPENAI_API_KEY is unavailable")
+            return
+
+        redis_conf = RedisDatastoreConf(
+            host="127.0.0.1",
+            port=6379,
+            password=environ.get("DB_PASS", "changemeplease"),
+            namespace="nardial_rag",
+            version="v1",
+            developer_id=0,
+        )
+        self.datastore = RedisDatastore(conf=redis_conf)
+
+        if self.interaction_conf.ingest_docs:
+            self._ingest_rag_documents(openai_key=openai_key)
+
+    def _ingest_rag_documents(self, openai_key):
+        result = self.datastore.request(
+            IngestVectorDocsRequest(
+                input_path=self.interaction_conf.input_path,
+                openai_api_key=openai_key,
+                index_name=self.interaction_conf.index_name,
+                partition="default",
+                chunk_chars=self.interaction_conf.chunk_chars,
+                chunk_overlap=self.interaction_conf.chunk_overlap,
+                embedding_model=self.interaction_conf.embedding_model,
+                override_existing=self.interaction_conf.override_existing,
+                force_recreate_index=self.interaction_conf.force_recreate_index,
+            )
+        )
+        if isinstance(result, VectorDBResultsMessage) and result.payload.get("ok"):
+            for item in result.payload.get("results", []):
+                self.logger.info(
+                    "RAG ingested %s files into %s (%s chunks)",
+                    item.get("files", 0),
+                    item.get("index", self.interaction_conf.index_name),
+                    item.get("chunks", 0),
+                )
+            return
+        self.logger.warning("RAG ingestion returned an unexpected response: %s", result)
+
+    def _retrieve_rag_context(self, query_text, k=5):
+        if not self.datastore:
+            return ""
+
+        openai_key = environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            self.logger.warning("Cannot retrieve RAG context without OPENAI_API_KEY")
+            return ""
+
+        try:
+            result = self.datastore.request(
+                QueryVectorDBRequest(
+                    index_name=self.interaction_conf.index_name,
+                    query_text=query_text,
+                    openai_api_key=openai_key,
+                    k=k,
+                    partition="default",
+                    embedding_model=self.interaction_conf.embedding_model,
+                )
+            )
+        except Exception as e:
+            self.logger.warning("RAG retrieval failed: %s", e)
+            return ""
+
+        if not isinstance(result, VectorDBResultsMessage):
+            return ""
+
+        snippets = []
+        for idx, item in enumerate(result.payload.get("results", []), start=1):
+            content = (item.get("content") or "").strip()
+            if not content:
+                continue
+            source = Path(item.get("doc_path") or "unknown").name
+            snippets.append(f"[{idx}] {source}\n{content}")
+        return "\n\n".join(snippets)
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
         if not isinstance(self.device_manager, Alphamini):

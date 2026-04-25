@@ -120,7 +120,7 @@ class DialogFactory:
             if not isinstance(doc.get("thread"), str):
                 errs.append("thread must be string for narrative dialogs")
             try:
-                int(doc.get("position"))
+                int(doc["position"])
             except Exception:
                 errs.append("position must be integer for narrative dialogs")
         elif t == "chitchat":
@@ -140,8 +140,9 @@ class DialogFactory:
                 errs.append("duration must be numeric seconds for llm_based dialogs")
             if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
                 errs.append("rag_enabled must be boolean for llm_based dialogs")
+            index_name = doc.get("index_name")
             if doc.get("rag_enabled") is True and not (
-                    isinstance(doc.get("index_name"), str) and doc.get("index_name").strip()):
+                    isinstance(index_name, str) and index_name.strip()):
                 errs.append("index_name must be a non-empty string when rag_enabled is true for llm_based dialogs")
             quit_phrases = doc.get("quit_phrases")
             if quit_phrases is not None and (

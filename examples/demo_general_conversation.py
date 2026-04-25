@@ -1,8 +1,6 @@
 import sys
+import importlib
 from os.path import abspath, join
-
-from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.devices.desktop import Desktop
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
@@ -10,15 +8,12 @@ from nardial.session_manager import SessionManager
 
 # setup key files paths
 dialog_json_path = abspath(join("..", "examples", "dialogs.json"))
+mcp_desktop = importlib.import_module("sic_framework.mcp.mcp_desktop")
 
 if __name__ == '__main__':
-    # Select device
-    device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
-    # device = Pepper(ip="10.0.0.148")
-
     # Create conversational agent
-    interaction_config = InteractionConfig(post_speech_delay=2, keyboard_input=True)
-    agent = ConversationAgent(device_manager=device, int_config=interaction_config)
+    interaction_config = InteractionConfig(post_speech_delay=2, keyboard_input=True, device_mcp=mcp_desktop)
+    agent = ConversationAgent(device_mcp=mcp_desktop, int_config=interaction_config)
 
     # all dialogs for now
     session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]

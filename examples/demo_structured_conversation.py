@@ -1,9 +1,6 @@
 import sys
+import importlib
 from os.path import abspath, dirname, join
-
-from sic_framework.devices import Pepper
-from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.devices.desktop import Desktop
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
@@ -47,24 +44,9 @@ You MUST run these in separate terminals BEFORE starting the demo:
 # Path to your Google credentials (used for speech recognition + TTS if using Google)
 # You can replace this with your own path or environment-based config
 google_keyfile_path = join("..", "conf", "google", "google_keyfile.json")
+mcp_desktop = importlib.import_module("sic_framework.mcp.mcp_desktop")
 
 if __name__ == '__main__':
-    # =========================
-    # 1. SELECT DEVICE
-    # =========================
-    # Choose where the conversation runs:
-    # - Desktop: uses your computer's mic + speakers
-    # - Pepper: connects to a Pepper robot (requires IP)
-
-    device = Desktop(
-        speakers_conf=SpeakersConf(
-            sample_rate=22050  # You can change audio quality (higher = better, but heavier)
-        )
-    )
-
-    # Uncomment to use Pepper instead:
-    # device = Pepper(ip="10.0.0.148")  # Replace with your robot's IP
-
     # =========================
     # 2. CONFIGURE INTERACTION
     # =========================
@@ -72,7 +54,8 @@ if __name__ == '__main__':
 
     interaction_config = InteractionConfig(
         google_keyfile_path=google_keyfile_path,
-        keyboard_input=True
+        keyboard_input=True,
+        device_mcp=mcp_desktop
 
         # Change language (affects ASR + TTS + dialogflow)
         # language="nl",
@@ -99,9 +82,9 @@ if __name__ == '__main__':
     # =========================
     # 3. CREATE AGENT
     # =========================
-    # The agent combines device + interaction config
+    # The agent combines device MCP + interaction config
     agent = ConversationAgent(
-        device_manager=device,
+        device_mcp=mcp_desktop,
         int_config=interaction_config
     )
 

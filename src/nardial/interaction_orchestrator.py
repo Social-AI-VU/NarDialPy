@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 from json import load
 import queue
@@ -6,7 +7,7 @@ import re
 import wave
 from enum import Enum
 from os import environ, fsync
-from os.path import exists, abspath, join
+from os.path import exists, abspath, join, basename
 from pathlib import Path
 import random as rand
 from threading import Thread
@@ -21,14 +22,6 @@ from mini.apis.api_expression import SetMouthLamp, PlayExpression
 from sic_framework.core import sic_logging
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.core.sic_application import SICApplication
-from sic_framework.devices import Pepper, Nao
-from sic_framework.devices.alphamini import Alphamini
-from sic_framework.devices.common_naoqi.naoqi_leds import NaoFadeRGBRequest
-from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationRequest
-from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
-from sic_framework.devices.common_naoqi.naoqi_text_to_speech import NaoqiTextToSpeechRequest
-from sic_framework.devices.desktop import Desktop
-from sic_framework.devices.device import SICDeviceManager
 from sic_framework.services.dialogflow.dialogflow import (
     Dialogflow,
     DialogflowConf,
@@ -97,7 +90,7 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 env_file_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
+                 env_file_path=None, device_mcp=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False):
@@ -124,6 +117,7 @@ class InteractionConfig:
             )
 
         self.microphone_device = microphone_device
+        self.device_mcp = device_mcp
         self.google_keyfile_path = google_keyfile_path
         self.env_file_path = env_file_path
         if not self.google_keyfile_path:
@@ -226,7 +220,7 @@ class InteractionConfig:
 
 
 class InteractionOrchestrator:
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig):
+    def __init__(self, device_mcp, int_config: InteractionConfig):
 
         print("\n SETTING UP BASIC PROCESSING")
         # Development Logging
@@ -279,29 +273,17 @@ class InteractionOrchestrator:
             raise ValueError(f"Unknown tts_conf {self.tts_conf}")
         print("Complete")
 
-        print("\n SETTING UP DEVICE MANAGER")
-        self.device_manager = device_manager
-        self.mic = self.device_manager.mic
-        self.speaker = None
+        print("\n SETTING UP DEVICE MCP")
+        self.device_mcp = device_mcp or self.interaction_conf.device_mcp
+        if self.device_mcp is None:
+            raise ValueError("InteractionOrchestrator requires a device_mcp module")
         self.mini_api = None
         self.animation_futures = []
-        if self.interaction_conf.microphone_device:
-            print("\n Additional Microphone Device Detected")
-            self.mic = self.interaction_conf.microphone_device.mic
-        if isinstance(self.device_manager, Alphamini):
-            self.setup_alphamini()
-        elif isinstance(self.device_manager, Pepper):
-            self.setup_pepper()
-        elif isinstance(self.device_manager, Nao):
-            self.setup_nao()
-        elif isinstance(self.device_manager, Desktop):
-            self.setup_desktop()
-        else:
-            raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
+        self._mcp_call("connect")
         print("Complete")
 
         print("\n SETTING UP DIALOGFLOW")
-        df_input = None if self.interaction_conf.keyboard_input else getattr(self, 'mic', None)
+        df_input = None
         self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=df_input)
         # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
@@ -379,30 +361,19 @@ class InteractionOrchestrator:
         except Exception as e:
             self.logger.error("Failed to connect to elevenlabs", exc_info=e)
 
-    def setup_alphamini(self):
-        print("\n Device is ALPHAMINI")
-        print("Connecting to miniSDK")
-        self.speaker = self.device_manager.speaker
-        # Create asyncio event loop to keep connection open to miniSDK.
-        connect_to_mini_sdk_future = asyncio.run_coroutine_threadsafe(self._connect_once(), self.background_loop)
-        try:
-            connect_to_mini_sdk_future.result()
-            self.animate_alphamini(AnimationType.ACTION, "009")  # Wake up
-            self.animate_alphamini(AnimationType.EXPRESSION, "codemao20")  # Blink
-        except Exception as e:
-            self.logger.error("Failed to connect to mini device", exc_info=e)
+    def _mcp_call(self, function_name, *args, **kwargs):
+        fn = getattr(self.device_mcp, function_name, None)
+        if callable(fn):
+            return fn(*args, **kwargs)
+        return None
 
-    def setup_pepper(self):
-        self.speaker = self.device_manager.speaker
-        print("\n Device is PEPPER")
-
-    def setup_nao(self):
-        self.speaker = self.device_manager.speaker
-        print("\n Device is NAO")
-
-    def setup_desktop(self):
-        print("\n Device is COMPUTER")
-        self.speaker = self.device_manager.speakers
+    def _play_audio_bytes_via_mcp(self, audio_bytes, sample_rate):
+        if not audio_bytes:
+            return
+        waveform_b64 = base64.b64encode(audio_bytes).decode("ascii")
+        result = self._mcp_call("play_audio_bytes", waveform_b64=waveform_b64, sample_rate=int(sample_rate))
+        if isinstance(result, str) and result.startswith("ERROR:"):
+            raise RuntimeError(result)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
@@ -420,10 +391,9 @@ class InteractionOrchestrator:
 
 
     def naoqi_say(self, text, post_speech_delay=None, animated=False):
-        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
-            return
-
-        self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=self.interaction_conf.language))
+        result = self._mcp_call("say_text", text=text, animated=animated)
+        if isinstance(result, str) and result.startswith("ERROR:"):
+            self.logger.error(result)
 
         if post_speech_delay and post_speech_delay > 0:
             sleep(post_speech_delay)
@@ -452,7 +422,7 @@ class InteractionOrchestrator:
                 audio_bytes = self._amplify_audio(audio_bytes)
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, sample_rate))
+            self._play_audio_bytes_via_mcp(audio_bytes, sample_rate)
             self.log_utterance(speaker='robot', text=text)
 
             # Save to cache file
@@ -483,7 +453,7 @@ class InteractionOrchestrator:
             audio_bytes = self.elevenlabs_generate_chunk_audio(chunk, amplified)
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
+            self._play_audio_bytes_via_mcp(audio_bytes, self.sample_rate)
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
@@ -519,6 +489,13 @@ class InteractionOrchestrator:
             self.log_utterance(speaker="child", text=line)
             return line, None
         else:
+            mcp_listen = self._mcp_call("listen", timeout=timeout)
+            if isinstance(mcp_listen, tuple) and len(mcp_listen) == 2:
+                return mcp_listen[0], mcp_listen[1]
+            if isinstance(mcp_listen, str):
+                if mcp_listen.startswith("ERROR:"):
+                    raise RuntimeError(mcp_listen)
+                return mcp_listen, None
             try:
                 reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
                 print("The detected intent:", reply.intent)
@@ -551,9 +528,9 @@ class InteractionOrchestrator:
             if amplified:
                 audio = self._amplify_audio(audio)
 
-            self.speaker.request(AudioRequest(audio, framerate))
+            self._play_audio_bytes_via_mcp(audio, framerate)
             if log:
-                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+                self.log_utterance(speaker='robot', text=f'plays {basename(audio_file)}')
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
                          rag_enabled=None, rag_index_name=None):
@@ -677,29 +654,23 @@ class InteractionOrchestrator:
         return "\n\n".join(snippets)
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
-        if not isinstance(self.device_manager, Alphamini):
-            print(f'Animation played: {animation_type} [{animation_id}]')
-            return
-
-        try:
-            future = asyncio.run_coroutine_threadsafe(self.alphamini_animation_action(animation_id, animation_type), self.background_loop)
-        except Exception as e:
-            self.logger.error(f'Animation {animation_id} failed: {e}', exc_info=e)
-            return
-
-        self.animation_futures.append(future)
-        if not run_async:
-            future.result()
+        self._mcp_call(
+            "play_animation",
+            animation_name=animation_id,
+            animation_type=str(animation_type.name).lower(),
+            block=not run_async,
+        )
 
     def animate_naoqi(self, animation: str, block=True):
         try:
-            self.device_manager.motion.request(NaoqiAnimationRequest(animation), block=block)
+            result = self._mcp_call("play_animation", animation_name=animation, block=block)
+            if isinstance(result, str) and result.startswith("ERROR:"):
+                self.logger.error(result)
         except Exception as e:
             self.logger.error(f"Failed to play pepper animation: {animation}", exc_info=e)
 
     def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
-        if isinstance(self.device_manager, Pepper):
-            self.device_manager.leds.request(NaoFadeRGBRequest(name, r, g, b, 0))
+        self._mcp_call("set_eye_color_rgb", r=float(r), g=float(g), b=float(b), duration=0.0, led_group=name)
 
     async def alphamini_animation_action(self, action_name, animation_type):
         try:
@@ -719,17 +690,14 @@ class InteractionOrchestrator:
                 self.logger.error("Failed to connect to mini device", exc_info=e)
 
     def set_alphamini_mouth_lamp(self, color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000, run_async=False):
-        if not isinstance(self.device_manager, Alphamini):
-            print(f"Set mouth lamp: {color} {mode} {duration} {breath_duration}")
-            return
-
-        future = asyncio.run_coroutine_threadsafe(
-            self.alphamini_mouth_lamp_expression(color, mode, duration, breath_duration),
-            self.background_loop)
-        self.animation_futures.append(future)
-
-        if not run_async:
-            future.result()
+        self._mcp_call(
+            "set_mouth_lamp",
+            color=str(color),
+            mode=str(mode),
+            duration=duration,
+            breath_duration=breath_duration,
+            run_async=run_async,
+        )
 
     @staticmethod
     async def alphamini_mouth_lamp_expression(color: MouthLampColor, mode: MouthLampMode, duration=-1, breath_duration=1000):
@@ -745,14 +713,7 @@ class InteractionOrchestrator:
             disconnect_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.disconnect(), self.background_loop)
             disconnect_elevenlabs_future.result()
 
-        if self.device_name == 'alphamini':
-            for fut in self.animation_futures:
-                fut.cancel()
-
-            # Disconnect from miniSDK
-            disconnect_alphamini_future = asyncio.run_coroutine_threadsafe(self._disconnect_alphamini_api(),
-                                                                           self.background_loop)
-            disconnect_alphamini_future.result()
+        self._mcp_call("shutdown_device")
 
         # Schedule loop shutdown
         if self.background_loop.is_running():
@@ -784,32 +745,14 @@ class InteractionOrchestrator:
         self.interaction_conf = interaction_conf
 
     def signal_listening_behavior(self, start=True):
-        if start:
-            if isinstance(self.device_manager, Alphamini):
-                self.set_alphamini_mouth_lamp(MouthLampColor.GREEN, MouthLampMode.NORMAL)
-            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
-                self.animate_naoqi_leds(g=1)
-        else:
-            if isinstance(self.device_manager, Alphamini):
-                self.set_alphamini_mouth_lamp(MouthLampColor.WHITE, MouthLampMode.BREATH)
-            elif isinstance(self.device_manager, Nao) or isinstance(self.device_manager, Pepper):
-                self.animate_naoqi_leds()
+        self._mcp_call("signal_listening_behavior", start=start)
 
     def animation(self):
-        if isinstance(self.device_manager, Alphamini):
-            self.animate_alphamini(AnimationType.EXPRESSION, self.random_alphamini_speaking_eye_expression(), run_async=True)
-            self.animate_alphamini(AnimationType.ACTION, self.random_alphamini_speaking_act(), run_async=True)
-        elif isinstance(self.device_manager, Pepper) or isinstance(self.device_manager, Nao):
-            self.device_manager.motion.request(NaoqiAnimationRequest(self.random_pepper_animation()), block=False)
+        self._mcp_call("play_animation", animation_name=self.random_pepper_animation(), block=False)
 
     def play_motion(self, motion_name):
-        if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
-            return
         try:
-            # Play the recording
-            self.logger.info(f"Playing motion {motion_name}")
-            recording = NaoqiMotionRecording.load(motion_name)
-            self.device_manager.motion_record.request(PlayRecording(recording))
+            self._mcp_call("play_motion_sequence", motion_sequence=motion_name)
         except Exception as e:
             self.logger.error(f"Exception: {e}")
 

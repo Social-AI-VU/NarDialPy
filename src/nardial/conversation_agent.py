@@ -1,8 +1,6 @@
 import json
 import re
 
-from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.device import SICDeviceManager
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -17,13 +15,13 @@ class ConversationAgent:
     - Asking different types of questions (yes/no, open, options)
     - Calling LLMs (e.g., GPT) for reasoning or post-processing
 
-    It abstracts away device-specific behavior (e.g., Desktop vs Pepper robot)
-    and external services (Dialogflow, TTS, GPT).
+    It abstracts device-specific behavior through a shared MCP interface and
+    external services (Dialogflow, TTS, GPT).
 
     Parameters
     ----------
-    device_manager : SICDeviceManager
-        The device interface (e.g., Desktop, Pepper, Nao) that handles I/O.
+    device_mcp : module
+        Device MCP module that handles I/O (listen, audio playback, etc.).
     int_config : InteractionConfig, optional
         Configuration for language, TTS, APIs, and interaction behavior.
         If not provided, a default configuration is used.
@@ -38,11 +36,11 @@ class ConversationAgent:
     Ensure required services are running before using this class.
     """
 
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
+    def __init__(self, device_mcp, int_config: InteractionConfig = None):
         if int_config is None:
             int_config = InteractionConfig()
-        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
-        self.device = device_manager
+        self.orchestrator = InteractionOrchestrator(device_mcp=device_mcp, int_config=int_config)
+        self.device_mcp = device_mcp
 
     def say(self, text):
         """
@@ -79,24 +77,20 @@ class ConversationAgent:
 
     def play_animation(self, animation_name, block=False):
         """
-        Trigger a built-in animation on supported robot platforms (Pepper, Nao).
+        Trigger a built-in animation if supported by the MCP module.
 
         Parameters
         ----------
         animation_name : str
-            Name of the animation (NAOqi animation key).
+            Name of the animation.
         block : bool, optional
             Whether to block execution until the animation completes.
 
-        Notes
-        -----
-        This only works on Pepper/Nao devices. On Desktop, this call is ignored.
         """
-        if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
-            try:
-                self.orchestrator.animate_naoqi(animation_name, block)
-            except Exception as e:
-                print(f"Failed to play animation: {animation_name}", e)
+        try:
+            self.orchestrator.animate_naoqi(animation_name, block)
+        except Exception as e:
+            print(f"Failed to play animation: {animation_name}", e)
 
     def ask_yesno(self, question, max_attempts=1):
         """

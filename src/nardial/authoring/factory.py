@@ -95,8 +95,8 @@ class DialogFactory:
         did = doc.get("id")
         if not isinstance(did, str) or not did:
             errs.append("id must be non-empty string")
-        if t not in {"functional", "narrative", "chitchat"}:
-            errs.append("type must be 'functional' | 'narrative' | 'chitchat'")
+        if t not in {"functional", "narrative", "chitchat", "llm_based"}:
+            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based'")
         # shared
         deps = doc.get("dependencies")
         if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
@@ -129,6 +129,26 @@ class DialogFactory:
             topics = doc.get("topics")
             if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
                 errs.append("topics must be a list of strings for chitchat dialogs")
+        elif t == "llm_based":
+            if not isinstance(doc.get("prompt"), str):
+                errs.append("prompt must be string for llm_based dialogs")
+            if "max_turns" in doc and not isinstance(doc.get("max_turns"), int):
+                errs.append("max_turns must be integer for llm_based dialogs")
+            if "speak_first" in doc and not isinstance(doc.get("speak_first"), bool):
+                errs.append("speak_first must be boolean for llm_based dialogs")
+            if "duration" in doc and not isinstance(doc.get("duration"), (int, float)):
+                errs.append("duration must be numeric seconds for llm_based dialogs")
+            if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
+                errs.append("rag_enabled must be boolean for llm_based dialogs")
+            if doc.get("rag_enabled") is True and not (
+                    isinstance(doc.get("index_name"), str) and doc.get("index_name").strip()):
+                errs.append("index_name must be a non-empty string when rag_enabled is true for llm_based dialogs")
+            quit_phrases = doc.get("quit_phrases")
+            if quit_phrases is not None and (
+                    not isinstance(quit_phrases, list) or not all(isinstance(x, str) for x in quit_phrases)):
+                errs.append("quit_phrases must be a list of strings for llm_based dialogs")
+            if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
+                errs.append("quit_signal must be string for llm_based dialogs")
 
         moves = doc.get("moves")
         if not isinstance(moves, list):
@@ -180,9 +200,15 @@ class DialogFactory:
                 dialog_id=did,
                 moves=moves,
                 prompt=doc["prompt"],
-                max_turns=doc["max_turns"],
+                max_turns=doc.get("max_turns"),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                quit_phrases=doc.get("quit_phrases"),
+                quit_signal=doc.get("quit_signal"),
+                speak_first=doc.get("speak_first", True),
+                duration=doc.get("duration"),
+                rag_enabled=doc.get("rag_enabled", False),
+                rag_index_name=doc.get("index_name"),
             )
         return MiniDialog(did, moves, deps, vdeps)
 
@@ -210,6 +236,18 @@ class DialogFactory:
             base.update({
                 "type": "functional",
                 "functional_type": getattr(d, "type", ""),
+            })
+        elif isinstance(d, LLMDialog):
+            base.update({
+                "type": "llm_based",
+                "prompt": getattr(d, "prompt", ""),
+                "max_turns": getattr(d, "max_turns", None),
+                "quit_phrases": list(getattr(d, "quit_phrases", []) or []),
+                "quit_signal": getattr(d, "quit_signal", None),
+                "speak_first": getattr(d, "speak_first", True),
+                "duration": getattr(d, "duration", None),
+                "rag_enabled": getattr(d, "rag_enabled", False),
+                "index_name": getattr(d, "rag_index_name", None),
             })
         else:
             base.update({"type": "unknown"})

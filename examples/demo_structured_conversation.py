@@ -80,8 +80,8 @@ if __name__ == '__main__':
         # Optional: specify microphone manually
         # microphone_device=1,
 
-        # Optional: path to OpenAI key (if not using default location)
-        # openai_key_path="path/to/.openai_env",
+        # Optional: path to environment variables (if not using default location)
+        # env_file_path="path/to/.env",
 
         # Add a pause after the agent speaks (seconds)
         # post_speech_delay=0.5,

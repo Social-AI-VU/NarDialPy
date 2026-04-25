@@ -41,6 +41,13 @@ from sic_framework.services.google_tts.google_tts import (
 )
 from sic_framework.services.llm.openai_gpt import GPT
 from sic_framework.services.llm import GPTConf, GPTRequest
+from sic_framework.services.datastore.redis_datastore import (
+    RedisDatastoreConf,
+    RedisDatastore,
+    IngestVectorDocsRequest,
+    QueryVectorDBRequest,
+    VectorDBResultsMessage,
+)
 from dotenv import load_dotenv
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
@@ -90,7 +97,10 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
-                 openai_key_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False):
+                 env_file_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
+                 rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
+                 embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
+                 override_existing: bool = False, force_recreate_index: bool = False):
         """
         Initialize interaction configuration.
 
@@ -99,7 +109,7 @@ class InteractionConfig:
             tts_conf (TTSConf, optional): Text-to-speech configuration.
             microphone_device: Optional external microphone device.
             google_keyfile_path (str, optional): Path to Google credentials file.
-            openai_key_path (str, optional): Path to OpenAI credentials file.
+            env_file_path (str, optional): Path to environment variable file.
             post_speech_delay (float, optional): Delay after speech playback.
             signal_listening_behavior (bool): Whether to show listening indicators.
         """
@@ -115,24 +125,65 @@ class InteractionConfig:
 
         self.microphone_device = microphone_device
         self.google_keyfile_path = google_keyfile_path
-        self.openai_key_path = openai_key_path
+        self.env_file_path = env_file_path
         if not self.google_keyfile_path:
             self.google_keyfile_path = abspath(join(find_project_root(Path.cwd()), "conf", "google", "google_keyfile.json"))
-        if not self.openai_key_path:
-            self.openai_key_path = abspath(join(find_project_root(Path.cwd()), "conf", "openai", ".openai_env"))
+        if not self.env_file_path:
+            project_root = find_project_root(Path.cwd())
+            default_env_file_path = abspath(join(project_root, "conf", ".env"))
+            legacy_openai_env_path = abspath(join(project_root, "conf", "openai", ".openai_env"))
+            self.env_file_path = legacy_openai_env_path if exists(legacy_openai_env_path) else default_env_file_path
 
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
+        self.rag = rag
+        self.ingest_docs = ingest_docs
+        self.input_path = input_path
+        self.index_name = index_name
+        self.embedding_model = embedding_model
+        self.chunk_chars = chunk_chars
+        self.chunk_overlap = chunk_overlap
+        self.override_existing = override_existing
+        self.force_recreate_index = force_recreate_index
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
+        self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
             keyfile_json=json.load(open(self.google_keyfile_path)),
             sample_rate_hertz=44100,
             language=language
         )
+
+    def _validate_rag_config(self):
+        if not self.rag:
+            return
+        if not isinstance(self.ingest_docs, bool):
+            raise ValueError("InteractionConfig.ingest_docs must be a bool when rag=True")
+        if not self.embedding_model:
+            raise ValueError("InteractionConfig.embedding_model is required when rag=True")
+        if self.ingest_docs:
+            required_fields = {
+                "input_path": self.input_path,
+                "index_name": self.index_name,
+                "embedding_model": self.embedding_model,
+            }
+            missing = [k for k, v in required_fields.items() if not v]
+            if missing:
+                raise ValueError(
+                    "Missing required InteractionConfig fields when rag=True and ingest_docs=True: "
+                    + ", ".join(missing)
+                )
+            if not isinstance(self.chunk_chars, int) or self.chunk_chars <= 0:
+                raise ValueError("InteractionConfig.chunk_chars must be a positive int when ingest_docs=True")
+            if not isinstance(self.chunk_overlap, int) or self.chunk_overlap < 0:
+                raise ValueError("InteractionConfig.chunk_overlap must be a non-negative int when ingest_docs=True")
+            if not isinstance(self.override_existing, bool):
+                raise ValueError("InteractionConfig.override_existing must be bool when ingest_docs=True")
+            if not isinstance(self.force_recreate_index, bool):
+                raise ValueError("InteractionConfig.force_recreate_index must be bool when ingest_docs=True")
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
@@ -199,12 +250,17 @@ class InteractionOrchestrator:
 
         print("\n SETTING UP OPENAI")
         self.gpt = None
-        if self.interaction_conf.openai_key_path:
-            load_dotenv(self.interaction_conf.openai_key_path)
+        self.datastore = None
+        self.rag_enabled = bool(self.interaction_conf.rag)
+        if self.interaction_conf.env_file_path:
+            load_dotenv(self.interaction_conf.env_file_path)
+        openai_key = environ.get("OPENAI_API_KEY")
         try:
             self.gpt = GPT(conf=GPTConf(openai_key=environ["OPENAI_API_KEY"]))
         except KeyError:
             self.logger.warning("No openAI key available")
+        if self.rag_enabled:
+            self._setup_rag(openai_key=openai_key)
         print('Complete')
 
         print("\n SETTING UP TTS")
@@ -499,7 +555,28 @@ class InteractionOrchestrator:
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
-    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
+    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
+                         rag_enabled=None, rag_index_name=None):
+        use_rag = self.rag_enabled if rag_enabled is None else bool(rag_enabled)
+        if use_rag and not rag_index_name and not self.interaction_conf.index_name:
+            raise ValueError("RAG-enabled LLM requests require an index name")
+
+        if use_rag and user_prompt is not None and str(user_prompt).strip():
+            rag_context = self._retrieve_rag_context(
+                str(user_prompt).strip(),
+                index_name=rag_index_name or self.interaction_conf.index_name,
+                raise_on_error=True,
+            )
+            if rag_context:
+                rag_prefix = (
+                    "Use the following retrieved knowledge as supporting context. "
+                    "If it conflicts with conversation context, note uncertainty instead of inventing facts.\n\n"
+                    f"{rag_context}"
+                )
+                if system_prompt:
+                    system_prompt = f"{system_prompt}\n\n{rag_prefix}"
+                else:
+                    system_prompt = rag_prefix
         try:
             resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
             text = (resp.response or "").strip()
@@ -509,6 +586,95 @@ class InteractionOrchestrator:
         except Exception as e:
             print(f"Exception: {e}")
             return None
+
+    def _setup_rag(self, openai_key=None):
+        if not openai_key:
+            self.logger.warning("RAG is enabled, but OPENAI_API_KEY is unavailable")
+            return
+
+        redis_conf = RedisDatastoreConf(
+            host="127.0.0.1",
+            port=6379,
+            password=environ.get("DB_PASS", "changemeplease"),
+            namespace="nardial_rag",
+            version="v1",
+            developer_id=0,
+        )
+        self.datastore = RedisDatastore(conf=redis_conf)
+
+        if self.interaction_conf.ingest_docs:
+            self._ingest_rag_documents(openai_key=openai_key)
+
+    def _ingest_rag_documents(self, openai_key):
+        result = self.datastore.request(
+            IngestVectorDocsRequest(
+                input_path=self.interaction_conf.input_path,
+                openai_api_key=openai_key,
+                index_name=self.interaction_conf.index_name,
+                partition="default",
+                chunk_chars=self.interaction_conf.chunk_chars,
+                chunk_overlap=self.interaction_conf.chunk_overlap,
+                embedding_model=self.interaction_conf.embedding_model,
+                override_existing=self.interaction_conf.override_existing,
+                force_recreate_index=self.interaction_conf.force_recreate_index,
+            )
+        )
+        if isinstance(result, VectorDBResultsMessage) and result.payload.get("ok"):
+            for item in result.payload.get("results", []):
+                self.logger.info(
+                    "RAG ingested %s files into %s (%s chunks)",
+                    item.get("files", 0),
+                    item.get("index", self.interaction_conf.index_name),
+                    item.get("chunks", 0),
+                )
+            return
+        self.logger.warning("RAG ingestion returned an unexpected response: %s", result)
+
+    def _retrieve_rag_context(self, query_text, k=5, index_name=None, raise_on_error=False):
+        if not self.datastore:
+            if raise_on_error:
+                raise RuntimeError("RAG datastore is not initialized")
+            return ""
+
+        openai_key = environ.get("OPENAI_API_KEY")
+        if not openai_key:
+            if raise_on_error:
+                raise RuntimeError("Cannot retrieve RAG context without OPENAI_API_KEY")
+            self.logger.warning("Cannot retrieve RAG context without OPENAI_API_KEY")
+            return ""
+
+        query_index_name = index_name or self.interaction_conf.index_name
+        if not query_index_name:
+            raise ValueError("RAG retrieval requires an index name")
+
+        try:
+            result = self.datastore.request(
+                QueryVectorDBRequest(
+                    index_name=query_index_name,
+                    query_text=query_text,
+                    openai_api_key=openai_key,
+                    k=k,
+                    partition="default",
+                    embedding_model=self.interaction_conf.embedding_model,
+                )
+            )
+        except Exception as e:
+            if raise_on_error:
+                raise
+            self.logger.warning("RAG retrieval failed: %s", e)
+            return ""
+
+        if not isinstance(result, VectorDBResultsMessage):
+            return ""
+
+        snippets = []
+        for idx, item in enumerate(result.payload.get("results", []), start=1):
+            content = (item.get("content") or "").strip()
+            if not content:
+                continue
+            source = Path(item.get("doc_path") or "unknown").name
+            snippets.append(f"[{idx}] {source}\n{content}")
+        return "\n\n".join(snippets)
 
     def animate_alphamini(self, animation_type: AnimationType, animation_id: str, run_async=False):
         if not isinstance(self.device_manager, Alphamini):

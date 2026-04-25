@@ -555,9 +555,18 @@ class InteractionOrchestrator:
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 
-    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False):
-        if self.rag_enabled and user_prompt is not None and str(user_prompt).strip():
-            rag_context = self._retrieve_rag_context(str(user_prompt).strip())
+    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
+                         rag_enabled=None, rag_index_name=None):
+        use_rag = self.rag_enabled if rag_enabled is None else bool(rag_enabled)
+        if use_rag and not rag_index_name and not self.interaction_conf.index_name:
+            raise ValueError("RAG-enabled LLM requests require an index name")
+
+        if use_rag and user_prompt is not None and str(user_prompt).strip():
+            rag_context = self._retrieve_rag_context(
+                str(user_prompt).strip(),
+                index_name=rag_index_name or self.interaction_conf.index_name,
+                raise_on_error=True,
+            )
             if rag_context:
                 rag_prefix = (
                     "Use the following retrieved knowledge as supporting context. "
@@ -621,19 +630,27 @@ class InteractionOrchestrator:
             return
         self.logger.warning("RAG ingestion returned an unexpected response: %s", result)
 
-    def _retrieve_rag_context(self, query_text, k=5):
+    def _retrieve_rag_context(self, query_text, k=5, index_name=None, raise_on_error=False):
         if not self.datastore:
+            if raise_on_error:
+                raise RuntimeError("RAG datastore is not initialized")
             return ""
 
         openai_key = environ.get("OPENAI_API_KEY")
         if not openai_key:
+            if raise_on_error:
+                raise RuntimeError("Cannot retrieve RAG context without OPENAI_API_KEY")
             self.logger.warning("Cannot retrieve RAG context without OPENAI_API_KEY")
             return ""
+
+        query_index_name = index_name or self.interaction_conf.index_name
+        if not query_index_name:
+            raise ValueError("RAG retrieval requires an index name")
 
         try:
             result = self.datastore.request(
                 QueryVectorDBRequest(
-                    index_name=self.interaction_conf.index_name,
+                    index_name=query_index_name,
                     query_text=query_text,
                     openai_api_key=openai_key,
                     k=k,
@@ -642,6 +659,8 @@ class InteractionOrchestrator:
                 )
             )
         except Exception as e:
+            if raise_on_error:
+                raise
             self.logger.warning("RAG retrieval failed: %s", e)
             return ""
 

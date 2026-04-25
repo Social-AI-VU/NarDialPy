@@ -284,7 +284,8 @@ class MiniDialog:
 
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
-                          speak_first: bool = True, duration: Optional[float] = None):
+                          speak_first: bool = True, duration: Optional[float] = None,
+                          rag_enabled: bool = False, rag_index_name: Optional[str] = None):
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -307,7 +308,13 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            llm_text = agent.ask_llm(user_prompt=user_input, context_messages=dialog_history, system_prompt=prompt)
+            llm_text = agent.ask_llm(
+                user_prompt=user_input,
+                context_messages=dialog_history,
+                system_prompt=prompt,
+                rag_enabled=rag_enabled,
+                rag_index_name=rag_index_name,
+            )
             if llm_text is None:
                 continue
 
@@ -387,12 +394,15 @@ class ChitchatDialog(MiniDialog):
 class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
-                 speak_first: bool = True, duration: Optional[float] = None):
+                 speak_first: bool = True, duration: Optional[float] = None,
+                 rag_enabled: bool = False, rag_index_name: Optional[str] = None):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first
         self.duration = duration
+        self.rag_enabled = rag_enabled
+        self.rag_index_name = rag_index_name
         # Quit phrases (user utterances) and quit signal (LLM-inserted token)
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
@@ -408,4 +418,6 @@ class LLMDialog(MiniDialog):
             quit_signal=self.quit_signal,
             speak_first=self.speak_first,
             duration=self.duration,
+            rag_enabled=self.rag_enabled,
+            rag_index_name=self.rag_index_name,
         )

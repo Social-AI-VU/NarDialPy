@@ -268,7 +268,7 @@ class ConversationAgent:
         except Exception:
             return _heuristic(raw_topics)
 
-    def ask_llm(self, user_prompt, context_messages, system_prompt):
+    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled=None, rag_index_name=None):
         """
         Send a request to the configured LLM (e.g., GPT) and return the response.
 
@@ -286,4 +286,10 @@ class ConversationAgent:
         Any
             The parsed response from the LLM (format depends on orchestrator).
         """
-        return self.orchestrator.request_from_gpt(user_prompt, context_messages, system_prompt)
+        return self.orchestrator.request_from_gpt(
+            user_prompt,
+            context_messages,
+            system_prompt,
+            rag_enabled=rag_enabled,
+            rag_index_name=rag_index_name,
+        )

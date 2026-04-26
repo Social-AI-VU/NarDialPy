@@ -18,6 +18,7 @@
 
 # Ignore build folder
 build
+dist
 
 # Ignore conf files
 conf/google/*.json

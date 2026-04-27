@@ -39,3 +39,7 @@ conf/.env
 *.aof
 *.rdb
 *.manifest
+
+# Ignore Claude
+.claude/
+CLAUDE.md

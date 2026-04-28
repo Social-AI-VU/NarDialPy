@@ -24,8 +24,8 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
 
     # ask_llm retried until a non-None response
     assert agent.ask_llm.call_count >= 2
-    # ask_open should be called at least once (the LLM may prompt multiple times up to max_turns)
-    assert agent.ask_open.call_count >= 1
+    # listen should be called at least once (the LLM may prompt multiple times up to max_turns)
+    assert agent.orchestrator.listen.call_count >= 1
 
     # session history should have at least one ask_llm and one answer entry
     types = [e['type'] for e in session_history]
@@ -62,6 +62,9 @@ def _make_mock_agent(ask_options_return='dreaming', ask_yesno_return='yes', ask_
     agent.play_motion_sequence = Mock()
     agent.play_animation = Mock()
     agent.personalize = Mock(return_value=None)
+    orchestrator = Mock()
+    orchestrator.listen = Mock(return_value=(ask_open_return, None))
+    agent.orchestrator = orchestrator
     return agent
 
 

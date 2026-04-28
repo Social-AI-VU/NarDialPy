@@ -14,7 +14,7 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
     md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
 
     assert agent.ask_llm.call_count == 2
-    assert agent.ask_open.call_count == 2
+    assert agent.orchestrator.listen.call_count == 2
 
     types = [entry['type'] for entry in session_history]
     assert MOVE_ASK_LLM in types
@@ -36,7 +36,7 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
     assert agent.ask_llm.call_count == 1
-    assert agent.ask_open.call_count == 1
+    assert agent.orchestrator.listen.call_count == 1
 
 
 def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -71,7 +71,7 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
     md.handle_move_ask_llm(move)
 
     assert agent.ask_llm.call_count >= 1
-    assert agent.ask_open.call_count >= 1
+    assert agent.orchestrator.listen.call_count >= 1
     assert any(entry['type'] == MOVE_ASK_LLM for entry in session_history)
     assert any(entry['type'] == MOVE_ANSWER_LLM for entry in session_history)
 
@@ -88,7 +88,7 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
     dialog.run(agent, session_history, topics_of_interest, user_model)
 
     assert agent.ask_llm.call_count <= 3
-    assert agent.ask_open.call_count <= 3
+    assert agent.orchestrator.listen.call_count <= 3
 
 
 def test_ask_open_llm_followup_generates_response(

@@ -48,7 +48,7 @@ def make_mock_agent():
 
     def _make(ask_llm_side_effect=None, ask_open_side_effect=None,
               ask_yes_no_side_effect=None, ask_options_side_effect=None):
-        agent = type('Agent', (), {})()
+        agent = Mock()
         llm_effect = _wrap_side_effect(ask_llm_side_effect)
         open_effect = _wrap_side_effect(ask_open_side_effect)
         yesno_effect = _wrap_side_effect(ask_yes_no_side_effect)
@@ -61,6 +61,15 @@ def make_mock_agent():
         agent.play_audio = Mock()
         agent.play_motion_sequence = Mock()
         agent.play_animation = Mock()
+        orchestrator = Mock()
+        if ask_open_side_effect is not None:
+            def _listen_side_effect(*a, **k):
+                response = open_effect(*a, **k) if open_effect is not None else None
+                return (response, None)
+            orchestrator.listen = Mock(side_effect=_listen_side_effect)
+        else:
+            orchestrator.listen = Mock(return_value=(None, None))
+        agent.orchestrator = orchestrator
         return agent
 
     return _make

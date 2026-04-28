@@ -34,6 +34,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest
+          sudo apt install portaudio19-dev python3-pyaudio
+          pip install pyaudio
+          pip install opencv-python six
 
       - name: Run tests
         run: python -m pytest -q

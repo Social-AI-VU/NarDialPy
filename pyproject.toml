@@ -8,11 +8,16 @@ version = "0.1.7"
 description = "Nardial Dialog System"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { file = "LICENSE" }
+license = "AGPL-3.0-only"
+
 authors = [
-  { name = "Mike Ligthart", email = "m.e.u.ligthart@vu.nl"},
-  { name = "Clara Fayyad"},
-  { name = "Evelyne Prodescu"}
+  { name = "Mike Ligthart", email = "m.e.u.ligthart@vu.nl" }
+]
+
+maintainers = [
+  { name = "Clara Fayyad" },
+  { name = "Landon Brown"},
+  { name = "Evelyne Prodescu" }
 ]
 
 dependencies = [
@@ -21,6 +26,7 @@ dependencies = [
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

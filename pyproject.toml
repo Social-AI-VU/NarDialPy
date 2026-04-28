@@ -19,5 +19,8 @@ dependencies = [
   "social-interaction-cloud[dialogflow,google-tts,openai-gpt]"
 ]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
 where = ["src"]

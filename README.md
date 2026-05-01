@@ -49,8 +49,8 @@ Recommended: [PyCharm](https://www.jetbrains.com/help/pycharm/installation-guide
 
 ### 2. Python
 
-- Version: **3.10 ≤ Python ≤ 3.12**
-- Download: https://www.python.org/downloads/
+- Version: **3.12**
+- Download: https://www.python.org/downloads/release/python-3120/
 - ⚠️ Ensure Python is added to your system `PATH`
 
 ### 3. In your project, create and activate your python virtual environment 
@@ -72,7 +72,7 @@ NarDialPy relies on `social-interaction-cloud` for Speech-to-Text, Text-to-Speec
 
 ```bash
 pip install social-interaction-cloud
-pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
+pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt,alphamini]
 ```
 
 ### 4. Install NarDial

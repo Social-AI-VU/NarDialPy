@@ -62,7 +62,13 @@ NarDialPy relies on `social-interaction-cloud` for Speech-to-Text, Text-to-Speec
 
 ### 4. Install NarDialPy
 
-From the repository root:
+**Option A — Install from PyPI** (recommended for using nardial in your own project):
+
+```bash
+pip install nardial
+```
+
+**Option B — Install from source** (for running the demos or contributing):
 
 ```bash
 pip install -e .

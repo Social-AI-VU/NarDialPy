@@ -54,49 +54,44 @@ Recommended: [PyCharm](https://www.jetbrains.com/help/pycharm/installation-guide
 - Download: https://www.python.org/downloads/
 - ⚠️ Ensure Python is added to your system `PATH`
 
-### 3. Social Interaction Cloud (SIC)
+### 3. In your project, create and activate your python virtual environment 
+```bash
+# Windows
+cd your_project_folder
+python -m venv venv_myproject
+venv_myproject\Scripts\activate
+
+# macOS / Linux
+cd your_project_folder
+python -m venv venv_myproject
+source venv_myproject/bin/activate
+```
+
+### 4. Install Social Interaction Cloud (SIC)
 
 NarDialPy relies on `social-interaction-cloud` for Speech-to-Text, Text-to-Speech, NLU, and Redis-based communication.
 
-**Installation guide:** https://social-ai-vu.github.io/social-interaction-cloud/tutorials/1_installation.html
+```bash
+pip install social-interaction-cloud
+pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
+```
 
-### 4. Install NarDialPy
-
-**Option A — Install from PyPI** (recommended for using nardial in your own project):
+### 4. Install NarDial
 
 ```bash
 pip install nardial
 ```
 
-**Option B — Install from source** (for running the demos or contributing):
-
-```bash
-pip install -e .
-```
-
-Install the cloud integrations needed for the demos:
-
-```bash
-pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
-```
 
 ### 5. Configure Credentials
-
-**Google / Dialogflow credentials** — save to `conf/google/google_keyfile.json`:
-- Setup guide: https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key
-
-**OpenAI API key** — create `conf/openai/.openai_env`:
-
+ * Create a `conf` folder at the root of your project.
+ * Create a Google cloud project (for Dialogflow and google-tts services) and save the generated keyfile to `conf/google/google_keyfile.json`. Instructions [here](https://socialrobotics.atlassian.net/wiki/spaces/CBSR/pages/2205155343/Getting+a+google+dialogflow+key).
+ * Create an OpenAI account, and generate an [API key](https://developers.openai.com/api/docs/quickstart) and save it to `conf/openai/.openai_env` with the following content:
 ```bash
 OPENAI_API_KEY="your key"
 ```
 
 > ⚠️ Never commit credential files to version control.
-
-**Dialogflow agent** — import intents/entities used by the demos:
-- Remove default intents in your Dialogflow project.
-- Go to **Settings → Import and Export**.
-- Import `resources/droomrobot_dialogflow_agent.zip`.
 
 ### 6. Start Required Services
 

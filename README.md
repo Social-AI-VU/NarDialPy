@@ -1,21 +1,214 @@
 # NarDialPy
 
-NarDialPy is a Python framework for building and running **narrative dialogs**.
+**NarDialPy** is a Python framework for building and running **narrative-driven dialog systems**.
 
-It combines:
-- **Dialog blocks** written as JSON (`functional`, `narrative`, and `chitchat` dialogs)
-- **A session manager** that executes a chosen dialog agenda
-- **Voice / NLU / LLM services** (Dialogflow, Google TTS, OpenAI GPT via `social-interaction-cloud`)
+It enables you to design structured conversations using declarative dialog definitions, while integrating with modern voice, NLU, and LLM services.
 
-The repository includes a complete demo conversation in the `examples/` folder that shows how these parts work together.
+---
 
-## Repository layout
+## Features
 
-- `src/nardial/` – core runtime (dialog loading, move execution, session flow)
-- `examples/demo_general_conversation.py` – runnable demo entrypoint
-- `examples/dialogs.json` – demo dialogs (conversation content)
-- `web/authoring/` – browser-based dialog authoring UI
-- `tests/` – unit tests for move handling and dialog behavior
+NarDialPy combines:
+
+- **Dialog blocks (JSON-based)**  
+  Define conversations declaratively using JSON files, specifying moves like `say`, `ask_open`, `ask_yesno`, `ask_options`, and branching logic. 
+
+- **Session Manager**  
+  Executes dialog agendas and controls conversation flow.
+
+- **Service integrations** (via `social-interaction-cloud`)
+  - Dialogflow (NLU)
+  - Google TTS (speech synthesis)
+  - OpenAI GPT (LLM-based responses)
+
+- **Ready-to-run demos**  
+  Explore complete example conversations in the `examples/` directory. You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
+
+---
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+### 1. A Python IDE
+Recommended options: [PyCharm](https://www.jetbrains.com/help/pycharm/installation-guide.html) (Professional or Community Edition) and [VS Code](https://code.visualstudio.com/download) (free and open-source)
+
+### 2. Python
+- Version: **3.10 ≤ Python ≤ 3.12**
+- Download: https://www.python.org/downloads/
+- ⚠️ Ensure Python is added to your system `PATH`
+
+### 3. Social Interaction Cloud (SIC)
+
+NarDialPy relies on `social-interaction-cloud` for services such as Speech-to-Text, Text-to-Speech,  NLU, and Redis-based communication. 
+**Installation guide:**
+https://social-ai-vu.github.io/social-interaction-cloud/tutorials/1_installation.html#installation-guide
+
+---
+
+## Using NarDialPy
+
+This section shows how to build and run a custom conversation using NarDialPy.
+
+At a high level, you will:
+1. Select a device/robot (e.g., Desktop or Pepper)
+2. Configure interaction settings (speech, APIs, etc.)
+3. Create a `ConversationAgent`
+4. Define a session agenda (conversation flow)
+5. Provide dialog definitions (JSON)
+6. Run the session
+
+---
+
+### Example: Minimal Conversation Setup
+
+```python
+from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
+from sic_framework.devices.desktop import Desktop
+
+from nardial.conversation_agent import ConversationAgent
+from nardial.interaction_orchestrator import InteractionConfig
+from nardial.session_manager import SessionManager
+
+# 1. Select device (Desktop uses your mic + speakers)
+device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
+
+# 2. Configure interaction
+interaction_config = InteractionConfig(google_keyfile_path="conf/google/google_keyfile.json")
+
+# 3. Create agent
+agent = ConversationAgent(device_manager=device, int_config=interaction_config)
+
+# 4. Define conversation flow (dialogs to run in order)
+session_agenda = ["welcome_and_name", "plan_activity", "structured_goodbye"]
+
+# 5. Create session manager
+session_manager = SessionManager(
+    session_agenda=session_agenda,
+    agent=agent,
+    dialog_json_path="dialogs.json",
+    participant_id="user_1"
+)
+
+# 6. Run the conversation
+session_manager.run()
+```
+---
+
+###  Dialog Definitions (JSON)
+
+Dialogs are defined declaratively in a JSON file. Each dialog contains:
+
+* An `id`
+* A `type` (`functional`, `chitchat`, `narrative`, `llm`)
+* A sequence of **moves**
+
+Example:
+
+```json
+[
+  {
+    "id": "welcome_and_name",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hi! I am your planning assistant." },
+      {
+        "type": "ask_open",
+        "text": "What is your name?",
+        "set_variable": "first_name",
+        "outcomes": { "*": "name_provided" }
+      },
+    ]
+  }
+]
+```
+
+---
+
+### Core Concepts
+
+#### 1. Session Agenda
+
+Defines the order of dialogs:
+
+```python
+session_agenda = ["welcome_and_name", "plan_activity", "structured_goodbye"]
+```
+
+#### 2. Moves
+
+Basic building blocks of dialogs:
+
+* `say` — speak text
+* `ask_open` — open question
+* `ask_yesno` — yes/no question
+* `ask_options` — multiple choice
+* `branch` — conditional logic
+* `ask_llm` — generate responses using GPT
+* `play` — play audio
+* `animation` / `motion_sequence` — robot behaviors
+
+#### 3. Variables
+
+You can store and reuse user input:
+
+```json
+{ "set_variable": "first_name" }
+```
+
+Then reuse it later:
+
+```json
+"Hello %first_name%!"
+```
+
+---
+
+### Customization Options
+
+You can easily adapt behavior:
+
+* Change language:
+
+  ```python
+  InteractionConfig(language="nl")
+  ```
+
+* Use microphone instead of keyboard:
+
+  ```python
+  keyboard_input=False
+  ```
+
+* Adjust voice and speech settings (via Google TTS config)
+
+* Enable robot behaviors (animations, gestures)
+
+---
+
+### Advanced Features
+
+NarDialPy also supports:
+
+* Dynamic branching based on user state
+* Topic tracking and personalization
+* LLM-generated follow-ups
+* Dialog dependencies and sequencing
+* Audio + motion integration (for robots like Pepper)
+
+---
+
+### Tip
+
+Keep your dialog logic in JSON and your execution logic in Python.
+This separation makes your system:
+
+* Easier to maintain
+* Easier to iterate on
+* Accessible to non-programmers
+
+
 
 ## How the demo conversation works
 

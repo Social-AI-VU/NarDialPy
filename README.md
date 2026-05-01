@@ -128,6 +128,7 @@ Every dialog has the following shared fields:
 | `dependencies` | array of strings | | Dialog IDs that must have been completed before this dialog may run |
 | `variable_dependencies` | array | | Variables that must exist in the user model before this dialog may run |
 
+Example: 
 ```json
 {
   "id": "greeting",
@@ -143,7 +144,7 @@ Every dialog has the following shared fields:
 
 ### Dialog Types
 
-#### `functional`
+#### 1.`functional`
 
 Utility dialogs for session management — greetings, farewells, and structural transitions.
 
@@ -162,8 +163,6 @@ Utility dialogs for session management — greetings, farewells, and structural 
       "type": "ask_open",
       "text": "Please tell me your name.",
       "set_variable": "first_name",
-      "outcomes": { "*": "name_provided" },
-      "default_outcome": "name_missing"
     }
   ]
 }
@@ -171,7 +170,7 @@ Utility dialogs for session management — greetings, farewells, and structural 
 
 ---
 
-#### `chitchat`
+#### 2. `chitchat`
 
 Short, theme-based conversations on everyday topics. Chitchat dialogs can be seeded with topics of interest so the system selects contextually relevant ones.
 
@@ -200,7 +199,7 @@ Short, theme-based conversations on everyday topics. Chitchat dialogs can be see
 
 ---
 
-#### `narrative`
+#### 3. `narrative`
 
 Story-based dialogs that belong to a named thread and must be delivered in a specific order. Use `position` to sequence them and `dependencies` to enforce ordering.
 
@@ -242,7 +241,7 @@ Story-based dialogs that belong to a named thread and must be delivered in a spe
 
 ---
 
-#### `llm_based`
+#### 4. `llm_based`
 
 A fully LLM-driven dialog where the robot and user engage in a free-form multi-turn exchange guided by a system prompt. No `moves` array is needed — the LLM generates all responses.
 
@@ -313,8 +312,6 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
   "text": "What is your favorite color?",
   "set_variable": "favorite_color",
   "add_interest_from_answer": true,
-  "outcomes": { "*": "got_color" },
-  "default_outcome": "no_color"
 }
 ```
 

@@ -15,8 +15,7 @@ It lets you author complete conversations declaratively in JSON, then drive them
    - [Dialog Types](#dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
-4. [Running a Session](#running-a-session)
-5. [Demos](#demos)
+4. [Demos / Creating a Session](#demos--creating-a-session)
 6. [Development](#development)
 
 ---
@@ -512,96 +511,15 @@ Triggers a named animation behavior on the robot.
 
 ---
 
-## Running a Session
+## Demos / Creating a Session
 
-A minimal Python script wires up the device, loads the dialog JSON, and runs the session:
-
-```python
-from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.devices.desktop import Desktop
-
-from nardial.conversation_agent import ConversationAgent
-from nardial.interaction_orchestrator import InteractionConfig
-from nardial.session_manager import SessionManager
-
-# 1. Select device (Desktop uses your mic + speakers)
-device = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
-
-# 2. Configure interaction (speech, APIs, language)
-interaction_config = InteractionConfig(
-    google_keyfile_path="conf/google/google_keyfile.json",
-    keyboard_input=True,   # Set False to use microphone
-    # language="nl",       # change language for TTS + ASR + Dialogflow
-)
-
-# 3. Create the conversational agent
-agent = ConversationAgent(device_manager=device, int_config=interaction_config)
-
-# 4. Define the session agenda — ordered list of dialog IDs to run
-session_agenda = ["welcome_and_name", "plan_activity", "structured_goodbye"]
-
-# 5. Create the session manager — loads dialogs and tracks state
-session_manager = SessionManager(
-    session_agenda=session_agenda,
-    agent=agent,
-    dialog_json_path="dialogs.json",
-    participant_id="user_1"
-)
-
-# 6. Run the conversation
-session_manager.run()
-```
-
-**SessionManager** handles:
-- Loading dialogs from JSON
-- Checking dependency and variable eligibility before each dialog
-- Tracking session history, topics of interest, and the user model
-- Persisting conversation state between sessions
-
----
-
-## Demos
+All you need is a minimal Python script that wires up the device, loads the dialog JSON, and runs the session. You can follow the included demos to get started quickly.
 
 Two ready-to-run demos are included in the `examples/` directory:
+* Demo 1 — General Conversation (`demo_general_conversation.py`): A simple four-step conversation using a mix of narrative and functional dialogs
+* Demo 2 — Structured Conversation (`demo_structured_conversation.py`): A more complete example that demonstrates all dialog types and move types, including `ask_llm`, `play`, `motion_sequence`, and `animation`
 
-### Demo 1 — General Conversation (`demo_general_conversation.py`)
-
-A simple four-step conversation using a mix of narrative and functional dialogs:
-
-```python
-session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]
-```
-
-Dialog content comes from `examples/dialogs.json`, which showcases `say`, `ask_open`, `ask_yesno`, `ask_options`, and `branch` moves. Edit the JSON to change what the robot says without touching Python.
-
-**Run from `examples/`:**
-
-```bash
-python demo_general_conversation.py
-```
-
----
-
-### Demo 2 — Structured Conversation (`demo_structured_conversation.py`)
-
-A more complete example that demonstrates all dialog types and move types, including `ask_llm`, `play`, `motion_sequence`, and `animation`:
-
-```python
-session_agenda = [
-    "welcome_and_name",        # functional greeting — collects user name
-    "plan_activity",           # chitchat — options + branching + llm_followup
-    "adapt_to_user_energy",    # narrative — variable branching + robot motion
-    "structured_goodbye",      # functional farewell — uses stored variables
-]
-```
-
-Dialog content comes from `examples/structured_conversation_dialogs.json`.
-
-**Run from `examples/`:**
-
-```bash
-python demo_structured_conversation.py
-```
+You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 
 ---
 

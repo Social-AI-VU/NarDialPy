@@ -184,7 +184,10 @@ class ConversationAgent:
 
     def extract_topics_with_llm(self, raw_topics):
         """
-        Extract concise topic keywords from a list of raw user utterances using GPT.
+        Extract concise topic keywords from a list of raw user utterances.
+
+        This method uses GPT to condense free-form text into 1–2 keyword(s)
+        per input item. If GPT fails, a local heuristic fallback is used.
 
         Parameters
         ----------

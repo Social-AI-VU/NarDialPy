@@ -42,13 +42,12 @@ from sic_framework.devices.desktop import Desktop
 from sic_framework.services.dialogflow.dialogflow import DialogflowConf
 
 from nardial.providers.device.desktop import DesktopAdapter
-from nardial.providers.tts.google import GoogleTTSProvider
+from nardial.providers.tts.google import GoogleTTSProvider, GoogleTTSConf
 from nardial.providers.nlu.dialogflow import DialogflowNLUProvider
 from nardial.providers.llm.openai_gpt import OpenAIGPTProvider
 from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
-from nardial.tts_manager import GoogleTTSConf
 
 # Load OPENAI_API_KEY and other secrets from conf/.env
 load_dotenv(abspath(join("..", "conf", ".env")))

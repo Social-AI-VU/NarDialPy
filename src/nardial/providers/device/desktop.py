@@ -13,10 +13,10 @@ class DesktopAdapter:
         self._speaker = None
         self._logger = None
 
-    def setup(self, background_loop: asyncio.AbstractEventLoop, logger: Any) -> None:
+    def setup(self, logger: Any) -> None:
         self._speaker = self._device.speakers
         self._logger = logger
-        print("\n Device is COMPUTER")
+        self._logger("Device is COMPUTER")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

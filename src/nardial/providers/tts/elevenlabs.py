@@ -1,45 +1,39 @@
-import asyncio
 import re
-from threading import Thread
+
+from sic_framework.services.elevenlabs_tts.elevenlabs_tts import (
+    ElevenLabsTTS,
+    ElevenLabsTTSConf,
+    GetElevenLabsSpeechRequest,
+)
 
 from nardial.providers.device import DeviceAdapter
-from nardial.providers.tts import _amplify_audio, _read_wav_bytes
-from nardial.tts_manager import ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
+from nardial.providers.tts import TTSProvider, _amplify_audio, _read_wav_bytes
+from nardial.providers.tts.cacher import TTSCacher
 
 
-class ElevenLabsTTSProvider:
-    def __init__(self, conf: ElevenLabsTTSConf, device: DeviceAdapter, api_key: str,
+class ElevenLabsTTSProvider(TTSProvider):
+    """TTS provider backed by the SIC ElevenLabs service with optional audio caching."""
+
+    def __init__(self, conf: ElevenLabsTTSConf, device: DeviceAdapter,
                  tts_cacher: TTSCacher = None):
         self._conf = conf
         self._device = device
         self._tts_cacher = tts_cacher or TTSCacher()
-        self._sample_rate = 22050
-
-        self._loop = asyncio.new_event_loop()
-        self._thread = Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
-
-        self._tts = ElevenLabsTTS(
-            elevenlabs_key=api_key,
-            voice_id=conf.voice_id,
-            model_id=conf.model_id,
-            sample_rate=self._sample_rate,
-            speaking_rate=conf.speaking_rate,
-        )
-        connect_future = asyncio.run_coroutine_threadsafe(self._tts.connect(), self._loop)
-        try:
-            connect_future.result()
-            asyncio.run_coroutine_threadsafe(self._tts.speak("Initializing text to speech"), self._loop).result()
-            print('ElevenLabs TTS activated')
-        except Exception as e:
-            print(f"Failed to connect to ElevenLabs: {e}")
+        self._tts = ElevenLabsTTS(conf=conf)
 
     def speak(self, text: str, amplified: bool = False, always_regenerate: bool = False,
               chunk_audio: bool = True, **kwargs) -> None:
         chunks = [text] if (not chunk_audio or self._conf.model_id == 'eleven_v3') else self._split_text(text)
 
         for chunk in chunks:
-            tts_key = self._tts_cacher.make_tts_key(chunk, self._conf)
+            payload = {
+                "text": self._tts_cacher.normalize_text(chunk),
+                "tts_service": "ELEVENLABS",
+                "speaking_rate": self._conf.speaking_rate,
+                "voice_id": self._conf.voice_id,
+                "model_id": self._conf.model_id,
+            }
+            tts_key = self._tts_cacher.make_tts_key(payload)
 
             if not always_regenerate:
                 cached_path = self._tts_cacher.load_audio_file(tts_key)
@@ -50,24 +44,22 @@ class ElevenLabsTTSProvider:
                     self._device.play_audio_bytes(audio, sample_rate)
                     continue
 
-            audio_bytes = asyncio.run_coroutine_threadsafe(self._tts.speak(chunk), self._loop).result()
+            reply = self._tts.request(GetElevenLabsSpeechRequest(text=chunk))
+            if reply is None:
+                continue
+
+            audio_bytes = reply.waveform
+            sample_rate = reply.sample_rate
 
             if audio_bytes and amplified:
                 audio_bytes = _amplify_audio(audio_bytes)
 
             if audio_bytes:
-                self._device.play_audio_bytes(audio_bytes, self._sample_rate)
-                self._tts_cacher.save_audio_file(tts_key, audio_bytes, self._sample_rate)
+                self._device.play_audio_bytes(audio_bytes, sample_rate)
+                self._tts_cacher.save_audio_file(tts_key, audio_bytes, sample_rate)
 
     def close(self) -> None:
-        asyncio.run_coroutine_threadsafe(self._tts.disconnect(), self._loop).result()
-        if self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        self._thread.join()
-
-    def _run_loop(self) -> None:
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
+        self._tts.stop()
 
     @staticmethod
     def _split_text(text: str, max_len: int = 80, min_tail: int = 20) -> list[str]:

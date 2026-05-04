@@ -400,6 +400,7 @@ class LLMDialog(MiniDialog):
         self.speak_first = speak_first
         self.duration = duration
         self.use_rag = use_rag
+        # Quit phrases (user utterances) and quit signal (LLM-inserted token)
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 

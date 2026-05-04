@@ -9,6 +9,17 @@ from nardial.providers.nlu import NLUResult
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 
+@pytest.fixture(autouse=True)
+def no_redis_connections(monkeypatch):
+    """Block all Redis connections in every test.
+
+    UserModel checks _HAS_REDIS_DS before attempting to connect; setting it to
+    False keeps the model in pure in-memory mode without triggering SIC's
+    SICRedisConnection (which emits a DeprecationWarning and requires a live server).
+    """
+    monkeypatch.setattr("nardial.user_model._HAS_REDIS_DS", False)
+
+
 @pytest.fixture
 def session_history():
     return []

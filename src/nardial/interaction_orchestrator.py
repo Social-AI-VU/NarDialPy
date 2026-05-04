@@ -59,42 +59,47 @@ class InteractionOrchestrator:
         if int_config is None:
             int_config = InteractionConfig()
 
-        print("\n SETTING UP BASIC PROCESSING")
+        # Development Logging
         self.app = SICApplication()
         self.logger = self.app.get_app_logger()
         self.app.set_log_level(sic_logging.DEBUG)
         self.app.set_log_file_path("./logs")
 
+        self.logger.info("SETTING UP BASIC PROCESSING")
+
+        # Data logging
         self._log_queue = None
         self._log_thread = None
 
+        # Interaction configuration
         self.interaction_conf = int_config
 
+        # Background loop
         self.background_loop = asyncio.new_event_loop()
         self.background_thread = Thread(target=self._start_loop, daemon=True)
         self.background_thread.start()
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP LLM")
+        self.logger.info("SETTING UP LLM")
         self.llm_provider = llm_provider
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP VECTOR STORE")
+        self.logger.info("SETTING UP VECTOR STORE")
         self.vector_store = vector_store
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP TTS")
+        self.logger.info("SETTING UP TTS")
         self.tts_provider = tts_provider
-        print('Complete')
+        self.logger.info('Complete')
 
-        print("\n SETTING UP DEVICE")
+        self.logger.info("SETTING UP DEVICE")
         self.device = device
         device.setup(self.background_loop, self.logger)
-        print("Complete")
+        self.logger.info("Complete")
 
-        print("\n SETTING UP NLU")
+        self.logger.info("SETTING UP NLU")
         self.nlu_provider = nlu_provider
-        print("Complete and ready for interaction!")
+        self.logger.info("Complete and ready for interaction!")
 
     def start_logging(self, log_id, init_data: dict):
         folder = Path("logs")
@@ -119,7 +124,7 @@ class InteractionOrchestrator:
             while True:
                 item = self._log_queue.get()
                 if item is None:
-                    break
+                    break  # Exit signal
                 f.write(item + '\n')
                 f.flush()
 

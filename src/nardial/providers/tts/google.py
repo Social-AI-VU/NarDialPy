@@ -3,11 +3,26 @@ import json
 from sic_framework.services.google_tts.google_tts import GetSpeechRequest, Text2Speech, Text2SpeechConf
 
 from nardial.providers.device import DeviceAdapter
-from nardial.providers.tts import _amplify_audio, _read_wav_bytes
-from nardial.tts_manager import GoogleTTSConf, TTSCacher
+from nardial.providers.tts import TTSProvider, _amplify_audio, _read_wav_bytes
+from nardial.providers.tts.cacher import TTSCacher
 
 
-class GoogleTTSProvider:
+class GoogleTTSConf:
+    """
+    Configuration for Google Text-to-Speech.
+
+    Args:
+        speaking_rate (float): Speed of speech (1.0 = normal).
+        google_tts_voice_name (str): Voice name identifier.
+        google_tts_voice_gender (str): Voice gender (e.g., 'MALE', 'FEMALE').
+    """
+    def __init__(self, speaking_rate=1.0, google_tts_voice_name="nl-NL-Standard-D", google_tts_voice_gender="FEMALE"):
+        self.speaking_rate = speaking_rate
+        self.google_tts_voice_name = google_tts_voice_name
+        self.google_tts_voice_gender = google_tts_voice_gender
+
+
+class GoogleTTSProvider(TTSProvider):
     def __init__(self, conf: GoogleTTSConf, device: DeviceAdapter, keyfile_path: str,
                  tts_cacher: TTSCacher = None):
         self._conf = conf
@@ -28,7 +43,14 @@ class GoogleTTSProvider:
         print('Google TTS activated')
 
     def speak(self, text: str, amplified: bool = False, always_regenerate: bool = False, **kwargs) -> None:
-        tts_key = self._tts_cacher.make_tts_key(text, self._conf)
+        payload = {
+            "text": self._tts_cacher.normalize_text(text),
+            "tts_service": "GOOGLE",
+            "speaking_rate": self._conf.speaking_rate,
+            "voice_name": self._conf.google_tts_voice_name,
+            "voice_gender": self._conf.google_tts_voice_gender,
+        }
+        tts_key = self._tts_cacher.make_tts_key(payload)
         cached_path = self._tts_cacher.load_audio_file(tts_key)
 
         if not always_regenerate and cached_path:

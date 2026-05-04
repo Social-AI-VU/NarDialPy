@@ -73,10 +73,10 @@ class PepperAdapter:
         self._speaker = None
         self._logger = None
 
-    def setup(self, background_loop: asyncio.AbstractEventLoop, logger: Any) -> None:
+    def setup(self, logger: Any) -> None:
         self._speaker = self._device.speaker
         self._logger = logger
-        print("\n Device is PEPPER")
+        self._logger.info("Device is PEPPER")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

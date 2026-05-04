@@ -1,8 +1,11 @@
 import json
 import re
 
-from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.device import SICDeviceManager
+from nardial.providers.device import DeviceAdapter
+from nardial.providers.tts import TTSProvider
+from nardial.providers.nlu import NLUProvider
+from nardial.providers.llm import LLMProvider
+from nardial.providers.vector_store import VectorStoreProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -17,36 +20,38 @@ class ConversationAgent:
     - Asking different types of questions (yes/no, open, options)
     - Calling LLMs (e.g., GPT) for reasoning or post-processing
 
-    It abstracts away device-specific behavior (e.g., Desktop vs Pepper robot)
-    and external services (Dialogflow, TTS, GPT).
-
     Parameters
     ----------
-    device_manager : SICDeviceManager
-        The device interface (e.g., Desktop, Pepper, Nao) that handles I/O.
+    device : DeviceAdapter
+        The device adapter (e.g., DesktopAdapter, PepperAdapter) that handles I/O.
+    tts_provider : TTSProvider
+        The TTS provider used to synthesize and play speech.
+    nlu_provider : NLUProvider
+        The NLU provider used to capture and interpret user input.
     int_config : InteractionConfig, optional
-        Configuration for language, TTS, APIs, and interaction behavior.
-        If not provided, a default configuration is used.
+        Configuration for behavioral parameters. If not provided, defaults are used.
 
     Notes
     -----
-    Most methods internally rely on:
-    - Speech recognition (Dialogflow)
-    - Text-to-speech (Google TTS or configured backend)
-    - LLM calls (OpenAI GPT)
-
-    Ensure required services are running before using this class.
+    Ensure all required external services are running before using this class.
     """
 
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
-        if int_config is None:
-            int_config = InteractionConfig()
-        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
-        self.device = device_manager
+    def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
+                 nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
+                 vector_store: VectorStoreProvider | None = None,
+                 int_config: InteractionConfig = None):
+        self.orchestrator = InteractionOrchestrator(
+            device=device,
+            tts_provider=tts_provider,
+            nlu_provider=nlu_provider,
+            llm_provider=llm_provider,
+            vector_store=vector_store,
+            int_config=int_config,
+        )
 
     def say(self, text):
         """
-        Speak a piece of text using the configured TTS system.
+        Speak a piece of text using the configured TTS provider.
 
         Parameters
         ----------
@@ -77,30 +82,23 @@ class ConversationAgent:
         """
         self.orchestrator.play_motion(motion_sequence_file)
 
-    def play_animation(self, animation_name, block=False):
+    def play_animation(self, animation_name, run_async=False):
         """
-        Trigger a built-in animation on supported robot platforms (Pepper, Nao).
+        Trigger an animation on the current device. No-op on devices that do not
+        support animations (e.g., Desktop).
 
         Parameters
         ----------
         animation_name : str
-            Name of the animation (NAOqi animation key).
-        block : bool, optional
-            Whether to block execution until the animation completes.
-
-        Notes
-        -----
-        This only works on Pepper/Nao devices. On Desktop, this call is ignored.
+            Name of the animation (device-specific key).
+        run_async : bool, optional
+            Whether to run the animation without blocking execution.
         """
-        if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
-            try:
-                self.orchestrator.animate_naoqi(animation_name, block)
-            except Exception as e:
-                print(f"Failed to play animation: {animation_name}", e)
+        self.orchestrator.play_animation(animation_name, run_async=run_async)
 
     def ask_yesno(self, question, max_attempts=1):
         """
-        Ask a yes/no question and interpret the response using intent recognition.
+        Ask a yes/no question and interpret the response via the NLU provider.
 
         Parameters
         ----------
@@ -113,28 +111,19 @@ class ConversationAgent:
         -------
         str or None
             One of: "yes", "no", "dontknow", or None if no valid response.
-
-        Notes
-        -----
-        Requires Dialogflow intents:
-        - yesno_yes
-        - yesno_no
-        - yesno_dontknow
         """
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, intent = self.orchestrator.listen()
-
-            if intent:
-                print(f'context: answer_yesno, recognized_intent: {str(intent)}')
-                if intent == "yesno_yes":
+            result = self.orchestrator.listen()
+            if result.intent:
+                print(f'context: answer_yesno, recognized_intent: {result.intent}')
+                if result.intent == "yesno_yes":
                     return "yes"
-                elif intent == "yesno_no":
+                elif result.intent == "yesno_no":
                     return "no"
-                elif intent == "yesno_dontknow":
+                elif result.intent == "yesno_dontknow":
                     return "dontknow"
-
             attempts += 1
         return None
 
@@ -157,9 +146,9 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, _ = self.orchestrator.listen()
-            if reply:
-                return reply
+            result = self.orchestrator.listen()
+            if result.transcript:
+                return result.transcript
             attempts += 1
         return None
 
@@ -193,12 +182,9 @@ class ConversationAgent:
                     return opt
         return None
 
-    def extract_topics_with_gpt(self, raw_topics):
+    def extract_topics_with_llm(self, raw_topics):
         """
-        Extract concise topic keywords from a list of raw user utterances.
-
-        This method uses GPT to condense free-form text into 1–2 keyword(s)
-        per input item. If GPT fails, a local heuristic fallback is used.
+        Extract concise topic keywords from a list of raw user utterances using GPT.
 
         Parameters
         ----------
@@ -209,17 +195,6 @@ class ConversationAgent:
         -------
         list of str
             De-duplicated list of lowercase topic keywords.
-
-        Behavior
-        --------
-        - Prefers specific nouns (e.g., "dogs", "music", "travel")
-        - Removes stopwords and short tokens
-        - Ensures uniqueness and order preservation
-
-        Fallback
-        --------
-        If GPT is unavailable or returns invalid output, a regex-based
-        keyword extraction heuristic is applied locally.
         """
 
         def _heuristic(lines):
@@ -253,7 +228,7 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.orchestrator.request_from_gpt(system_prompt=prompt)
+            data = self.orchestrator.request_from_llm(system_prompt=prompt)
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -268,9 +243,9 @@ class ConversationAgent:
         except Exception:
             return _heuristic(raw_topics)
 
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled=None, rag_index_name=None):
+    def ask_llm(self, user_prompt, context_messages, system_prompt, use_rag: bool = False):
         """
-        Send a request to the configured LLM (e.g., GPT) and return the response.
+        Send a request to the configured LLM and return the response.
 
         Parameters
         ----------
@@ -280,16 +255,17 @@ class ConversationAgent:
             Conversation history or additional context.
         system_prompt : str
             Instruction defining the assistant's behavior.
+        use_rag : bool, optional
+            Whether to augment the request with context from the configured vector store.
 
         Returns
         -------
         Any
-            The parsed response from the LLM (format depends on orchestrator).
+            The parsed response from the LLM.
         """
-        return self.orchestrator.request_from_gpt(
+        return self.orchestrator.request_from_llm(
             user_prompt,
             context_messages,
             system_prompt,
-            rag_enabled=rag_enabled,
-            rag_index_name=rag_index_name,
+            use_rag=use_rag,
         )

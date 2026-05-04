@@ -162,7 +162,7 @@ class SessionManager:
         :return: Condensed list of topic keywords.
         """
         try:
-            topics_of_interest = self.agent.extract_topics_with_gpt(list(topics_of_interest))
+            topics_of_interest = self.agent.extract_topics_with_llm(list(topics_of_interest))
             print(f"[DEBUG] Condensed topics: {topics_of_interest}")
         except Exception as e:
             print(f"[WARN] Topic condensation failed: {e}")

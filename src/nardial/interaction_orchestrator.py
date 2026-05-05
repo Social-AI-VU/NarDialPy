@@ -181,13 +181,13 @@ class InteractionOrchestrator:
         self.device.play_motion_sequence(motion_name)
 
     def request_from_llm(self, user_prompt=None, context_messages=None, system_prompt=None,
-                         json_response=False, use_rag: bool = False):
+                         json_response=False, rag_enabled: bool = False, index_name: str | None = None):
         if self.llm_provider is None:
             self.logger.warning("No LLM provider configured")
             return None
 
-        if use_rag and self.vector_store is not None and user_prompt is not None and str(user_prompt).strip():
-            snippets = self.vector_store.query(str(user_prompt).strip())
+        if rag_enabled and self.vector_store is not None and user_prompt is not None and str(user_prompt).strip():
+            snippets = self.vector_store.query(str(user_prompt).strip(), index_name=index_name)
             if snippets:
                 rag_prefix = (
                     "Use the following retrieved knowledge as supporting context. "

@@ -246,7 +246,8 @@ class ConversationAgent:
         except Exception:
             return _heuristic(raw_topics)
 
-    def ask_llm(self, user_prompt, context_messages, system_prompt, use_rag: bool = False):
+    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
+                index_name: str | None = None):
         """
         Send a request to the configured LLM and return the response.
 
@@ -258,8 +259,10 @@ class ConversationAgent:
             Conversation history or additional context.
         system_prompt : str
             Instruction defining the assistant's behavior.
-        use_rag : bool, optional
+        rag_enabled : bool, optional
             Whether to augment the request with context from the configured vector store.
+        index_name : str, optional
+            Vector store index to query. Overrides the provider's default when set.
 
         Returns
         -------
@@ -270,5 +273,6 @@ class ConversationAgent:
             user_prompt,
             context_messages,
             system_prompt,
-            use_rag=use_rag,
+            rag_enabled=rag_enabled,
+            index_name=index_name,
         )

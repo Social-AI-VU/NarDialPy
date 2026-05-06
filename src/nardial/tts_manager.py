@@ -36,22 +36,27 @@ class DialogAgentConfig:
     """
     High-level TTS/agent configuration for a single dialog.
 
-    These settings are specified at the dialog level in JSON and are
-    automatically translated to the appropriate low-level TTSConf object
-    by calling :meth:`to_tts_conf`.  This keeps dialog authors insulated
-    from service-specific details (e.g. whether ElevenLabs or Google TTS
-    is in use).
+    These settings are specified at the dialog level in JSON under the
+    ``"agent"`` key and are automatically translated to the appropriate
+    low-level TTSConf object by calling :meth:`to_tts_conf`.
 
     Attributes:
+        tts_type (str, optional): TTS service to use for this dialog.
+            One of ``"google"``, ``"elevenlabs"``, or ``"naoqi"``.
+            When omitted the type is inherited from *base_conf* in
+            :meth:`to_tts_conf`.
         voice_id (str, optional): Voice identifier.  For ElevenLabs this is
             the ElevenLabs voice ID; for Google TTS it is the voice name
             (e.g. ``"en-US-Standard-C"``).
         speaking_rate (float, optional): Speech speed multiplier.
-        language (str, optional): Language code override (e.g. ``"nl"``).
+        language (str, optional): Language code override (e.g. ``"Dutch"``).
             Used by NAOqi TTS; ignored for other services.
     """
 
-    def __init__(self, voice_id: str = None, speaking_rate: float = None, language: str = None):
+    VALID_TTS_TYPES = {"google", "elevenlabs", "naoqi"}
+
+    def __init__(self, tts_type: str = None, voice_id: str = None, speaking_rate: float = None, language: str = None):
+        self.tts_type = tts_type
         self.voice_id = voice_id
         self.speaking_rate = speaking_rate
         self.language = language
@@ -59,8 +64,14 @@ class DialogAgentConfig:
     def to_tts_conf(self, base_conf: 'TTSConf') -> 'TTSConf':
         """Create a TTSConf by applying dialog-level settings over a base configuration.
 
+        The target TTS service type is determined first:
+        - If ``tts_type`` is set, that service is used regardless of *base_conf*.
+        - Otherwise the type of *base_conf* is inherited.
+
         Only the fields explicitly set on this :class:`DialogAgentConfig` are
-        overridden; all other fields are inherited from *base_conf*.
+        overridden; all other fields are inherited from *base_conf* (when
+        *base_conf* is of the same service type) or fall back to service
+        defaults (when switching service types).
 
         Args:
             base_conf (TTSConf): The baseline TTS configuration (typically from
@@ -68,26 +79,46 @@ class DialogAgentConfig:
 
         Returns:
             TTSConf: A new configuration instance with dialog-level overrides
-            applied.  If *base_conf* is of an unrecognised type the original
-            object is returned unchanged.
+            applied.  If neither ``tts_type`` nor *base_conf* resolves to a
+            known service, the original object is returned unchanged.
         """
-        if isinstance(base_conf, ElevenLabsTTSConf):
+        target = self.tts_type or self._infer_type(base_conf)
+
+        if target == "elevenlabs":
+            base_voice = base_conf.voice_id if isinstance(base_conf, ElevenLabsTTSConf) else ElevenLabsTTSConf().voice_id
+            base_model = base_conf.model_id if isinstance(base_conf, ElevenLabsTTSConf) else ElevenLabsTTSConf().model_id
+            base_rate = base_conf.speaking_rate if isinstance(base_conf, ElevenLabsTTSConf) else None
             return ElevenLabsTTSConf(
-                voice_id=self.voice_id if self.voice_id is not None else base_conf.voice_id,
-                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_conf.speaking_rate,
-                model_id=base_conf.model_id,
+                voice_id=self.voice_id if self.voice_id is not None else base_voice,
+                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_rate,
+                model_id=base_model,
             )
-        if isinstance(base_conf, GoogleTTSConf):
+        if target == "google":
+            base_name = base_conf.google_tts_voice_name if isinstance(base_conf, GoogleTTSConf) else GoogleTTSConf().google_tts_voice_name
+            base_rate = base_conf.speaking_rate if isinstance(base_conf, GoogleTTSConf) else GoogleTTSConf().speaking_rate
+            base_gender = base_conf.google_tts_voice_gender if isinstance(base_conf, GoogleTTSConf) else GoogleTTSConf().google_tts_voice_gender
             return GoogleTTSConf(
-                google_tts_voice_name=self.voice_id if self.voice_id is not None else base_conf.google_tts_voice_name,
-                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_conf.speaking_rate,
-                google_tts_voice_gender=base_conf.google_tts_voice_gender,
+                google_tts_voice_name=self.voice_id if self.voice_id is not None else base_name,
+                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_rate,
+                google_tts_voice_gender=base_gender,
             )
-        if isinstance(base_conf, NaoqiTTSConf):
+        if target == "naoqi":
+            base_lang = base_conf.language if isinstance(base_conf, NaoqiTTSConf) else NaoqiTTSConf().language
             return NaoqiTTSConf(
-                language=self.language if self.language is not None else base_conf.language,
+                language=self.language if self.language is not None else base_lang,
             )
         return base_conf
+
+    @staticmethod
+    def _infer_type(conf: 'TTSConf') -> str:
+        """Return the service type string for a known *conf* instance, or None."""
+        if isinstance(conf, ElevenLabsTTSConf):
+            return "elevenlabs"
+        if isinstance(conf, GoogleTTSConf):
+            return "google"
+        if isinstance(conf, NaoqiTTSConf):
+            return "naoqi"
+        return None
 
 
 class GoogleTTSConf(TTSConf):

@@ -22,6 +22,7 @@ maintainers = [
 
 dependencies = [
   "social-interaction-cloud",
+  "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ elevenlabs = ["social-interaction-cloud[elevenlabs-tts]"]
 dialogflow = ["social-interaction-cloud[dialogflow]"]
 openai     = ["social-interaction-cloud[openai-gpt]"]
 all        = ["nardial[google-tts,elevenlabs,dialogflow,openai]"]
+dev        = ["pytest"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

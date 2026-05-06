@@ -1,12 +1,16 @@
-from typing import Any, Optional, List, cast
+from typing import List, Optional, cast, Any
 import re
 from time import monotonic
 
-from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
-    MOVE_ANIMATION, \
-    MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
-    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP, MOVE_BRANCH
+from nardial.moves import (
+    AnyMove,
+    MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS,
+    MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, MOVE_ANIMATION, MOVE_BRANCH, MOVE_ASK_LLM,
+    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MOVE_ANSWER_LLM,
+    MOVE_LLM_FOLLOWUP,
+    MoveSay, MoveAskYesNo, MoveAskOpen, MoveAskOptions, MoveAskLLM,
+    MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch,
+)
 
 from enum import Enum
 
@@ -22,11 +26,10 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id: str, moves: List[AnyMove], dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
-        moves: list of dicts, each representing a dialog move
-        attributes: dict, extra attributes depending on dialog type
+        moves: list of typed move objects representing the dialog steps
         """
         self.dialog_id = dialog_id
         self.moves = moves
@@ -44,17 +47,6 @@ class MiniDialog:
         self.session_history = session_history if session_history is not None else []
         self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
         self.user_model = user_model if user_model is not None else {}
-
-    # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
-    @staticmethod
-    def _get(move, key, default=None):
-        try:
-            if isinstance(move, dict):
-                return move.get(key, default)
-            # Fallback to attribute access for move objects
-            return getattr(move, key, default)
-        except Exception:
-            return default
 
     @staticmethod
     def add_interest(topics_of_interest, topic):
@@ -85,13 +77,13 @@ class MiniDialog:
     def _store_set_variable(self, move, answer: str):
         if not answer:
             return
-        if getattr(move, 'set_variable', None):
+        if getattr(move, "set_variable", None):
             self.user_model[move.set_variable] = self.extract_open_value(answer)
 
     def _store_interests(self, move, answer: str):
-        if answer and getattr(move, 'add_interest_from_answer', False):
+        if answer and getattr(move, "add_interest_from_answer", False):
             self.add_interest(self.topics_of_interest, answer)
-        if getattr(move, 'add_interest_from_variable', None):
+        if getattr(move, "add_interest_from_variable", None):
             val = self.user_model.get(move.add_interest_from_variable)
             if val:
                 self.add_interest(self.topics_of_interest, val)
@@ -108,39 +100,29 @@ class MiniDialog:
         if not answer:
             return ""
         text = str(answer).strip()
-        # Prefer explicitly quoted content
         m = re.search(r'["\']([^"\']+)["\']', text)
         if m:
             return m.group(1).strip()
-        # Fallback: pick the last alphabetic-ish token
         tokens = re.findall(r"[A-Za-z][A-Za-z\-']+", text)
         if tokens:
             return tokens[-1]
         return text
 
     def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
-        # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-        idx = 0
-
-        while idx < len(self.moves):
-            move = self.moves[idx]
+        for move in self.moves:
             self._dispatch_move(move)
-            idx += 1
 
     def _resolve_outcome(self, move, answer) -> None:
         """Resolve and store ``current_outcome`` from the declarative outcome fields.
 
         Resolution order:
-        1. Exact match: if ``answer`` appears as a key in ``outcomes``, use that label.
-        2. Wildcard: if ``"*"`` is a key in ``outcomes`` and ``answer`` is non-empty,
-           use that label (useful for free-text ``ask_open`` answers).
-        3. Default: ``default_outcome`` is used when the answer is empty/None, or
-           when no exact or wildcard match is found.
+        1. Exact match in ``outcomes``.
+        2. Wildcard ``"*"`` if answer is non-empty.
+        3. ``default_outcome`` when no match or answer is empty/None.
         """
-        outcomes = self._get(move, 'outcomes') or {}
-        default_outcome = self._get(move, 'default_outcome')
+        outcomes = move.outcomes
+        default_outcome = move.default_outcome
         if answer and answer in outcomes:
             self.current_outcome = outcomes[answer]
         elif answer and "*" in outcomes:
@@ -148,44 +130,35 @@ class MiniDialog:
         else:
             self.current_outcome = default_outcome
 
-    def handle_move_branch(self, move) -> None:
-        """Execute the sub-moves for the matching case of a ``branch`` move."""
-        move = MoveBranch.from_dict(move)
-        if move.on == "outcome":
-            key = self.current_outcome
-        else:
-            key = self.user_model.get(move.on)
-        case_moves = move.cases.get(key, [])
-        for sub_move in case_moves:
+    def handle_move_branch(self, move: MoveBranch) -> None:
+        key = self.current_outcome if move.on == "outcome" else self.user_model.get(move.on)
+        for sub_move in move.cases.get(key, []):
             self._dispatch_move(sub_move)
 
-    def _dispatch_move(self, move) -> None:
-        """Execute a single move dict."""
-        move_type = self._get(move, 'type')
-        if move_type == MOVE_SAY:
+    def _dispatch_move(self, move: AnyMove) -> None:
+        if move.type == MOVE_SAY:
             self.handle_move_say(move)
-        elif move_type == MOVE_ASK_YESNO:
+        elif move.type == MOVE_ASK_YESNO:
             answer = self.handle_move_ask_yesno(move)
             self._resolve_outcome(move, answer)
-        elif move_type == MOVE_ASK_OPEN:
+        elif move.type == MOVE_ASK_OPEN:
             answer = self.handle_move_ask_open(move)
             self._resolve_outcome(move, answer)
-        elif move_type == MOVE_ASK_OPTIONS:
+        elif move.type == MOVE_ASK_OPTIONS:
             answer = self.handle_move_ask_options(move)
             self._resolve_outcome(move, answer)
-        elif move_type == MOVE_BRANCH:
+        elif move.type == MOVE_BRANCH:
             self.handle_move_branch(move)
-        elif move_type == MOVE_PLAY_AUDIO:
+        elif move.type == MOVE_PLAY_AUDIO:
             self.handle_move_play_audio(move)
-        elif move_type == MOVE_MOTION_SEQUENCE:
+        elif move.type == MOVE_MOTION_SEQUENCE:
             self.handle_move_motion_sequence(move)
-        elif move_type == MOVE_ANIMATION:
+        elif move.type == MOVE_ANIMATION:
             self.handle_move_animation(move)
-        elif move_type == MOVE_ASK_LLM:
-                self.handle_move_ask_llm(move)
+        elif move.type == MOVE_ASK_LLM:
+            self.handle_move_ask_llm(move)
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
-        """Call the LLM to generate a contextual followup to the user's answer and speak it."""
         context_messages = [
             entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
         ]
@@ -198,82 +171,69 @@ class MiniDialog:
             self.conversation_agent.say(llm_text)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
-    def handle_move_say(self, move):
-        text = self._get(move, 'text')
+    def handle_move_say(self, move: MoveSay) -> None:
+        text = move.text
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
         self.conversation_agent.say(text)
         self._record_robot(MOVE_SAY, text)
 
-    def handle_move_ask_yesno(self, move):
-        move = MoveAskYesNo.from_dict(move)
+    def handle_move_ask_yesno(self, move: MoveAskYesNo) -> str:
         answer = self.conversation_agent.ask_yesno(move.text)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
 
-        # store answer and interest if configured
         self._store_set_variable(move, answer)
-        if answer == "yes" and getattr(move, 'add_interest', None):
+        if answer == "yes" and move.add_interest:
             self.add_interest(self.topics_of_interest, move.add_interest)
 
-        # Optional LLM-generated followup response
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
         return answer
 
-    def handle_move_ask_open(self, move):
-        move = MoveAskOpen.from_dict(move)
+    def handle_move_ask_open(self, move: MoveAskOpen) -> str:
         answer = self.conversation_agent.ask_open(move.text)
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
-        # store answer and interests if configured
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
 
-        # Optional LLM-generated followup response
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
         return answer
 
-    def handle_move_ask_options(self, move):
-        move = MoveAskOptions.from_dict(move)
+    def handle_move_ask_options(self, move: MoveAskOptions) -> str:
         answer = self.conversation_agent.ask_options(move.text, move.options)
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
 
-        # store answer if configured
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
 
-        # Optional LLM-generated followup response
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
         return answer
 
-    def handle_move_play_audio(self, move):
-        move = MovePlayAudio.from_dict(move)
-        self.conversation_agent.play_audio(move.audio_file)
-        self._record_robot(MOVE_PLAY_AUDIO, "Played audio. ", audio_file=move.audio_file)
+    def handle_move_play_audio(self, move: MovePlayAudio) -> None:
+        self.conversation_agent.play_audio(move.audio)
+        self._record_robot(MOVE_PLAY_AUDIO, "Played audio.", audio_file=move.audio)
 
-    def handle_move_motion_sequence(self, move):
-        move = MoveMotionSequence.from_dict(move)
-        self.conversation_agent.play_motion_sequence(move.sequence_file)
-        self._record_robot(MOVE_MOTION_SEQUENCE, "Played motion sequence.", motion_sequence_file=move.sequence_file)
+    def handle_move_motion_sequence(self, move: MoveMotionSequence) -> None:
+        self.conversation_agent.play_motion_sequence(move.motion_sequence)
+        self._record_robot(MOVE_MOTION_SEQUENCE, "Played motion sequence.", motion_sequence_file=move.motion_sequence)
 
-    def handle_move_animation(self, move):
-        move = MoveAnimation.from_dict(move)
+    def handle_move_animation(self, move: MoveAnimation) -> None:
         self.conversation_agent.play_animation(move.animation_name)
-        self._record_robot(MOVE_ANIMATION, "Played animation. ", animation_name=move.animation_name)
+        self._record_robot(MOVE_ANIMATION, "Played animation.", animation_name=move.animation_name)
 
-    def handle_move_ask_llm(self, move):
-        move = MoveAskLLM.from_dict(move)
+    def handle_move_ask_llm(self, move: MoveAskLLM) -> None:
         self._run_llm_exchange(
             prompt=move.prompt,
             max_turns=move.max_turns or MAX_LLM_TURNS,
@@ -343,13 +303,9 @@ class MiniDialog:
                 self.user_model[set_variable] = self.extract_open_value(user_input)
 
             # If the user said a configured quit phrase, stop early
-            quit_happened = False
-            for qp in (quit_phrases or []):
-                if not qp:
-                    continue
-                if qp.lower() in user_input.lower():
-                    quit_happened = True
-                    break
+            quit_happened = any(
+                qp and qp.lower() in user_input.lower() for qp in (quit_phrases or [])
+            )
             if quit_happened:
                 return
 
@@ -392,12 +348,13 @@ class ChitchatDialog(MiniDialog):
 
 class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
-                 variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
-                 speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, index_name: Optional[str] = None):
+                 variable_dependencies=None, quit_phrases: Optional[List[str]] = None,
+                 quit_signal: Optional[str] = None, speak_first: bool = True,
+                 duration: Optional[float] = None, rag_enabled: bool = False,
+                 index_name: Optional[str] = None):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.prompt = prompt
-        self.max_turns = max_turns or MAX_LLM_TURNS
+        self.max_turns = max_turns  # None means use MAX_LLM_TURNS default at runtime
         self.speak_first = speak_first
         self.duration = duration
         self.rag_enabled = rag_enabled
@@ -408,10 +365,9 @@ class LLMDialog(MiniDialog):
 
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
         self._run_llm_exchange(
             prompt=self.prompt,
-            max_turns=self.max_turns,
+            max_turns=self.max_turns or MAX_LLM_TURNS,
             set_variable=None,
             quit_phrases=self.quit_phrases,
             quit_signal=self.quit_signal,

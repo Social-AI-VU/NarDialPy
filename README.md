@@ -82,6 +82,7 @@ pip install nardial
 | `dialogflow` | Google Dialogflow NLU | `pip install "nardial[dialogflow]"` |
 | `openai` | OpenAI GPT | `pip install "nardial[openai]"` |
 | `all` | All of the above | `pip install "nardial[all]"` |
+| `dev` | Development tools (pytest) | `pip install "nardial[dev]"` |
 
 For robot devices, install the matching SIC device extra directly:
 
@@ -666,6 +667,12 @@ You can find additional demos in the [SIC Applications repository](https://githu
 ---
 
 ## Development
+
+Install the dev extra to get the test dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
 
 Run tests from the repository root:
 

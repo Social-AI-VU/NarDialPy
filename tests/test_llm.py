@@ -1,5 +1,16 @@
 from nardial.mini_dialogs import MiniDialog, LLMDialog
-from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_LLM_FOLLOWUP, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
+from nardial.moves import (
+    MoveAskLLM,
+    MoveAskOpen,
+    MoveAskOptions,
+    MoveAskYesNo,
+    MOVE_ASK_LLM,
+    MOVE_ANSWER_LLM,
+    MOVE_LLM_FOLLOWUP,
+    MOVE_ANSWER_OPEN,
+    MOVE_ANSWER_YESNO,
+    MOVE_ANSWER_OPTIONS,
+)
 
 
 def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -63,7 +74,7 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
         ask_open_side_effect=["ans"]
     )
 
-    move = {'prompt': 'hello', 'max_turns': 1, 'set_variable': 'fav', 'quit_phrases': None, 'quit_signal': None}
+    move = MoveAskLLM(prompt='hello', max_turns=1, set_variable='fav')
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -99,12 +110,11 @@ def test_ask_open_llm_followup_generates_response(
         ask_llm_side_effect=["That sounds wonderful! Mountains are so peaceful."],
     )
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What did you do this weekend?',
-        'set_variable': 'weekend_activity',
-        'llm_followup': 'You are a friendly robot. Respond warmly to what the user just said.',
-    }
+    move = MoveAskOpen(
+        text='What did you do this weekend?',
+        set_variable='weekend_activity',
+        llm_followup='You are a friendly robot. Respond warmly to what the user just said.',
+    )
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -136,11 +146,10 @@ def test_ask_open_llm_followup_receives_full_conversation_context(
     # Pre-populate history so LLM receives context
     session_history.append({"role": "robot", "type": "say", "text": "Let's talk about food."})
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What is your favorite food?',
-        'llm_followup': 'Be enthusiastic about the user choice.',
-    }
+    move = MoveAskOpen(
+        text='What is your favorite food?',
+        llm_followup='Be enthusiastic about the user choice.',
+    )
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -160,11 +169,10 @@ def test_ask_yesno_llm_followup_generates_response(
         ask_llm_side_effect=["That's great, dogs are amazing companions!"],
     )
 
-    move = {
-        'type': 'ask_yesno',
-        'text': 'Do you like dogs?',
-        'llm_followup': 'React warmly to the user answer about dogs.',
-    }
+    move = MoveAskYesNo(
+        text='Do you like dogs?',
+        llm_followup='React warmly to the user answer about dogs.',
+    )
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -186,12 +194,11 @@ def test_ask_options_llm_followup_generates_response(
         ask_llm_side_effect=["Forests are so serene and full of life!"],
     )
 
-    move = {
-        'type': 'ask_options',
-        'text': 'Which place in nature do you prefer?',
-        'options': ['sea', 'forest', 'mountains'],
-        'llm_followup': 'Share enthusiasm about the user chosen nature spot.',
-    }
+    move = MoveAskOptions(
+        text='Which place in nature do you prefer?',
+        options=['sea', 'forest', 'mountains'],
+        llm_followup='Share enthusiasm about the user chosen nature spot.',
+    )
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -210,11 +217,10 @@ def test_ask_open_without_llm_followup_does_not_call_llm(
     """Without llm_followup, ask_open does not call the LLM."""
     agent = make_mock_agent(ask_open_side_effect=["I like cats."])
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What is your favorite animal?',
-        'set_variable': 'favorite_animal',
-    }
+    move = MoveAskOpen(
+        text='What is your favorite animal?',
+        set_variable='favorite_animal',
+    )
 
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -234,11 +240,10 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     )
 
     moves = [
-        {
-            'type': 'ask_open',
-            'text': 'What is your hobby?',
-            'llm_followup': 'Respond positively to the user hobby.',
-        }
+        MoveAskOpen(
+            text='What is your hobby?',
+            llm_followup='Respond positively to the user hobby.',
+        )
     ]
 
     md = MiniDialog('test', moves=moves)

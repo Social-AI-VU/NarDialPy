@@ -1,251 +1,128 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
-from nardial.moves import (
-    MOVE_SAY,
-    MOVE_ASK_OPEN,
-    MOVE_ASK_YESNO,
-    MOVE_ASK_OPTIONS,
-    MOVE_ASK_LLM,
-    MOVE_PLAY_AUDIO,
-    MOVE_MOTION_SEQUENCE,
-    MOVE_ANIMATION,
-    MOVE_BRANCH,
+from pydantic import TypeAdapter
+
+from nardial.authoring.schemas import (
+    AnyDialogSpec,
+    ChitchatDialogSpec,
+    FunctionalDialogSpec,
+    LLMDialogSpec,
+    NarrativeDialogSpec,
+)
+from nardial.mini_dialogs import (
+    ChitchatDialog,
+    FunctionalDialog,
+    LLMDialog,
+    MiniDialog,
+    NarrativeDialog,
 )
 
-
-ALLOWED_MOVE_TYPES = {
-    MOVE_SAY,
-    MOVE_ASK_YESNO,
-    MOVE_ASK_OPEN,
-    MOVE_ASK_OPTIONS,
-    MOVE_ASK_LLM,
-    MOVE_PLAY_AUDIO,
-    MOVE_MOTION_SEQUENCE,
-    MOVE_ANIMATION,
-    MOVE_BRANCH,
-}
+_dialog_adapter: TypeAdapter[AnyDialogSpec] = TypeAdapter(AnyDialogSpec)
 
 
-class MoveFactory:
-    @staticmethod
-    def validate(move: Dict[str, Any], idx: int = 0) -> List[str]:
-        errs: List[str] = []
-        if not isinstance(move, dict):
-            return [f"moves[{idx}] must be an object"]
-        mt = move.get("type")
-        if mt not in ALLOWED_MOVE_TYPES:
-            errs.append(f"moves[{idx}].type must be one of {sorted(ALLOWED_MOVE_TYPES)}")
-        if mt in {"say"}:
-            if not isinstance(move.get("text"), str):
-                errs.append(f"moves[{idx}].text must be string for say")
-        if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
-            if not isinstance(move.get("text"), str):
-                errs.append(f"moves[{idx}].text must be string for {mt}")
-        if mt == MOVE_ASK_LLM:
-            if not isinstance(move.get("prompt"), str):
-                errs.append(f"moves[{idx}].prompt must be string for ask_llm")
-        if mt == "ask_options":
-            opts = move.get("options")
-            if not isinstance(opts, list) or not all(isinstance(o, str) for o in opts):
-                errs.append(f"moves[{idx}].options must be a list of strings for ask_options")
-        if mt == MOVE_PLAY_AUDIO and not isinstance(move.get("audio"), str):
-            errs.append(f"moves[{idx}].audio must be string for play")
-        if mt == MOVE_MOTION_SEQUENCE and not isinstance(move.get("motion_sequence"), str):
-            errs.append(f"moves[{idx}].motion_sequence must be string for motion_sequence")
-        if mt == MOVE_ANIMATION and not isinstance(move.get("animation_name"), str):
-            errs.append(f"moves[{idx}].animation_name must be string for animation")
-        if "set_variable" in move and not isinstance(move.get("set_variable"), str):
-            errs.append(f"moves[{idx}].set_variable must be string if present")
-        if mt == MOVE_BRANCH:
-            on_val = move.get("on", "outcome")
-            if not isinstance(on_val, str):
-                errs.append(f"moves[{idx}].on must be a string for branch")
-            cases = move.get("cases")
-            if not isinstance(cases, dict):
-                errs.append(f"moves[{idx}].cases must be an object for branch")
-            elif not all(isinstance(v, list) for v in cases.values()):
-                errs.append(f"moves[{idx}].cases values must be lists of moves for branch")
-        return errs
+def from_json(doc: Dict[str, Any]) -> MiniDialog:
+    """Parse and validate a dialog document dict, returning a typed runtime dialog object.
 
-    @staticmethod
-    def normalize(move: Dict[str, Any]) -> Dict[str, Any]:
-        # Keep as-is; runtime expects dict moves. We could strip unknown keys later if needed.
-        return dict(move)
+    Raises ``pydantic.ValidationError`` with field-level details on invalid input.
+    """
+    spec = _dialog_adapter.validate_python(doc)
+    return _spec_to_dialog(spec)
 
 
-class DialogFactory:
-    @staticmethod
-    def _normalize_variable_dependencies(vdeps: Any) -> List[Dict[str, Any]]:
-        out: List[Dict[str, Any]] = []
-        if not vdeps:
-            return out
-        for item in vdeps:
-            if isinstance(item, str):
-                out.append({"variable": item, "required": True})
-            elif isinstance(item, dict) and item.get("variable"):
-                d = {"variable": str(item["variable"]), "required": bool(item.get("required", True))}
-                out.append(d)
-        return out
+def to_json(d: MiniDialog) -> Dict[str, Any]:
+    """Serialize a runtime dialog object back to a JSON-ready dict."""
+    return _dialog_to_spec(d).model_dump(exclude_none=True)
 
-    @staticmethod
-    def validate_doc(doc: Dict[str, Any]) -> List[str]:
-        errs: List[str] = []
-        t = doc.get("type")
-        did = doc.get("id")
-        if not isinstance(did, str) or not did:
-            errs.append("id must be non-empty string")
-        if t not in {"functional", "narrative", "chitchat", "llm_based"}:
-            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based'")
-        # shared
-        deps = doc.get("dependencies")
-        if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
-            errs.append("dependencies must be a list of strings")
-        # variable deps: allow list[str|obj]
-        vdeps = doc.get("variable_dependencies")
-        if vdeps is not None:
-            if not isinstance(vdeps, list):
-                errs.append("variable_dependencies must be a list")
-            else:
-                for idx, vd in enumerate(vdeps):
-                    if isinstance(vd, str):
-                        continue
-                    if not isinstance(vd, dict) or "variable" not in vd:
-                        errs.append(f"variable_dependencies[{idx}] must be string or object with 'variable'")
-        # type-specific
-        if t == "functional":
-            if not isinstance(doc.get("functional_type"), str):
-                errs.append("functional_type must be string for functional dialogs")
-        elif t == "narrative":
-            if not isinstance(doc.get("thread"), str):
-                errs.append("thread must be string for narrative dialogs")
-            try:
-                int(doc.get("position"))
-            except Exception:
-                errs.append("position must be integer for narrative dialogs")
-        elif t == "chitchat":
-            if not isinstance(doc.get("theme"), str):
-                errs.append("theme must be string for chitchat dialogs")
-            topics = doc.get("topics")
-            if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
-                errs.append("topics must be a list of strings for chitchat dialogs")
-        elif t == "llm_based":
-            if not isinstance(doc.get("prompt"), str):
-                errs.append("prompt must be string for llm_based dialogs")
-            if "max_turns" in doc and not isinstance(doc.get("max_turns"), int):
-                errs.append("max_turns must be integer for llm_based dialogs")
-            if "speak_first" in doc and not isinstance(doc.get("speak_first"), bool):
-                errs.append("speak_first must be boolean for llm_based dialogs")
-            if "duration" in doc and not isinstance(doc.get("duration"), (int, float)):
-                errs.append("duration must be numeric seconds for llm_based dialogs")
-            if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
-                errs.append("rag_enabled must be boolean for llm_based dialogs")
-            quit_phrases = doc.get("quit_phrases")
-            if quit_phrases is not None and (
-                    not isinstance(quit_phrases, list) or not all(isinstance(x, str) for x in quit_phrases)):
-                errs.append("quit_phrases must be a list of strings for llm_based dialogs")
-            if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
-                errs.append("quit_signal must be string for llm_based dialogs")
 
-        moves = doc.get("moves")
-        if not isinstance(moves, list):
-            errs.append("moves must be a list")
-        else:
-            for i, mv in enumerate(moves):
-                errs.extend(MoveFactory.validate(mv, idx=i))
-        return errs
+def _spec_to_dialog(spec: AnyDialogSpec) -> MiniDialog:
+    moves = list(spec.moves)
+    deps = list(spec.dependencies)
+    vdeps = [vd.model_dump() for vd in spec.variable_dependencies]
 
-    @staticmethod
-    def from_json(doc: Dict[str, Any]) -> MiniDialog:
-        errors = DialogFactory.validate_doc(doc)
-        if errors:
-            raise ValueError("; ".join(errors))
+    if isinstance(spec, FunctionalDialogSpec):
+        return FunctionalDialog(
+            dialog_id=spec.id,
+            moves=moves,
+            type=spec.functional_type,
+            dependencies=deps,
+        )
+    if isinstance(spec, NarrativeDialogSpec):
+        return NarrativeDialog(
+            dialog_id=spec.id,
+            moves=moves,
+            thread=spec.thread,
+            position=spec.position,
+            dependencies=deps,
+            variable_dependencies=vdeps,
+        )
+    if isinstance(spec, ChitchatDialogSpec):
+        return ChitchatDialog(
+            dialog_id=spec.id,
+            moves=moves,
+            theme=spec.theme,
+            topics=list(spec.topics),
+            dependencies=deps,
+            variable_dependencies=vdeps,
+        )
+    if isinstance(spec, LLMDialogSpec):
+        return LLMDialog(
+            dialog_id=spec.id,
+            moves=moves,
+            prompt=spec.prompt,
+            max_turns=spec.max_turns,
+            dependencies=deps,
+            variable_dependencies=vdeps,
+            quit_phrases=list(spec.quit_phrases),
+            quit_signal=spec.quit_signal,
+            speak_first=spec.speak_first,
+            duration=spec.duration,
+            rag_enabled=spec.rag_enabled,
+            index_name=spec.index_name,
+        )
+    raise ValueError(f"Unknown spec type: {type(spec)}")
 
-        dtype = doc.get("type")
-        did = doc.get("id")
-        deps = list(doc.get("dependencies") or [])
-        vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
-        moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
 
-        if dtype == DialogType.NARRATIVE.value:
-            return NarrativeDialog(
-                dialog_id=did,
-                moves=moves,
-                thread=doc["thread"],
-                position=int(doc["position"]),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-            )
-        if dtype == DialogType.CHITCHAT.value:
-            return ChitchatDialog(
-                dialog_id=did,
-                moves=moves,
-                theme=doc.get("theme") or "",
-                topics=list(doc.get("topics") or []),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-            )
-        if dtype == DialogType.FUNCTIONAL.value:
-            return FunctionalDialog(
-                dialog_id=did,
-                moves=moves,
-                type=doc["functional_type"],
-                dependencies=deps,
-            )
-        if dtype == DialogType.LLM_BASED.value:
-            return LLMDialog(
-                dialog_id=did,
-                moves=moves,
-                prompt=doc["prompt"],
-                max_turns=doc.get("max_turns"),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-                quit_phrases=doc.get("quit_phrases"),
-                quit_signal=doc.get("quit_signal"),
-                speak_first=doc.get("speak_first", True),
-                duration=doc.get("duration"),
-                rag_enabled=doc.get("rag_enabled", False),
-                index_name=doc.get("index_name"),
-            )
-        return MiniDialog(did, moves, deps, vdeps)
+def _dialog_to_spec(d: MiniDialog) -> AnyDialogSpec:
+    vdeps = list(getattr(d, "variable_dependencies", []) or [])
 
-    @staticmethod
-    def to_json(d: MiniDialog) -> Dict[str, Any]:
-        base: Dict[str, Any] = {
-            "id": getattr(d, "dialog_id", None),
-            "dependencies": list(getattr(d, "dependencies", []) or []),
-            "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
-            "moves": list(getattr(d, "moves", []) or []),
-        }
-        if isinstance(d, NarrativeDialog):
-            base.update({
-                "type": "narrative",
-                "thread": getattr(d, "thread", ""),
-                "position": int(getattr(d, "position", 0)),
-            })
-        elif isinstance(d, ChitchatDialog):
-            base.update({
-                "type": "chitchat",
-                "theme": getattr(d, "theme", ""),
-                "topics": list(getattr(d, "topics", []) or []),
-            })
-        elif isinstance(d, FunctionalDialog):
-            base.update({
-                "type": "functional",
-                "functional_type": getattr(d, "type", ""),
-            })
-        elif isinstance(d, LLMDialog):
-            base.update({
-                "type": "llm_based",
-                "prompt": getattr(d, "prompt", ""),
-                "max_turns": getattr(d, "max_turns", None),
-                "quit_phrases": list(getattr(d, "quit_phrases", []) or []),
-                "quit_signal": getattr(d, "quit_signal", None),
-                "speak_first": getattr(d, "speak_first", True),
-                "duration": getattr(d, "duration", None),
-                "rag_enabled": getattr(d, "rag_enabled", False),
-                "index_name": getattr(d, "index_name", None),
-            })
-        else:
-            base.update({"type": "unknown"})
-        return base
+    if isinstance(d, FunctionalDialog):
+        return FunctionalDialogSpec(
+            id=d.dialog_id,
+            moves=d.moves,
+            dependencies=list(d.dependencies),
+            functional_type=d.type,
+        )
+    if isinstance(d, NarrativeDialog):
+        return NarrativeDialogSpec(
+            id=d.dialog_id,
+            moves=d.moves,
+            dependencies=list(d.dependencies),
+            variable_dependencies=vdeps,
+            thread=d.thread,
+            position=d.position,
+        )
+    if isinstance(d, ChitchatDialog):
+        return ChitchatDialogSpec(
+            id=d.dialog_id,
+            moves=d.moves,
+            dependencies=list(d.dependencies),
+            variable_dependencies=vdeps,
+            theme=d.theme,
+            topics=list(d.topics),
+        )
+    if isinstance(d, LLMDialog):
+        return LLMDialogSpec(
+            id=d.dialog_id,
+            moves=d.moves,
+            dependencies=list(d.dependencies),
+            variable_dependencies=vdeps,
+            prompt=d.prompt,
+            max_turns=d.max_turns,
+            quit_phrases=list(d.quit_phrases),
+            quit_signal=d.quit_signal,
+            speak_first=d.speak_first,
+            duration=d.duration,
+            rag_enabled=d.rag_enabled,
+            index_name=d.index_name,
+        )
+    raise ValueError(f"Unknown dialog type: {type(d)}")

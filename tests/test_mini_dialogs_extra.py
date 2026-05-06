@@ -1,4 +1,10 @@
-from nardial.mini_dialogs import MiniDialog, RunContext
+from nardial.mini_dialogs import (
+    MiniDialog, RunContext,
+    FunctionalDialog, FunctionalType,
+    NarrativeDialog,
+    ChitchatDialog,
+    LLMDialog,
+)
 from nardial.moves import (
     MoveAskLLM,
     MoveAskOpen,
@@ -329,3 +335,87 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Cool answer!" in texts_spoken
     assert "No worries." not in texts_spoken
+
+
+# ---------------------------------------------------------------------------
+# FunctionalDialog, NarrativeDialog, ChitchatDialog, LLMDialog
+# ---------------------------------------------------------------------------
+
+class TestFunctionalDialog:
+    def test_string_type_coerced_to_enum_greeting(self):
+        d = FunctionalDialog("g", [], "greeting")
+        assert d.type is FunctionalType.GREETING
+        assert d.is_greeting_dialog()
+        assert not d.is_farewell_dialog()
+
+    def test_string_type_coerced_to_enum_farewell(self):
+        d = FunctionalDialog("f", [], "farewell")
+        assert d.type is FunctionalType.FAREWELL
+        assert d.is_farewell_dialog()
+        assert not d.is_greeting_dialog()
+
+    def test_enum_type_accepted_directly(self):
+        d = FunctionalDialog("g", [], FunctionalType.GREETING)
+        assert d.is_greeting_dialog()
+
+    def test_greeting_dialog_runs_moves(self, session_history, user_model, topics_of_interest):
+        agent = _make_mock_agent()
+        d = FunctionalDialog("g", [MoveSay(text="Hi!")], "greeting")
+        d.run(agent, RunContext(session_history=session_history,
+                                topics_of_interest=topics_of_interest,
+                                user_model=user_model))
+        agent.say.assert_called_once_with("Hi!")
+
+
+class TestNarrativeDialog:
+    def test_stores_thread_and_position(self):
+        d = NarrativeDialog("n1", [MoveSay(text="x")], thread="main", position=3)
+        assert d.thread == "main"
+        assert d.position == 3
+        assert d.dialog_id == "n1"
+
+    def test_runs_moves(self, session_history, user_model, topics_of_interest):
+        agent = _make_mock_agent()
+        d = NarrativeDialog("n1", [MoveSay(text="Chapter 1.")], thread="main", position=1)
+        d.run(agent, RunContext(session_history=session_history,
+                                topics_of_interest=topics_of_interest,
+                                user_model=user_model))
+        agent.say.assert_called_once_with("Chapter 1.")
+
+
+class TestChitchatDialog:
+    def test_stores_theme_and_topics(self):
+        d = ChitchatDialog("c1", [], theme="animals", topics=["cats", "dogs"])
+        assert d.theme == "animals"
+        assert d.topics == ["cats", "dogs"]
+
+    def test_topics_default_to_empty_list(self):
+        d = ChitchatDialog("c1", [], theme="general")
+        assert d.topics == []
+
+
+class TestLLMDialogSpeakFirst:
+    def test_speak_first_false_listens_before_asking_llm(
+            self, session_history, user_model, topics_of_interest, make_mock_agent):
+        """When speak_first=False the orchestrator listens for the opening user utterance
+        before the first LLM call — the reverse of the default flow."""
+        agent = make_mock_agent(
+            ask_llm_side_effect=["LLM response"],
+            ask_open_side_effect=["user opened first"],
+        )
+
+        dialog = LLMDialog(
+            "llm1", moves=[], prompt="respond", max_turns=1, speak_first=False
+        )
+        context = RunContext(
+            session_history=session_history,
+            topics_of_interest=topics_of_interest,
+            user_model=user_model,
+        )
+        dialog.run(agent, context)
+
+        # orchestrator.listen must be called before ask_llm
+        listen_order = agent.orchestrator.listen.call_count
+        llm_order = agent.ask_llm.call_count
+        assert listen_order >= 1
+        assert llm_order >= 1

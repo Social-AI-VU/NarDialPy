@@ -407,13 +407,16 @@ class ConversationState:
             if self._sanitize_participant_id(s.participant_id) == target_id
         ]
 
+        # Use the accumulated completed_dialogs / topics_of_interest as the
+        # authoritative source so that cross-session continuity is preserved
+        # even when prior sessions are not held in memory.
         payload = {
             "participant_id": participant_id if participant_id is not None else target_id,
             "sessions": [s.model_dump() for s in sessions],
             "summary": {
                 "total_sessions": len(sessions),
-                "dialog_ids_seen": self._collect_dialog_ids(sessions),
-                "topics_of_interest": self._collect_topics_from_summaries(sessions),
+                "dialog_ids_seen": list(self.completed_dialogs),
+                "topics_of_interest": list(self.topics_of_interest),
                 "last_updated": datetime.now(timezone.utc).isoformat(),
             },
         }

@@ -90,7 +90,7 @@ def _dialog_to_spec(d: MiniDialog) -> AnyDialogSpec:
             id=d.dialog_id,
             moves=d.moves,
             dependencies=list(d.dependencies),
-            functional_type=d.type,
+            functional_type=d.type.value,
         )
     if isinstance(d, NarrativeDialog):
         return NarrativeDialogSpec(

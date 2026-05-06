@@ -103,11 +103,11 @@ class UserModel(MutableMapping):
         Redis hash fields accept scalar values.
         Encode complex Python values as tagged JSON strings.
         """
+        if isinstance(value, bool):
+            # Must precede the int check: bool is a subclass of int.
+            return "true" if value else "false"
         if isinstance(value, (str, int, float)) or value is None:
             return value
-        if isinstance(value, bool):
-            # bool is a subclass of int; keep string form explicit.
-            return "true" if value else "false"
         try:
             return "__json__:" + json.dumps(value, ensure_ascii=False)
         except Exception:

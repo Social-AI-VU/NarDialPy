@@ -96,3 +96,26 @@ def test_move_animation():
     moves = [MoveAnimation(animation_name="animations/Stand/Gestures/No_1")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
     dialog.run(agent=mock_agent(), context=RunContext())
+
+
+def test_move_say_substitutes_user_model_variables():
+    """%var% placeholders in say text should be replaced with user_model values."""
+    moves = [MoveSay(text="Hello, %name%! You are %age% years old.")]
+    dialog = MiniDialog(dialog_id="1", moves=moves)
+    agent = mock_agent()
+    context = RunContext(user_model={"name": "Alice", "age": "30"})
+    dialog.run(agent=agent, context=context)
+    agent.say.assert_called_once_with("Hello, Alice! You are 30 years old.")
+
+
+def test_move_ask_yesno_interest_not_added_when_answer_is_no():
+    """add_interest should only be recorded when the user answers 'yes'."""
+    context = RunContext()
+    agent = mock_agent()
+    agent.ask_yesno = Mock(return_value="no")
+
+    moves = [MoveAskYesNo(text="Do you like pizza?", add_interest="pizza")]
+    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog.run(agent=agent, context=context)
+
+    assert "pizza" not in context.topics_of_interest

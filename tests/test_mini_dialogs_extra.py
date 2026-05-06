@@ -394,6 +394,38 @@ class TestChitchatDialog:
         assert d.topics == []
 
 
+class TestExtractOpenValueEdgeCases:
+    """Edge cases not covered by the existing standalone test."""
+
+    def test_empty_string_returns_empty(self):
+        assert MiniDialog.extract_open_value("") == ""
+
+    def test_single_alphabetic_word_returned_verbatim(self):
+        assert MiniDialog.extract_open_value("Alice") == "Alice"
+
+    def test_hyphenated_word_captured_as_last_token(self):
+        # The regex [A-Za-z][A-Za-z\-']+ matches hyphenated tokens.
+        assert MiniDialog.extract_open_value("My name is Mary-Jane") == "Mary-Jane"
+
+    def test_quoted_segment_preferred_over_token(self):
+        # Double-quotes take precedence over the last-token heuristic.
+        assert MiniDialog.extract_open_value('call me "Alex" please') == "Alex"
+
+    def test_exact_outcome_beats_wildcard(self):
+        """When a specific key and '*' both exist, the exact key wins."""
+        agent = _make_mock_agent()
+        md = MiniDialog("t", moves=[])
+        md._agent = agent
+        md._context = RunContext(session_history=[], topics_of_interest=[], user_model={})
+        move = MoveAskYesNo(
+            text="q",
+            outcomes={"yes": "exact_yes", "*": "wildcard"},
+            default_outcome="default",
+        )
+        md._resolve_outcome(move, "yes")
+        assert md.current_outcome == "exact_yes"
+
+
 class TestLLMDialogSpeakFirst:
     def test_speak_first_false_listens_before_asking_llm(
             self, session_history, user_model, topics_of_interest, make_mock_agent):

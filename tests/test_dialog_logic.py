@@ -243,3 +243,53 @@ class TestBuildDialogSession:
     def test_empty_pool_returns_empty_session(self):
         session = DialogLogic.build_dialog_session([])
         assert session == []
+
+
+# ── select_active_thread ──────────────────────────────────────────────────────
+
+class TestSelectActiveThread:
+    def _pool(self):
+        return [
+            make_narrative("n_main_1", "main", 1),
+            make_narrative("n_main_2", "main", 2),
+            make_narrative("n_side_1", "side", 1),
+        ]
+
+    def test_returns_preferred_thread_when_it_has_runnable_dialogs(self):
+        pool = self._pool()
+        thread = DialogLogic.select_active_thread(pool, "main", completed_ids=set(), user_model={})
+        assert thread == "main"
+
+    def test_returns_preferred_thread_when_partial_completion(self):
+        pool = self._pool()
+        # Only the first main dialog is done; main still has n_main_2 available.
+        thread = DialogLogic.select_active_thread(
+            pool, "main", completed_ids={"n_main_1"}, user_model={}
+        )
+        assert thread == "main"
+
+    def test_falls_back_to_another_thread_when_preferred_is_exhausted(self):
+        pool = self._pool()
+        thread = DialogLogic.select_active_thread(
+            pool, "main", completed_ids={"n_main_1", "n_main_2"}, user_model={}
+        )
+        assert thread == "side"
+
+    def test_returns_none_when_all_threads_exhausted(self):
+        pool = self._pool()
+        thread = DialogLogic.select_active_thread(
+            pool, "main",
+            completed_ids={"n_main_1", "n_main_2", "n_side_1"},
+            user_model={},
+        )
+        assert thread is None
+
+    def test_returns_none_when_no_narrative_dialogs(self):
+        pool = [make_functional("greeting"), make_functional("farewell", "farewell")]
+        thread = DialogLogic.select_active_thread(pool, "main", completed_ids=set(), user_model={})
+        assert thread is None
+
+    def test_none_preferred_thread_returns_any_available(self):
+        pool = self._pool()
+        thread = DialogLogic.select_active_thread(pool, None, completed_ids=set(), user_model={})
+        assert thread in {"main", "side"}

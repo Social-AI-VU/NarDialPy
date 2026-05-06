@@ -25,14 +25,14 @@ LLM_QUIT_SIGNAL = "<<QUIT>>"
 class MoveSay(BaseModel):
     """A move that makes the agent say a piece of text."""
 
-    type: Literal["say"] = "say"
+    type: Literal[MOVE_SAY] = MOVE_SAY
     text: str
 
 
 class MoveAskYesNo(BaseModel):
     """A move that asks a yes/no question and processes the response."""
 
-    type: Literal["ask_yesno"] = "ask_yesno"
+    type: Literal[MOVE_ASK_YESNO] = MOVE_ASK_YESNO
     text: str
     set_variable: Optional[str] = None
     add_interest: Optional[str] = None
@@ -44,7 +44,7 @@ class MoveAskYesNo(BaseModel):
 class MoveAskOpen(BaseModel):
     """A move that asks an open-ended question and processes free-text input."""
 
-    type: Literal["ask_open"] = "ask_open"
+    type: Literal[MOVE_ASK_OPEN] = MOVE_ASK_OPEN
     text: str
     set_variable: Optional[str] = None
     add_interest_from_answer: Optional[bool] = None
@@ -58,7 +58,7 @@ class MoveAskOpen(BaseModel):
 class MoveAskOptions(BaseModel):
     """A move that asks the user to choose from a predefined set of options."""
 
-    type: Literal["ask_options"] = "ask_options"
+    type: Literal[MOVE_ASK_OPTIONS] = MOVE_ASK_OPTIONS
     text: str
     options: List[str] = Field(min_length=1)
     set_variable: Optional[str] = None
@@ -71,7 +71,7 @@ class MoveAskOptions(BaseModel):
 class MoveAskLLM(BaseModel):
     """A move that initiates a multi-turn interaction driven by a language model."""
 
-    type: Literal["ask_llm"] = "ask_llm"
+    type: Literal[MOVE_ASK_LLM] = MOVE_ASK_LLM
     prompt: str
     set_variable: Optional[str] = None
     max_turns: Optional[int] = None
@@ -84,21 +84,21 @@ class MoveAskLLM(BaseModel):
 class MovePlayAudio(BaseModel):
     """A move that plays an audio file."""
 
-    type: Literal["play"] = "play"
+    type: Literal[MOVE_PLAY_AUDIO] = MOVE_PLAY_AUDIO
     audio: str
 
 
 class MoveMotionSequence(BaseModel):
     """A move that plays a predefined motion sequence on the robot."""
 
-    type: Literal["motion_sequence"] = "motion_sequence"
+    type: Literal[MOVE_MOTION_SEQUENCE] = MOVE_MOTION_SEQUENCE
     motion_sequence: str
 
 
 class MoveAnimation(BaseModel):
     """A move that triggers a named animation on the robot."""
 
-    type: Literal["animation"] = "animation"
+    type: Literal[MOVE_ANIMATION] = MOVE_ANIMATION
     animation_name: str
 
 
@@ -106,7 +106,7 @@ class MoveBranch(BaseModel):
     """A declarative branching move that selects and executes a list of sub-moves
     based on a condition (either the current dialog outcome or a user model variable)."""
 
-    type: Literal["branch"] = "branch"
+    type: Literal[MOVE_BRANCH] = MOVE_BRANCH
     on: str = "outcome"
     cases: Dict[str, List["AnyMove"]] = Field(default_factory=dict)
 

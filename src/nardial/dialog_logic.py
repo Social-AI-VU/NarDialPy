@@ -1,5 +1,8 @@
+import logging
 import random
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
+
+logger = logging.getLogger(__name__)
 
 
 class DialogLogic:
@@ -331,9 +334,10 @@ class DialogLogic:
         pool = list(mini_dialogs)
         completed_ids = set(completed_ids or set())
 
-        greeting = next((d for d in pool if
-                         isinstance(d, FunctionalDialog) and d.type == "greeting" and d.dialog_id not in completed_ids),
-                        None)
+        greeting = next(
+            (d for d in pool if isinstance(d, FunctionalDialog) and d.is_greeting_dialog() and d.dialog_id not in completed_ids),
+            None,
+        )
         if not greeting:
             greeting = next((d for d in pool if isinstance(d, FunctionalDialog) and d.is_greeting_dialog()), None)
 
@@ -357,7 +361,7 @@ class DialogLogic:
                                                                 all_dialogs=mini_dialogs,
                                                                 completed_ids=completed_ids)
         if not added_c1:
-            print("[INFO] Chitchats not available for this participant (after narrative 1).")
+            logger.info("Chitchats not available for this participant (after narrative 1).")
 
         n2 = DialogLogic.select_next_narrative(pool, thread,
                                                completed_ids=completed_ids.union({d.dialog_id for d in session}),
@@ -377,7 +381,7 @@ class DialogLogic:
                                                                 all_dialogs=mini_dialogs,
                                                                 completed_ids=completed_ids)
         if not added_c2:
-            print("[INFO] Chitchats not available for this participant (after narrative 2).")
+            logger.info("Chitchats not available for this participant (after narrative 2).")
 
         goodbye = next((d for d in pool if
                         isinstance(d, FunctionalDialog) and d.is_farewell_dialog() and d.dialog_id not in completed_ids),

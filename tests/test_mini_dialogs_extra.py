@@ -1,4 +1,4 @@
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import MiniDialog, RunContext
 from nardial.moves import (
     MoveAskLLM,
     MoveAskOpen,
@@ -27,7 +27,8 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
     # ask_llm returns None first (simulating transient LLM failure), then returns text
     agent = make_mock_agent(ask_llm_side_effect=[None, 'Hello LLM'], ask_open_side_effect=['hi'])
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md._run_llm_exchange(prompt='p', max_turns=3)
 
@@ -45,7 +46,8 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
 def test_handle_move_ask_llm_sets_variable(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(ask_llm_side_effect=['Q1'], ask_open_side_effect=["I like turtles"])
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskLLM(prompt='Tell me something', max_turns=1, set_variable='pet')
     md.handle_move_ask_llm(move)
@@ -95,7 +97,8 @@ def test_resolve_outcome_with_outcomes_dict(session_history, user_model, topics_
     """_resolve_outcome stores the matching outcome label from the outcomes dict."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOptions(
         text="q", options=["a", "b"],
@@ -114,7 +117,8 @@ def test_resolve_outcome_falls_back_to_default(session_history, user_model, topi
     """When the answer doesn't appear in outcomes, default_outcome is used."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOptions(
         text="q", options=["a"],
@@ -133,7 +137,8 @@ def test_handle_move_branch_executes_correct_case(session_history, user_model, t
     """handle_move_branch runs the sub-moves for the active current_outcome."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     md.current_outcome = "correct"
 
     move = MoveBranch(
@@ -153,7 +158,8 @@ def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, 
     """handle_move_branch does nothing when current_outcome matches no case."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     md.current_outcome = "other"
 
     move = MoveBranch(
@@ -185,7 +191,8 @@ def test_full_dialog_new_branching_ask_options(session_history, user_model, topi
         MoveSay(text="Continuing the dialog."),
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     assert md.current_outcome == "correct"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -214,7 +221,8 @@ def test_full_dialog_new_branching_ask_options_default(session_history, user_mod
         ),
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     assert md.current_outcome == "incorrect"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -241,7 +249,8 @@ def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics
         ),
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     assert md.current_outcome == "mem_yes"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -264,7 +273,8 @@ def test_branch_on_user_model_variable(session_history, user_model, topics_of_in
         ),
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Great to hear!" in texts_spoken
@@ -275,7 +285,8 @@ def test_resolve_outcome_wildcard_matches_any_answer(session_history, user_model
     """The '*' wildcard in outcomes matches any non-empty answer."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOpen(
         text="q",
@@ -312,7 +323,8 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
         ),
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Cool answer!" in texts_spoken

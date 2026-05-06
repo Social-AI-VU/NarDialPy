@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import MiniDialog, RunContext
 from nardial.moves import (
     MoveSay,
     MoveAskYesNo,
@@ -32,7 +32,7 @@ def test_move_say():
         MoveSay(text="Testing Move Say Again..."),
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
 
 def test_move_ask_yesno():
@@ -45,7 +45,7 @@ def test_move_ask_yesno():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
     assert set_variable in dialog.user_model
 
@@ -60,7 +60,7 @@ def test_move_ask_open():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
     assert set_variable in dialog.user_model
 
@@ -75,7 +75,7 @@ def test_move_ask_options():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
     assert set_variable in dialog.user_model
 
@@ -83,16 +83,16 @@ def test_move_ask_options():
 def test_move_play_audio():
     moves = [MovePlayAudio(audio="audio_test.wav")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
 
 def test_move_play_motion():
     moves = [MoveMotionSequence(motion_sequence="motion_test")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())
 
 
 def test_move_animation():
     moves = [MoveAnimation(animation_name="animations/Stand/Gestures/No_1")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    dialog.run(agent=mock_agent(), context=RunContext())

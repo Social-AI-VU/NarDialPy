@@ -212,7 +212,7 @@ class InteractionOrchestrator:
                 return json.loads(text)
             return text
         except Exception as e:
-            print(f"Exception: {e}")
+            self.logger.exception("LLM request failed: %s", e)
             return None
 
     def disconnect(self):

@@ -1,5 +1,7 @@
-from typing import List, Optional, cast, Any
+from typing import List, Optional, cast, Any, Dict
 import re
+import logging
+from dataclasses import dataclass, field
 from time import monotonic
 
 from nardial.moves import (
@@ -13,6 +15,23 @@ from nardial.moves import (
 )
 
 from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RunContext:
+    """Mutable conversational state accumulated during a single dialog execution.
+
+    The agent (ConversationAgent) is intentionally kept separate — it is a
+    stable capability provider, not state. Only data that changes *as the
+    dialog runs* belongs here: the growing history, the user model, discovered
+    topics, and the outcome of the most recent ask-move.
+    """
+    session_history: List[Dict[str, Any]] = field(default_factory=list)
+    topics_of_interest: List[str] = field(default_factory=list)
+    user_model: Any = field(default_factory=dict)  # UserModel or plain dict
+    current_outcome: Optional[str] = None
 
 
 class DialogType(Enum):
@@ -35,18 +54,23 @@ class MiniDialog:
         self.moves = moves
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
+        self._agent: Optional[Any] = None
+        self._context: Optional[RunContext] = None
 
-        self.conversation_agent = None
-        self.session_history = []
-        self.topics_of_interest = []
-        self.user_model = {}
-        self.current_outcome = None
+    @property
+    def current_outcome(self) -> Optional[str]:
+        """The outcome set by the most recent ask-move; read by subsequent branch moves."""
+        return self._context.current_outcome if self._context is not None else None
 
-    def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
-        self.conversation_agent = agent
-        self.session_history = session_history if session_history is not None else []
-        self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
-        self.user_model = user_model if user_model is not None else {}
+    @current_outcome.setter
+    def current_outcome(self, value: Optional[str]) -> None:
+        if self._context is not None:
+            self._context.current_outcome = value
+
+    @property
+    def user_model(self) -> Any:
+        """The user model for the current run context."""
+        return self._context.user_model if self._context is not None else {}
 
     @staticmethod
     def add_interest(topics_of_interest, topic):
@@ -62,31 +86,31 @@ class MiniDialog:
     def _record_robot(self, type_name: str, text: str, **extra):
         entry = {"role": "robot", "type": type_name, "text": text}
         entry.update(extra)
-        self.session_history.append(entry)
+        self._context.session_history.append(entry)
 
     def _record_user(self, type_name: str, text: str, **extra):
         entry = {"role": "user", "type": type_name, "text": text}
         entry.update(extra)
-        self.session_history.append(entry)
+        self._context.session_history.append(entry)
 
     def _record_system(self, type_name: str, text: str, **extra):
         entry = {"role": "system", "type": type_name, "text": text}
         entry.update(extra)
-        self.session_history.append(entry)
+        self._context.session_history.append(entry)
 
     def _store_set_variable(self, move, answer: str):
         if not answer:
             return
         if getattr(move, "set_variable", None):
-            self.user_model[move.set_variable] = self.extract_open_value(answer)
+            self._context.user_model[move.set_variable] = self.extract_open_value(answer)
 
     def _store_interests(self, move, answer: str):
         if answer and getattr(move, "add_interest_from_answer", False):
-            self.add_interest(self.topics_of_interest, answer)
+            self.add_interest(self._context.topics_of_interest, answer)
         if getattr(move, "add_interest_from_variable", None):
-            val = self.user_model.get(move.add_interest_from_variable)
+            val = self._context.user_model.get(move.add_interest_from_variable)
             if val:
-                self.add_interest(self.topics_of_interest, val)
+                self.add_interest(self._context.topics_of_interest, val)
 
     @staticmethod
     def extract_open_value(answer: str) -> str:
@@ -108,8 +132,18 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
-        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    def run(self, agent: Any, context: RunContext) -> None:
+        """Execute all moves in sequence using the given agent and runtime context.
+
+        Parameters
+        ----------
+        agent : ConversationAgent
+            Capability provider for speech, listening, and LLM calls.
+        context : RunContext
+            Mutable conversational state that accumulates during this run.
+        """
+        self._agent = agent
+        self._context = context
         for move in self.moves:
             self._dispatch_move(move)
 
@@ -124,14 +158,14 @@ class MiniDialog:
         outcomes = move.outcomes
         default_outcome = move.default_outcome
         if answer and answer in outcomes:
-            self.current_outcome = outcomes[answer]
+            self._context.current_outcome = outcomes[answer]
         elif answer and "*" in outcomes:
-            self.current_outcome = outcomes["*"]
+            self._context.current_outcome = outcomes["*"]
         else:
-            self.current_outcome = default_outcome
+            self._context.current_outcome = default_outcome
 
     def handle_move_branch(self, move: MoveBranch) -> None:
-        key = self.current_outcome if move.on == "outcome" else self.user_model.get(move.on)
+        key = self._context.current_outcome if move.on == "outcome" else self._context.user_model.get(move.on)
         for sub_move in move.cases.get(key, []):
             self._dispatch_move(sub_move)
 
@@ -160,33 +194,33 @@ class MiniDialog:
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         context_messages = [
-            entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
+            entry.get("text", "") for entry in self._context.session_history if entry.get("text") is not None
         ]
-        llm_text = self.conversation_agent.ask_llm(
+        llm_text = self._agent.ask_llm(
             user_prompt=user_answer,
             context_messages=context_messages,
             system_prompt=system_prompt,
         )
         if llm_text:
-            self.conversation_agent.say(llm_text)
+            self._agent.say(llm_text)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
     def handle_move_say(self, move: MoveSay) -> None:
         text = move.text
-        for var, value in self.user_model.items():
+        for var, value in self._context.user_model.items():
             text = text.replace(f"%{var}%", str(value))
-        self.conversation_agent.say(text)
+        self._agent.say(text)
         self._record_robot(MOVE_SAY, text)
 
     def handle_move_ask_yesno(self, move: MoveAskYesNo) -> str:
-        answer = self.conversation_agent.ask_yesno(move.text)
+        answer = self._agent.ask_yesno(move.text)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
-        print(f"User answered: {answer}")
+        logger.debug("User answered: %s", answer)
 
         self._store_set_variable(move, answer)
         if answer == "yes" and move.add_interest:
-            self.add_interest(self.topics_of_interest, move.add_interest)
+            self.add_interest(self._context.topics_of_interest, move.add_interest)
 
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
@@ -194,10 +228,10 @@ class MiniDialog:
         return answer
 
     def handle_move_ask_open(self, move: MoveAskOpen) -> str:
-        answer = self.conversation_agent.ask_open(move.text)
+        answer = self._agent.ask_open(move.text)
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
-        print(f"User answered: {answer}")
+        logger.debug("User answered: %s", answer)
 
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
@@ -208,10 +242,10 @@ class MiniDialog:
         return answer
 
     def handle_move_ask_options(self, move: MoveAskOptions) -> str:
-        answer = self.conversation_agent.ask_options(move.text, move.options)
+        answer = self._agent.ask_options(move.text, move.options)
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
-        print(f"User answered: {answer}")
+        logger.debug("User answered: %s", answer)
 
         self._store_set_variable(move, answer)
         self._store_interests(move, answer)
@@ -222,15 +256,15 @@ class MiniDialog:
         return answer
 
     def handle_move_play_audio(self, move: MovePlayAudio) -> None:
-        self.conversation_agent.play_audio(move.audio)
+        self._agent.play_audio(move.audio)
         self._record_robot(MOVE_PLAY_AUDIO, "Played audio.", audio_file=move.audio)
 
     def handle_move_motion_sequence(self, move: MoveMotionSequence) -> None:
-        self.conversation_agent.play_motion_sequence(move.motion_sequence)
+        self._agent.play_motion_sequence(move.motion_sequence)
         self._record_robot(MOVE_MOTION_SEQUENCE, "Played motion sequence.", motion_sequence_file=move.motion_sequence)
 
     def handle_move_animation(self, move: MoveAnimation) -> None:
-        self.conversation_agent.play_animation(move.animation_name)
+        self._agent.play_animation(move.animation_name)
         self._record_robot(MOVE_ANIMATION, "Played animation.", animation_name=move.animation_name)
 
     def handle_move_ask_llm(self, move: MoveAskLLM) -> None:
@@ -255,7 +289,7 @@ class MiniDialog:
                 return None
             return max(0.0, duration - (monotonic() - start_time))
 
-        agent = cast(Any, self.conversation_agent)
+        agent = cast(Any, self._agent)
         if not speak_first:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
@@ -300,7 +334,7 @@ class MiniDialog:
 
             # Optionally store a variable from user's answer
             if set_variable and user_input:
-                self.user_model[set_variable] = self.extract_open_value(user_input)
+                self._context.user_model[set_variable] = self.extract_open_value(user_input)
 
             # If the user said a configured quit phrase, stop early
             quit_happened = any(
@@ -321,7 +355,8 @@ class FunctionalDialog(MiniDialog):
     def __init__(self, dialog_id, moves, type, dependencies=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
-        self.type = type
+        # Coerce string values to the enum so comparisons work regardless of the caller's source.
+        self.type = FunctionalType(type) if isinstance(type, str) else type
 
     def is_greeting_dialog(self):
         return self.type == FunctionalType.GREETING
@@ -363,8 +398,9 @@ class LLMDialog(MiniDialog):
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
-    def run(self, agent, session_history, topics_of_interest, user_model):
-        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    def run(self, agent: Any, context: RunContext) -> None:
+        self._agent = agent
+        self._context = context
         self._run_llm_exchange(
             prompt=self.prompt,
             max_turns=self.max_turns or MAX_LLM_TURNS,

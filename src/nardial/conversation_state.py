@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
@@ -5,10 +6,14 @@ import os
 import json
 import re
 
+from pydantic import BaseModel, Field
+
 from .user_model import UserModel
 
+logger = logging.getLogger(__name__)
 
-class Session:
+
+class Session(BaseModel):
     """
     Represents a single conversation session.
 
@@ -18,7 +23,7 @@ class Session:
     - Dialog IDs executed during the session
     - A summary (e.g., extracted topics, user model updates)
 
-    Parameters
+    Attributes
     ----------
     session_id : str
         Unique identifier for the session (e.g., "sess_0001").
@@ -28,31 +33,27 @@ class Session:
         Identifier for this execution run (useful for experiments/logging).
     metadata : dict, optional
         Arbitrary metadata associated with the session.
-    started_at : str, optional
-        ISO timestamp when the session started (auto-generated if not provided).
+    started_at : str
+        ISO timestamp when the session started (auto-generated on construction).
     ended_at : str, optional
         ISO timestamp when the session ended.
-    events : list of dict, optional
+    events : list of dict
         Event history (e.g., dialog start/end, user/system actions).
-    dialog_ids : list of str, optional
+    dialog_ids : list of str
         Ordered list of dialog IDs executed in this session.
-    summary : dict, optional
+    summary : dict
         Aggregated session-level information (topics, user model, etc.).
     """
 
-    def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None,
-                 metadata: Optional[Dict[str, Any]] = None, started_at: Optional[str] = None, ended_at: Optional[str] = None,
-                 events: Optional[List[Dict[str, Any]]] = None, dialog_ids: Optional[List[str]] = None,
-                 summary: Optional[Dict[str, Any]] = None) -> None:
-        self.session_id = session_id
-        self.participant_id = participant_id
-        self.run_id = run_id
-        self.metadata = metadata or {}
-        self.started_at = started_at or datetime.now(timezone.utc).isoformat()
-        self.ended_at = ended_at
-        self.events: List[Dict[str, Any]] = events or []
-        self.dialog_ids: List[str] = dialog_ids or []
-        self.summary: Dict[str, Any] = summary or {}
+    session_id: str
+    participant_id: Optional[str] = None
+    run_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    ended_at: Optional[str] = None
+    events: List[Dict[str, Any]] = Field(default_factory=list)
+    dialog_ids: List[str] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ConversationState:
@@ -142,7 +143,7 @@ class ConversationState:
             self.restore_participant_state()
 
     def restore_participant_state(self) -> None:
-        print(f"[INFO] Using participant_id={self.participant_id}")
+        logger.info("Using participant_id=%s", self.participant_id)
         self.user_model.set_participant(self.participant_id)
 
         # Load continuity from Redis (default) or JSON file (opt-in).
@@ -187,7 +188,7 @@ class ConversationState:
 
         self.completed_dialogs = data.get("completed_dialogs", [])
         self.topics_of_interest = data.get("topics_of_interest", [])
-        self.sessions = [Session(**s) for s in data.get("sessions", [])]
+        self.sessions = [Session.model_validate(s) for s in data.get("sessions", [])]
 
     def _initialize_empty_state(self) -> None:
         self.completed_dialogs = []
@@ -203,7 +204,7 @@ class ConversationState:
         data = {
             "completed_dialogs": self.completed_dialogs,
             "topics_of_interest": self.topics_of_interest,
-            "sessions": [s.__dict__ for s in self.sessions],
+            "sessions": [s.model_dump() for s in self.sessions],
         }
         self._atomic_write_json(self.path, data)
 
@@ -230,7 +231,7 @@ class ConversationState:
             The generated session ID.
         """
         sid = f"sess_{len(self.sessions) + 1:04d}"
-        session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
+        session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata or {})
         self.sessions.append(session)
         return sid
 
@@ -408,7 +409,7 @@ class ConversationState:
 
         payload = {
             "participant_id": participant_id if participant_id is not None else target_id,
-            "sessions": [s.__dict__ for s in sessions],
+            "sessions": [s.model_dump() for s in sessions],
             "summary": {
                 "total_sessions": len(sessions),
                 "dialog_ids_seen": self._collect_dialog_ids(sessions),
@@ -473,7 +474,7 @@ class ConversationState:
 
         def _serialize(obj):
             if isinstance(obj, Session):
-                return obj.__dict__
+                return obj.model_dump()
             if isinstance(obj, datetime):
                 return obj.isoformat()
             raise TypeError(f"Type not serializable: {type(obj)}")
@@ -483,4 +484,4 @@ class ConversationState:
 
         os.replace(tmp_path, path)
 
-        print(f"[INFO] Saved conversation state to {path}")
+        logger.info("Saved conversation state to %s", path)

@@ -1,4 +1,4 @@
-from nardial.mini_dialogs import MiniDialog, LLMDialog
+from nardial.mini_dialogs import MiniDialog, LLMDialog, RunContext
 from nardial.moves import (
     MoveAskLLM,
     MoveAskOpen,
@@ -20,7 +20,8 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
 
@@ -42,7 +43,8 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
@@ -57,7 +59,8 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
 
@@ -77,7 +80,8 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
     move = MoveAskLLM(prompt='hello', max_turns=1, set_variable='fav')
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_llm(move)
 
@@ -94,9 +98,8 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
     )
 
     dialog = LLMDialog('d1', moves=[], prompt='p', max_turns=3)
-    dialog.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    dialog.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    dialog.run(agent, context)
 
     assert agent.ask_llm.call_count <= 3
     assert agent.orchestrator.listen.call_count <= 3
@@ -117,7 +120,8 @@ def test_ask_open_llm_followup_generates_response(
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_open(move)
 
@@ -152,7 +156,8 @@ def test_ask_open_llm_followup_receives_full_conversation_context(
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_open(move)
 
@@ -175,7 +180,8 @@ def test_ask_yesno_llm_followup_generates_response(
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_yesno(move)
 
@@ -201,7 +207,8 @@ def test_ask_options_llm_followup_generates_response(
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_options(move)
 
@@ -223,7 +230,8 @@ def test_ask_open_without_llm_followup_does_not_call_llm(
     )
 
     md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+    md._agent = agent
+    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     md.handle_move_ask_open(move)
 
@@ -247,7 +255,8 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     ]
 
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    md.run(agent, context)
 
     agent.ask_llm.assert_called_once()
     agent.say.assert_called_once_with("Painting is a beautiful hobby!")

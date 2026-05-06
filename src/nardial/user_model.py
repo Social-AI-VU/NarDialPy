@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import json
@@ -33,10 +34,18 @@ _KEY_TOPICS_OF_INTEREST = "_topics_of_interest"
 _KEY_LAST_UPDATED = "_last_updated"
 
 
-class UserModel:
+class UserModel(MutableMapping):
     """
-    Minimal dict-like proxy that routes CRUD operations to a Redis datastore.
-    It keeps a small in-memory cache (snapshot) to retain compatibility with code expecting a mapping.
+    Mapping proxy that routes CRUD operations to a Redis datastore with an in-memory cache.
+
+    Inheriting from ``MutableMapping`` provides ``__contains__``, ``keys``, ``items``,
+    ``values``, ``get``, ``pop``, ``popitem``, ``clear``, and ``setdefault`` for free.
+    The abstract methods (``__getitem__``, ``__setitem__``, ``__delitem__``, ``__iter__``,
+    ``__len__``) are implemented here and delegate to the Redis datastore when available,
+    falling back to the in-memory cache otherwise.
+
+    The ``update`` method is overridden to batch-write to Redis in a single request
+    rather than using individual ``__setitem__`` calls.
 
     Behavior:
     - If the SIC Redis client is available, connect to the default RedisDatastore.
@@ -154,12 +163,6 @@ class UserModel:
         self._ensure_loaded()
         return self._cache[key]
 
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            return self.__getitem__(key)
-        except Exception:
-            return default
-
     def __setitem__(self, key: str, value: Any) -> None:
         # write-through to datastore when available, otherwise update local cache
         if self._datastore and self._pid and SetScopedKeyValuesRequest:
@@ -190,14 +193,6 @@ class UserModel:
                 self._cache.update(items)
         else:
             self._cache.update(items)
-
-    def keys(self):
-        self._ensure_loaded()
-        return self._cache.keys()
-
-    def items(self):
-        self._ensure_loaded()
-        return self._cache.items()
 
     def as_dict(self) -> Dict[str, Any]:
         self._ensure_loaded()

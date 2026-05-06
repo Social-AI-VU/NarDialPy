@@ -22,16 +22,18 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, agent_config=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
         attributes: dict, extra attributes depending on dialog type
+        agent_config: optional DialogAgentConfig with dialog-level TTS settings
         """
         self.dialog_id = dialog_id
         self.moves = moves
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
+        self.agent_config = agent_config
 
         self.conversation_agent = None
         self.session_history = []
@@ -363,9 +365,9 @@ class FunctionalType(Enum):
 
 
 class FunctionalDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, type, dependencies=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, agent_config=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies)
+        super().__init__(dialog_id, moves, dependencies, agent_config=agent_config)
         self.type = type
 
     def is_greeting_dialog(self):
@@ -376,17 +378,17 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, agent_config=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, agent_config=agent_config)
         self.thread = thread
         self.position = position
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, agent_config=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, agent_config=agent_config)
         self.theme = theme
         self.topics = topics or []
 
@@ -395,8 +397,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, rag_index_name: Optional[str] = None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+                 rag_enabled: bool = False, rag_index_name: Optional[str] = None, agent_config=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, agent_config=agent_config)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first

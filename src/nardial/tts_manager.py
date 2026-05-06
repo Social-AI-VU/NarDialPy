@@ -32,6 +32,64 @@ class TTSConf:
         pass
 
 
+class DialogAgentConfig:
+    """
+    High-level TTS/agent configuration for a single dialog.
+
+    These settings are specified at the dialog level in JSON and are
+    automatically translated to the appropriate low-level TTSConf object
+    by calling :meth:`to_tts_conf`.  This keeps dialog authors insulated
+    from service-specific details (e.g. whether ElevenLabs or Google TTS
+    is in use).
+
+    Attributes:
+        voice_id (str, optional): Voice identifier.  For ElevenLabs this is
+            the ElevenLabs voice ID; for Google TTS it is the voice name
+            (e.g. ``"en-US-Standard-C"``).
+        speaking_rate (float, optional): Speech speed multiplier.
+        language (str, optional): Language code override (e.g. ``"nl"``).
+            Used by NAOqi TTS; ignored for other services.
+    """
+
+    def __init__(self, voice_id: str = None, speaking_rate: float = None, language: str = None):
+        self.voice_id = voice_id
+        self.speaking_rate = speaking_rate
+        self.language = language
+
+    def to_tts_conf(self, base_conf: 'TTSConf') -> 'TTSConf':
+        """Create a TTSConf by applying dialog-level settings over a base configuration.
+
+        Only the fields explicitly set on this :class:`DialogAgentConfig` are
+        overridden; all other fields are inherited from *base_conf*.
+
+        Args:
+            base_conf (TTSConf): The baseline TTS configuration (typically from
+                :class:`~nardial.interaction_orchestrator.InteractionConfig`).
+
+        Returns:
+            TTSConf: A new configuration instance with dialog-level overrides
+            applied.  If *base_conf* is of an unrecognised type the original
+            object is returned unchanged.
+        """
+        if isinstance(base_conf, ElevenLabsTTSConf):
+            return ElevenLabsTTSConf(
+                voice_id=self.voice_id if self.voice_id is not None else base_conf.voice_id,
+                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_conf.speaking_rate,
+                model_id=base_conf.model_id,
+            )
+        if isinstance(base_conf, GoogleTTSConf):
+            return GoogleTTSConf(
+                google_tts_voice_name=self.voice_id if self.voice_id is not None else base_conf.google_tts_voice_name,
+                speaking_rate=self.speaking_rate if self.speaking_rate is not None else base_conf.speaking_rate,
+                google_tts_voice_gender=base_conf.google_tts_voice_gender,
+            )
+        if isinstance(base_conf, NaoqiTTSConf):
+            return NaoqiTTSConf(
+                language=self.language if self.language is not None else base_conf.language,
+            )
+        return base_conf
+
+
 class GoogleTTSConf(TTSConf):
     """
         Configuration for Google Text-to-Speech.

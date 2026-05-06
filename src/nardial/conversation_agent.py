@@ -293,3 +293,16 @@ class ConversationAgent:
             rag_enabled=rag_enabled,
             rag_index_name=rag_index_name,
         )
+
+    def apply_tts_conf(self, tts_conf):
+        """Switch the active TTS configuration for this agent.
+
+        Delegates to :meth:`InteractionOrchestrator.apply_tts_conf`, which
+        handles reconnection to TTS services when required.
+
+        Parameters
+        ----------
+        tts_conf : TTSConf
+            The new TTS configuration to apply.
+        """
+        self.orchestrator.apply_tts_conf(tts_conf)

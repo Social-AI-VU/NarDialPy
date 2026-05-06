@@ -12,6 +12,7 @@ from nardial.moves import (
     MOVE_ANIMATION,
     MOVE_BRANCH,
 )
+from nardial.tts_manager import DialogAgentConfig
 
 
 ALLOWED_MOVE_TYPES = {
@@ -112,6 +113,13 @@ class DialogFactory:
                         continue
                     if not isinstance(vd, dict) or "variable" not in vd:
                         errs.append(f"variable_dependencies[{idx}] must be string or object with 'variable'")
+        # agent config fields (optional, dialog-level TTS/voice settings)
+        if "voice_id" in doc and not isinstance(doc.get("voice_id"), str):
+            errs.append("voice_id must be a string")
+        if "speaking_rate" in doc and not isinstance(doc.get("speaking_rate"), (int, float)):
+            errs.append("speaking_rate must be a number")
+        if "language" in doc and not isinstance(doc.get("language"), str):
+            errs.append("language must be a string")
         # type-specific
         if t == "functional":
             if not isinstance(doc.get("functional_type"), str):
@@ -159,6 +167,21 @@ class DialogFactory:
         return errs
 
     @staticmethod
+    def _parse_agent_config(doc: Dict[str, Any]):
+        """Extract dialog-level agent/TTS config fields from *doc*.
+
+        Returns a :class:`~nardial.tts_manager.DialogAgentConfig` when at
+        least one of the supported keys (``voice_id``, ``speaking_rate``,
+        ``language``) is present, otherwise ``None``.
+        """
+        voice_id = doc.get("voice_id")
+        speaking_rate = doc.get("speaking_rate")
+        language = doc.get("language")
+        if any(v is not None for v in (voice_id, speaking_rate, language)):
+            return DialogAgentConfig(voice_id=voice_id, speaking_rate=speaking_rate, language=language)
+        return None
+
+    @staticmethod
     def from_json(doc: Dict[str, Any]) -> MiniDialog:
         errors = DialogFactory.validate_doc(doc)
         if errors:
@@ -169,6 +192,7 @@ class DialogFactory:
         deps = list(doc.get("dependencies") or [])
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
+        agent_config = DialogFactory._parse_agent_config(doc)
 
         if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
@@ -178,6 +202,7 @@ class DialogFactory:
                 position=int(doc["position"]),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                agent_config=agent_config,
             )
         if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
@@ -187,6 +212,7 @@ class DialogFactory:
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                agent_config=agent_config,
             )
         if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
@@ -194,6 +220,7 @@ class DialogFactory:
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+                agent_config=agent_config,
             )
         if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
@@ -209,8 +236,9 @@ class DialogFactory:
                 duration=doc.get("duration"),
                 rag_enabled=doc.get("rag_enabled", False),
                 rag_index_name=doc.get("index_name"),
+                agent_config=agent_config,
             )
-        return MiniDialog(did, moves, deps, vdeps)
+        return MiniDialog(did, moves, deps, vdeps, agent_config=agent_config)
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -220,6 +248,15 @@ class DialogFactory:
             "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
             "moves": list(getattr(d, "moves", []) or []),
         }
+        # Serialize dialog-level agent config fields when present
+        agent_config = getattr(d, "agent_config", None)
+        if agent_config is not None:
+            if agent_config.voice_id is not None:
+                base["voice_id"] = agent_config.voice_id
+            if agent_config.speaking_rate is not None:
+                base["speaking_rate"] = agent_config.speaking_rate
+            if agent_config.language is not None:
+                base["language"] = agent_config.language
         if isinstance(d, NarrativeDialog):
             base.update({
                 "type": "narrative",

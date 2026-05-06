@@ -102,8 +102,10 @@ class SessionManager:
         - Session history tracking
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
+        - Applying per-dialog TTS/agent configuration when specified
         """
         session_history = []
+        base_tts_conf = self.agent.orchestrator.tts_conf
         for dialog in self.session_block:
             if not DialogLogic.is_dialog_eligible(
                     dialog,
@@ -113,6 +115,18 @@ class SessionManager:
             ):
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
                 continue
+
+            # Apply dialog-level agent/TTS config when present, otherwise restore
+            # the session baseline so a previous dialog's override does not bleed
+            # into the next one.
+            if dialog.agent_config is not None:
+                dialog_tts_conf = dialog.agent_config.to_tts_conf(base_tts_conf)
+                self.agent.apply_tts_conf(dialog_tts_conf)
+                print(f"[INFO] Applied dialog-level TTS config for {dialog.dialog_id}")
+            elif self.agent.orchestrator.tts_conf is not base_tts_conf:
+                # Identity check is intentional: we restore the baseline object
+                # whenever the active config is no longer the session-level one.
+                self.agent.apply_tts_conf(base_tts_conf)
 
             self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
 

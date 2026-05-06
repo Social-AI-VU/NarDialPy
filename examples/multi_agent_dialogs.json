@@ -1,0 +1,96 @@
+[
+  {
+    "_doc": "MULTI-AGENT DEMO: Three dialogs with different voice/agent configurations.",
+    "_doc2": "Each dialog declares its TTS backend and voice settings under the 'agent' key.",
+    "_doc3": "The runtime picks up these settings automatically before executing each dialog.",
+
+    "id": "assistant_robot_greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "agent": {
+      "tts_type": "elevenlabs",
+      "voice_id": "assistant_voice_id",
+      "speaking_rate": 1.0
+    },
+    "moves": [
+      { "type": "say", "text": "Hello! I am your planning assistant. Let's get started." },
+      {
+        "type": "ask_open",
+        "text": "What is your name?",
+        "set_variable": "first_name",
+        "outcomes": { "*": "name_provided" },
+        "default_outcome": "name_missing"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "name_provided": [
+            { "type": "say", "text": "Great to meet you, %first_name%!" }
+          ],
+          "name_missing": [
+            { "type": "say", "text": "No problem, let's continue." }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "guide_robot_tour",
+    "type": "chitchat",
+    "theme": "tour",
+    "topics": ["museum", "art", "history"],
+    "dependencies": ["assistant_robot_greeting"],
+    "agent": {
+      "tts_type": "google",
+      "voice_id": "nl-NL-Standard-D",
+      "speaking_rate": 0.9
+    },
+    "moves": [
+      { "type": "say", "text": "Welcome to the museum tour! I am your guide for today." },
+      { "type": "say", "text": "We have three amazing exhibits: art, history, and technology." },
+      {
+        "type": "ask_options",
+        "text": "Which exhibit would you like to visit first: art, history, or technology?",
+        "options": ["art", "history", "technology"],
+        "set_variable": "first_exhibit",
+        "outcomes": {
+          "art": "chose_art",
+          "history": "chose_history",
+          "technology": "chose_technology"
+        },
+        "default_outcome": "chose_art"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "chose_art": [
+            { "type": "say", "text": "Wonderful! The art exhibit is on the second floor." }
+          ],
+          "chose_history": [
+            { "type": "say", "text": "Excellent! The history exhibit is on the ground floor." }
+          ],
+          "chose_technology": [
+            { "type": "say", "text": "Great choice! The technology exhibit is in the east wing." }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "comedic_robot_farewell",
+    "type": "functional",
+    "functional_type": "farewell",
+    "dependencies": ["assistant_robot_greeting"],
+    "agent": {
+      "tts_type": "elevenlabs",
+      "voice_id": "comedic_voice_id",
+      "speaking_rate": 1.2
+    },
+    "moves": [
+      { "type": "say", "text": "That was fun! Thanks for visiting, %first_name%." },
+      { "type": "say", "text": "Remember: robots never forget a face. Goodbye!" }
+    ]
+  }
+]

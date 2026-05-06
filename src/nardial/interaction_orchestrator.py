@@ -379,6 +379,35 @@ class InteractionOrchestrator:
         except Exception as e:
             self.logger.error("Failed to connect to elevenlabs", exc_info=e)
 
+    def apply_tts_conf(self, tts_conf: TTSConf):
+        """Switch the active TTS configuration, reconnecting services when necessary.
+
+        For Google TTS, only the ``tts_conf`` reference is updated because voice
+        parameters are sent with every synthesis request.  For ElevenLabs, the
+        voice ID is embedded in the WebSocket URI, so a new connection is
+        established whenever the voice or model changes.
+
+        Args:
+            tts_conf (TTSConf): The new TTS configuration to apply.
+        """
+        old_conf = self.tts_conf
+        self.tts_conf = tts_conf
+
+        if isinstance(tts_conf, ElevenLabsTTSConf):
+            # Reconnect when switching to ElevenLabs or when the voice/model changes.
+            needs_reconnect = (
+                not isinstance(old_conf, ElevenLabsTTSConf)
+                or tts_conf.voice_id != old_conf.voice_id
+                or tts_conf.model_id != old_conf.model_id
+            )
+            if needs_reconnect:
+                self.activate_elevenlabs_tts()
+        elif isinstance(tts_conf, GoogleTTSConf) and not isinstance(old_conf, GoogleTTSConf):
+            # Switching from a non-Google backend to Google requires initialisation.
+            self.activate_google_tts()
+        # For GoogleTTSConf-to-GoogleTTSConf changes and NaoqiTTSConf, no reconnect
+        # is needed: voice parameters are passed per-request or handled by the device.
+
     def setup_alphamini(self):
         print("\n Device is ALPHAMINI")
         print("Connecting to miniSDK")

@@ -1,15 +1,17 @@
 [
   {
     "_doc": "MULTI-AGENT DEMO: Three dialogs with different voice/agent configurations.",
-    "_doc2": "The 'voice_id' and 'speaking_rate' fields are dialog-level agent settings.",
-    "_doc3": "They are translated automatically to the active TTS backend at runtime.",
+    "_doc2": "Each dialog declares its TTS backend and voice settings under the 'agent' key.",
+    "_doc3": "The runtime picks up these settings automatically before executing each dialog.",
 
     "id": "assistant_robot_greeting",
     "type": "functional",
     "functional_type": "greeting",
-    "voice_id": "assistant_voice_id",
-    "speaking_rate": 1.0,
-    "_agent_note": "Assistant robot: calm, clear voice at normal speed.",
+    "agent": {
+      "tts_type": "elevenlabs",
+      "voice_id": "assistant_voice_id",
+      "speaking_rate": 1.0
+    },
     "moves": [
       { "type": "say", "text": "Hello! I am your planning assistant. Let's get started." },
       {
@@ -39,9 +41,11 @@
     "theme": "tour",
     "topics": ["museum", "art", "history"],
     "dependencies": ["assistant_robot_greeting"],
-    "voice_id": "guide_voice_id",
-    "speaking_rate": 0.9,
-    "_agent_note": "Guide robot: a slightly slower, warmer voice for storytelling.",
+    "agent": {
+      "tts_type": "google",
+      "voice_id": "nl-NL-Standard-D",
+      "speaking_rate": 0.9
+    },
     "moves": [
       { "type": "say", "text": "Welcome to the museum tour! I am your guide for today." },
       { "type": "say", "text": "We have three amazing exhibits: art, history, and technology." },
@@ -79,9 +83,11 @@
     "type": "functional",
     "functional_type": "farewell",
     "dependencies": ["assistant_robot_greeting"],
-    "voice_id": "comedic_voice_id",
-    "speaking_rate": 1.2,
-    "_agent_note": "Comedic robot: faster, upbeat delivery for the farewell.",
+    "agent": {
+      "tts_type": "elevenlabs",
+      "voice_id": "comedic_voice_id",
+      "speaking_rate": 1.2
+    },
     "moves": [
       { "type": "say", "text": "That was fun! Thanks for visiting, %first_name%." },
       { "type": "say", "text": "Remember: robots never forget a face. Goodbye!" }

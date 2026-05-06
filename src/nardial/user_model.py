@@ -7,22 +7,22 @@ import json
 # The proxy will hide these details and gracefully fall back to in-memory behavior when unavailable.
 try:
     from sic_framework.services.datastore.redis_datastore import (
-        SetScopedKeyValuesRequest,
-        GetScopedRecordRequest,
-        DeleteScopedKeyValuesRequest,
-        DeleteScopedRecordRequest,
-        ScopedKeyValuesMessage,
-        SICSuccessMessage,
+        SetUsermodelValuesRequest,
+        GetUsermodelRequest,
+        DeleteUsermodelValuesRequest,
+        DeleteUserRequest,
+        UsermodelKeyValuesMessage,
         RedisDatastoreConf,
         RedisDatastore,
     )
+    from sic_framework import SICSuccessMessage
     _HAS_REDIS_DS = True
 except Exception:
-    SetScopedKeyValuesRequest = None
-    GetScopedRecordRequest = None
-    DeleteScopedKeyValuesRequest = None
-    DeleteScopedRecordRequest = None
-    ScopedKeyValuesMessage = None
+    SetUsermodelValuesRequest = None
+    GetUsermodelRequest = None
+    DeleteUsermodelValuesRequest = None
+    DeleteUserRequest = None
+    UsermodelKeyValuesMessage = None
     SICSuccessMessage = None
     RedisDatastoreConf = None
     RedisDatastore = None
@@ -83,10 +83,10 @@ class UserModel(MutableMapping):
 
     def _ensure_loaded(self) -> None:
         # If we have a datastore and a participant id, try to load the full user model from Redis.
-        if not self._datastore or not self._pid or not GetScopedRecordRequest:
+        if not self._datastore or not self._pid or not GetUsermodelRequest:
             return
         try:
-            resp = self._datastore.request(GetScopedRecordRequest(scope_id=self._pid))
+            resp = self._datastore.request(GetUsermodelRequest(user_id=self._pid))
             keyvalues = getattr(resp, "keyvalues", None)
             if isinstance(keyvalues, dict):
                 self._cache = {
@@ -165,10 +165,10 @@ class UserModel(MutableMapping):
 
     def __setitem__(self, key: str, value: Any) -> None:
         # write-through to datastore when available, otherwise update local cache
-        if self._datastore and self._pid and SetScopedKeyValuesRequest:
+        if self._datastore and self._pid and SetUsermodelValuesRequest:
             try:
                 kv = {key: self._encode_value(value)}
-                self._datastore.request(SetScopedKeyValuesRequest(scope_id=self._pid, keyvalues=kv))
+                self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=kv))
                 # On success or failure, update cache as best-effort
                 self._cache[key] = value
             except Exception:
@@ -181,13 +181,13 @@ class UserModel(MutableMapping):
         items.update(kwargs)
         if not items:
             return
-        if self._datastore and self._pid and SetScopedKeyValuesRequest:
+        if self._datastore and self._pid and SetUsermodelValuesRequest:
             try:
                 encoded_items = {
                     k: self._encode_value(v)
                     for k, v in items.items()
                 }
-                self._datastore.request(SetScopedKeyValuesRequest(scope_id=self._pid, keyvalues=encoded_items))
+                self._datastore.request(SetUsermodelValuesRequest(user_id=self._pid, keyvalues=encoded_items))
                 self._cache.update(items)
             except Exception:
                 self._cache.update(items)
@@ -199,9 +199,9 @@ class UserModel(MutableMapping):
         return dict(self._cache)
 
     def __delitem__(self, key: str) -> None:
-        if self._datastore and self._pid and DeleteScopedKeyValuesRequest:
+        if self._datastore and self._pid and DeleteUsermodelValuesRequest:
             try:
-                self._datastore.request(DeleteScopedKeyValuesRequest(scope_id=self._pid, keys=[key]))
+                self._datastore.request(DeleteUsermodelValuesRequest(user_id=self._pid, keys=[key]))
                 self._cache.pop(key, None)
             except Exception:
                 self._cache.pop(key, None)
@@ -210,9 +210,9 @@ class UserModel(MutableMapping):
 
     def clear_remote(self) -> None:
         # Delete the entire user from datastore if available
-        if self._datastore and self._pid and DeleteScopedRecordRequest:
+        if self._datastore and self._pid and DeleteUserRequest:
             try:
-                self._datastore.request(DeleteScopedRecordRequest(scope_id=self._pid))
+                self._datastore.request(DeleteUserRequest(user_id=self._pid))
                 self._cache.clear()
             except Exception:
                 pass

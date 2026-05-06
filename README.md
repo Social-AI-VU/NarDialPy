@@ -674,10 +674,55 @@ Install the dev extra to get the test dependencies:
 pip install -e ".[dev]"
 ```
 
-Run tests from the repository root:
+### Unit tests
+
+Run all unit tests from the repository root:
 
 ```bash
 python -m pytest -q
 ```
+
+Run a single file or class:
+
+```bash
+python -m pytest tests/test_moves.py -q
+python -m pytest tests/test_moves.py::TestSay
+```
+
+### Integration tests
+
+Integration tests are opt-in and skipped by default. Pass `--integration` to enable them:
+
+```bash
+python -m pytest tests/integration --integration -v
+```
+
+Most integration tests only require the filesystem. The Redis tests need a running **Redis Stack** instance (plain Redis is not sufficient — Redis Stack adds the vector search module required by SIC).
+
+The easiest way to run Redis Stack is via Docker:
+
+```bash
+docker run -d --name redis-stack \
+  -p 6379:6379 \
+  -p 8001:8001 \
+  -e REDIS_ARGS="--requirepass changemeplease" \
+  -v redis-stack-data:/data \
+  redis/redis-stack:latest
+```
+
+Then run the Redis integration tests:
+
+```bash
+python -m pytest tests/integration/test_user_model_redis.py --integration -v
+```
+
+| Test file | Requires |
+|---|---|
+| `test_session_persistence.py` | Nothing (filesystem only) |
+| `test_full_session.py` | Nothing (filesystem only) |
+| `test_branch_session.py` | Nothing (filesystem only) |
+| `test_user_model_redis.py` | Redis Stack on `127.0.0.1:6379` |
+| `test_llm_echo.py` | SIC LLM service |
+| `test_nlu_written_keyword.py` | SIC NLU service |
 
 ---

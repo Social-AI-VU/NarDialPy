@@ -124,6 +124,8 @@ class SessionManager:
                 self.agent.apply_tts_conf(dialog_tts_conf)
                 print(f"[INFO] Applied dialog-level TTS config for {dialog.dialog_id}")
             elif self.agent.orchestrator.tts_conf is not base_tts_conf:
+                # Identity check is intentional: we restore the baseline object
+                # whenever the active config is no longer the session-level one.
                 self.agent.apply_tts_conf(base_tts_conf)
 
             self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)

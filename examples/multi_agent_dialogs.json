@@ -1,6 +1,6 @@
 [
   {
-    "_doc": "MULTI-AGENT DEMO: Two dialogs with different voice/agent configurations.",
+    "_doc": "MULTI-AGENT DEMO: Three dialogs with different voice/agent configurations.",
     "_doc2": "The 'voice_id' and 'speaking_rate' fields are dialog-level agent settings.",
     "_doc3": "They are translated automatically to the active TTS backend at runtime.",
 

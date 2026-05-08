@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": "creative_greeting",
     "type": "functional",
@@ -45,7 +45,6 @@
   {
     "id": "story_moment",
     "type": "chitchat",
-    "theme": "creativity",
     "topics": ["creativity", "storytelling", "imagination", "making"],
     "dependencies": ["creative_greeting"],
     "_doc": "Demonstrates ask_llm within a scripted dialog: the LLM generates a question on the fly, then the robot listens. Followed by ask_open and a branch on outcome.",

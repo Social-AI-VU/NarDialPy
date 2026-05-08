@@ -60,7 +60,6 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
         return ChitchatDialog(
             dialog_id=spec.id,
             moves=moves,
-            theme=spec.theme,
             topics=list(spec.topics),
             dependencies=deps,
             variable_dependencies=vdeps,
@@ -108,7 +107,6 @@ def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
             moves=d.moves,
             dependencies=list(d.dependencies),
             variable_dependencies=vdeps,
-            theme=d.theme,
             topics=list(d.topics),
         )
     if isinstance(d, LLMDialog):

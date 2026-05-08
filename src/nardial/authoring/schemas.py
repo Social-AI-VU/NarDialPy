@@ -38,7 +38,6 @@ class NarrativeDialogSpec(BaseDialogSpec):
 
 class ChitchatDialogSpec(BaseDialogSpec):
     type: Literal["chitchat"] = "chitchat"
-    theme: str
     topics: List[str] = Field(default_factory=list)
 
 

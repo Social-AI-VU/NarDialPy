@@ -30,11 +30,10 @@ def make_narrative(dialog_id, thread, position, dependencies=None, variable_depe
     )
 
 
-def make_chitchat(dialog_id, theme="general", topics=None, dependencies=None):
+def make_chitchat(dialog_id, topics=None, dependencies=None):
     return ChitchatDialog(
         dialog_id=dialog_id,
         moves=[MoveSay(text="chitchat")],
-        theme=theme,
         topics=topics or [],
         dependencies=dependencies or [],
     )
@@ -136,12 +135,6 @@ class TestSortChitchatDialogs:
     def test_returns_empty_for_no_candidates(self):
         assert DialogLogic.sort_chitchat_dialogs([]) == []
 
-    def test_filters_by_theme(self):
-        c_food = make_chitchat("c_food", theme="food")
-        c_travel = make_chitchat("c_travel", theme="travel")
-        result = DialogLogic.sort_chitchat_dialogs([c_food, c_travel], theme="food")
-        assert result == [c_food]
-
     def test_interest_matched_dialog_scores_higher(self):
         c_interested = make_chitchat("c_int", topics=["cats"])
         c_plain = make_chitchat("c_plain", topics=[])
@@ -155,9 +148,9 @@ class TestSortChitchatDialogs:
         assert narrative not in result
         assert c1 in result
 
-    def test_returns_all_chitchat_when_no_theme_filter(self):
-        c1 = make_chitchat("c1", theme="food")
-        c2 = make_chitchat("c2", theme="travel")
+    def test_returns_all_chitchat_dialogs(self):
+        c1 = make_chitchat("c1", topics=["food"])
+        c2 = make_chitchat("c2", topics=["travel"])
         result = DialogLogic.sort_chitchat_dialogs([c1, c2])
         assert len(result) == 2
 

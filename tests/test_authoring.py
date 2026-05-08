@@ -33,7 +33,6 @@ NARRATIVE_DOC = {
 CHITCHAT_DOC = {
     "id": "cats_chat",
     "type": "chitchat",
-    "theme": "animals",
     "topics": ["cats", "dogs"],
 }
 LLM_DOC = {
@@ -149,9 +148,7 @@ class TestDialogSpecParsing:
         assert spec.topics == ["cats", "dogs"]
 
     def test_chitchat_spec_topics_default_empty(self):
-        spec = ChitchatDialogSpec.model_validate(
-            {"id": "c1", "type": "chitchat", "theme": "general"}
-        )
+        spec = ChitchatDialogSpec.model_validate({"id": "c1", "type": "chitchat"})
         assert spec.topics == []
 
     def test_llm_spec_defaults(self):

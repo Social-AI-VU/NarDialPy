@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": "profile_greeting",
     "type": "functional",
@@ -55,7 +55,6 @@
   {
     "id": "lifestyle_interests",
     "type": "chitchat",
-    "theme": "hobbies",
     "topics": ["hobbies", "leisure", "activities", "outdoors", "indoors"],
     "dependencies": ["profile_greeting"],
     "variable_dependencies": [{ "variable": "lifestyle", "required": true }],

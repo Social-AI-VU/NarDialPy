@@ -382,13 +382,12 @@ class TestNarrativeDialog:
 
 
 class TestChitchatDialog:
-    def test_stores_theme_and_topics(self):
-        d = ChitchatDialog("c1", [], theme="animals", topics=["cats", "dogs"])
-        assert d.theme == "animals"
+    def test_stores_topics(self):
+        d = ChitchatDialog("c1", [], topics=["cats", "dogs"])
         assert d.topics == ["cats", "dogs"]
 
     def test_topics_default_to_empty_list(self):
-        d = ChitchatDialog("c1", [], theme="general")
+        d = ChitchatDialog("c1", [])
         assert d.topics == []
 
 

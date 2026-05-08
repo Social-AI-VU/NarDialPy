@@ -397,11 +397,21 @@ class FunctionalType(Enum):
 
 
 class FunctionalDialog(MiniDialog):
+    # Indexed by the string value of functional_type (e.g. "greeting", "farewell").
+    INDEX_ATTRS: List[str] = ["functional_type"]
+    DEFAULT_ELIGIBILITY: list = []
+    dialog_type: DialogType = DialogType.FUNCTIONAL
+
     def __init__(self, dialog_id, moves, type, dependencies=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         # Coerce string values to the enum so comparisons work regardless of the caller's source.
         self.type = FunctionalType(type) if isinstance(type, str) else type
+
+    @property
+    def functional_type(self) -> str:
+        """String value of the functional type, used as the registry index key."""
+        return self.type.value
 
     def is_greeting_dialog(self):
         return self.type == FunctionalType.GREETING
@@ -411,6 +421,10 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
+    INDEX_ATTRS: List[str] = ["thread"]
+    DEFAULT_ELIGIBILITY: list = []
+    dialog_type: DialogType = DialogType.NARRATIVE
+
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
@@ -419,10 +433,15 @@ class NarrativeDialog(MiniDialog):
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
-        # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
+    # topics is a list — each element is indexed individually so get_by_attr("topics", "pizza")
+    # returns all ChitchatDialogs whose topics list contains "pizza".
+    INDEX_ATTRS: List[str] = ["topics"]
+    DEFAULT_ELIGIBILITY: list = []
+    dialog_type: DialogType = DialogType.CHITCHAT
+
+    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None):
+        # Chitchat dialogs are short interactions labelled by topics for interest-based matching.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
-        self.theme = theme
         self.topics = topics or []
 
 
@@ -437,6 +456,10 @@ class LLMDialog(BaseDialog):
     The ``moves`` attribute is kept (always ``[]``) for serialisation
     round-trip compatibility with the authoring layer.
     """
+
+    INDEX_ATTRS: List[str] = []
+    DEFAULT_ELIGIBILITY: list = []
+    dialog_type: DialogType = DialogType.LLM_BASED
 
     def __init__(self, dialog_id, moves=None, prompt=None, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None,

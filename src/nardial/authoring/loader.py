@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Tuple
 
 from nardial.authoring.factory import from_json, to_json
 from nardial.mini_dialogs import MiniDialog
+
+logger = logging.getLogger(__name__)
 
 
 def _load_json_file(path: str) -> List[Dict[str, Any]]:
@@ -45,6 +48,51 @@ def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
         errors.append(str(e))
 
     return dialogs, errors
+
+
+def load_dialog_registry(path_or_dir: str):
+    """Load all dialogs and return a ``DialogRegistry`` keyed for fast lookup.
+
+    This is the primary production entry point for loading dialogs.  Each JSON
+    file is isolated: a parse or validation error logs the file path and skips
+    that file rather than aborting the entire load.
+
+    Parameters
+    ----------
+    path_or_dir : str
+        Path to a single JSON file or a directory of ``.json`` files.
+
+    Returns
+    -------
+    DialogRegistry
+        Indexed pool of all successfully loaded dialogs.
+    """
+    # Import here to avoid a circular dependency at module load time.
+    from nardial.dialog_registry import DialogRegistry
+
+    dialogs: List[MiniDialog] = []
+
+    try:
+        if os.path.isdir(path_or_dir):
+            for fn in sorted(os.listdir(path_or_dir)):
+                if not fn.lower().endswith(".json"):
+                    continue
+                p = os.path.join(path_or_dir, fn)
+                try:
+                    for doc in _load_json_file(p):
+                        dialogs.append(from_json(doc))
+                except Exception as exc:
+                    logger.error("Skipping %s — failed to load: %s", p, exc)
+        else:
+            for doc in _load_json_file(path_or_dir):
+                try:
+                    dialogs.append(from_json(doc))
+                except Exception as exc:
+                    logger.error("Skipping entry in %s — failed to load: %s", path_or_dir, exc)
+    except Exception as exc:
+        logger.error("Failed to read %s: %s", path_or_dir, exc)
+
+    return DialogRegistry.build(dialogs)
 
 
 def dialog_to_doc(d: MiniDialog) -> Dict[str, Any]:

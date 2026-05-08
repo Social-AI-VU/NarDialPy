@@ -317,58 +317,55 @@ class MiniDialog(BaseDialog):
             self._agent.say(llm_text)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
-    def handle_move_say(self, move: MoveSay) -> None:
-        text = move.text
+    def _substitute_variables(self, text: str) -> str:
+        """Replace %variable% placeholders in text with values from the current user model."""
         for var, value in self._context.user_model.items():
             text = text.replace(f"%{var}%", str(value))
+        return text
+
+    def handle_move_say(self, move: MoveSay) -> None:
+        text = self._substitute_variables(move.text)
         self._agent.say(text)
         self._record_robot(MOVE_SAY, text)
 
-    def handle_move_ask_yesno(self, move: MoveAskYesNo) -> None:
-        """Ask a yes/no question, record the answer, handle side-effects, and resolve the outcome."""
-        answer = self._agent.ask_yesno(move.text)
-        self._record_robot(MOVE_ASK_YESNO, move.text)
-        self._record_user(MOVE_ANSWER_YESNO, answer)
+    def _finalize_ask(self, move, answer: str | None) -> None:
+        """Shared tail for all ask-move handlers: variable storage, interests, LLM followup, and outcome resolution.
+
+        _store_interests is safe to call for every ask type — it uses getattr with safe defaults
+        and is a no-op on move types that lack add_interest_from_answer / add_interest_from_variable.
+        """
         logger.debug("User answered: %s", answer)
-
         self._store_set_variable(move, answer)
-        if answer == "yes" and move.add_interest:
-            self.add_interest(self._context.topics_of_interest, move.add_interest)
-
+        self._store_interests(move, answer)
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
-
         self._resolve_outcome(move, answer)
+
+    def handle_move_ask_yesno(self, move: MoveAskYesNo) -> None:
+        """Ask a yes/no question, record the answer, handle side-effects, and resolve the outcome."""
+        text = self._substitute_variables(move.text)
+        answer = self._agent.ask_yesno(text)
+        self._record_robot(MOVE_ASK_YESNO, text)
+        self._record_user(MOVE_ANSWER_YESNO, answer)
+        if answer == "yes" and move.add_interest:
+            self.add_interest(self._context.topics_of_interest, move.add_interest)
+        self._finalize_ask(move, answer)
 
     def handle_move_ask_open(self, move: MoveAskOpen) -> None:
         """Ask an open-ended question, record the answer, handle side-effects, and resolve the outcome."""
-        answer = self._agent.ask_open(move.text)
-        self._record_robot(MOVE_ASK_OPEN, move.text)
+        text = self._substitute_variables(move.text)
+        answer = self._agent.ask_open(text)
+        self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
-        logger.debug("User answered: %s", answer)
-
-        self._store_set_variable(move, answer)
-        self._store_interests(move, answer)
-
-        if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
-
-        self._resolve_outcome(move, answer)
+        self._finalize_ask(move, answer)
 
     def handle_move_ask_options(self, move: MoveAskOptions) -> None:
         """Ask a multiple-choice question, record the answer, handle side-effects, and resolve the outcome."""
-        answer = self._agent.ask_options(move.text, move.options)
-        self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
+        text = self._substitute_variables(move.text)
+        answer = self._agent.ask_options(text, move.options)
+        self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
-        logger.debug("User answered: %s", answer)
-
-        self._store_set_variable(move, answer)
-        self._store_interests(move, answer)
-
-        if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
-
-        self._resolve_outcome(move, answer)
+        self._finalize_ask(move, answer)
 
     def handle_move_play_audio(self, move: MovePlayAudio) -> None:
         self._agent.play_audio(move.audio)

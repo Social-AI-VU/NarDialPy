@@ -1,4 +1,7 @@
-from nardial.providers.nlu import NLUProvider, NLUResult
+from nardial.providers.nlu import (
+    NLUProvider, NLUResult,
+    INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
+)
 
 _YES = {"yes", "ja", "yep", "yeah", "yup", "correct", "right"}
 _NO = {"no", "nee", "nope", "nah", "wrong"}
@@ -26,10 +29,10 @@ class WrittenKeywordNLUProvider(NLUProvider):
     def _match_intent(text: str) -> str | None:
         for phrase in _DONTKNOW:
             if phrase in text:
-                return "yesno_dontknow"
+                return INTENT_YESNO_DONTKNOW
         words = set(text.split())
         if words & _YES:
-            return "yesno_yes"
+            return INTENT_YESNO_YES
         if words & _NO:
-            return "yesno_no"
+            return INTENT_YESNO_NO
         return None

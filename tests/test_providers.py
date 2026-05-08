@@ -3,7 +3,10 @@ import pytest
 
 from nardial.providers.tts import TTSProvider
 from nardial.providers.tts.null import NullTTSProvider
-from nardial.providers.nlu import NLUProvider, NLUResult
+from nardial.providers.nlu import (
+    NLUProvider, NLUResult,
+    INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
+)
 from nardial.providers.nlu.written_keyword import WrittenKeywordNLUProvider
 from nardial.providers.llm import LLMProvider, Message
 from nardial.providers.llm.echo import EchoLLMProvider
@@ -107,16 +110,16 @@ def test_echo_llm_ignores_system_prompt():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("text,expected_intent", [
-    ("yes", "yesno_yes"),
-    ("yeah sure", "yesno_yes"),
-    ("yep", "yesno_yes"),
-    ("no", "yesno_no"),
-    ("nope", "yesno_no"),
-    ("i don't know", "yesno_dontknow"),
-    ("not sure", "yesno_dontknow"),
-    ("idk", "yesno_dontknow"),
-    ("I love pizza", None),
-    ("", None),
+    ("yes",           INTENT_YESNO_YES),
+    ("yeah sure",     INTENT_YESNO_YES),
+    ("yep",           INTENT_YESNO_YES),
+    ("no",            INTENT_YESNO_NO),
+    ("nope",          INTENT_YESNO_NO),
+    ("i don't know",  INTENT_YESNO_DONTKNOW),
+    ("not sure",      INTENT_YESNO_DONTKNOW),
+    ("idk",           INTENT_YESNO_DONTKNOW),
+    ("I love pizza",  None),
+    ("",              None),
 ])
 def test_written_keyword_intent_mapping(text, expected_intent):
     nlu = WrittenKeywordNLUProvider()
@@ -135,8 +138,8 @@ def test_nlu_result_defaults():
 
 
 def test_nlu_result_with_intent():
-    result = NLUResult(transcript="yes", intent="yesno_yes", confidence=0.95)
-    assert result.intent == "yesno_yes"
+    result = NLUResult(transcript="yes", intent=INTENT_YESNO_YES, confidence=0.95)
+    assert result.intent == INTENT_YESNO_YES
     assert result.confidence == 0.95
 
 

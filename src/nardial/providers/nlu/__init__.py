@@ -1,6 +1,12 @@
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
+# Intent name constants shared by all NLU providers and ConversationAgent.
+# Centralised here so a rename only touches one place.
+INTENT_YESNO_YES      = "yesno_yes"
+INTENT_YESNO_NO       = "yesno_no"
+INTENT_YESNO_DONTKNOW = "yesno_dontknow"
+
 
 @dataclass
 class NLUResult:
@@ -12,3 +18,12 @@ class NLUResult:
 @runtime_checkable
 class NLUProvider(Protocol):
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult: ...
+
+
+__all__ = [
+    "INTENT_YESNO_YES",
+    "INTENT_YESNO_NO",
+    "INTENT_YESNO_DONTKNOW",
+    "NLUResult",
+    "NLUProvider",
+]

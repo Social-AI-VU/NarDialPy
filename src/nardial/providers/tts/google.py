@@ -16,7 +16,7 @@ class GoogleTTSConf:
         google_tts_voice_name (str): Voice name identifier.
         google_tts_voice_gender (str): Voice gender (e.g., 'MALE', 'FEMALE').
     """
-    def __init__(self, speaking_rate=1.0, google_tts_voice_name="nl-NL-Standard-D", google_tts_voice_gender="FEMALE"):
+    def __init__(self, speaking_rate=1.0, google_tts_voice_name="en-US-Neural2-C", google_tts_voice_gender="FEMALE"):
         self.speaking_rate = speaking_rate
         self.google_tts_voice_name = google_tts_voice_name
         self.google_tts_voice_gender = google_tts_voice_gender

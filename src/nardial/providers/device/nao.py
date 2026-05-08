@@ -76,7 +76,7 @@ class NaoAdapter:
     def setup(self, logger: Any) -> None:
         self._speaker = self._device.speaker
         self._logger = logger
-        self._logger("Device is NAO")
+        self._logger.info("Device is NAO")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

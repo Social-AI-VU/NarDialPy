@@ -3,7 +3,10 @@ import re
 
 from nardial.providers.device import DeviceAdapter
 from nardial.providers.tts import TTSProvider
-from nardial.providers.nlu import NLUProvider
+from nardial.providers.nlu import (
+    NLUProvider,
+    INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
+)
 from nardial.providers.llm import LLMProvider
 from nardial.providers.vector_store import VectorStoreProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
@@ -118,11 +121,11 @@ class ConversationAgent:
             result = self.orchestrator.listen()
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
-                if result.intent == "yesno_yes":
+                if result.intent == INTENT_YESNO_YES:
                     return "yes"
-                elif result.intent == "yesno_no":
+                elif result.intent == INTENT_YESNO_NO:
                     return "no"
-                elif result.intent == "yesno_dontknow":
+                elif result.intent == INTENT_YESNO_DONTKNOW:
                     return "dontknow"
             attempts += 1
         return None

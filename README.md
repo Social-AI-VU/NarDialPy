@@ -710,6 +710,12 @@ docker run -d --name redis-stack \
   redis/redis-stack:latest
 ```
 
+Then start the SIC datastore service (in a separate terminal):
+
+```bash
+run-datastore-redis
+```
+
 Then run the Redis integration tests:
 
 ```bash
@@ -721,7 +727,7 @@ python -m pytest tests/integration/test_user_model_redis.py --integration -v
 | `test_session_persistence.py` | Nothing (filesystem only) |
 | `test_full_session.py` | Nothing (filesystem only) |
 | `test_branch_session.py` | Nothing (filesystem only) |
-| `test_user_model_redis.py` | Redis Stack on `127.0.0.1:6379` |
+| `test_user_model_redis.py` | Redis Stack on `127.0.0.1:6379` + `run-datastore-redis` |
 | `test_llm_echo.py` | SIC LLM service |
 | `test_nlu_written_keyword.py` | SIC NLU service |
 

@@ -1,13 +1,16 @@
 import json
+import logging
 import os
-
-import numpy as np
+import random
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
 from nardial.dialog_logic import DialogLogic
+from nardial.mini_dialogs import RunContext
 
 from nardial.authoring import load_dialogs
+
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -44,14 +47,14 @@ class SessionManager:
         try:
             dialogs, errors = load_dialogs(path)
             if errors:
-                print("[ERROR] Failed to fully load dialogs:", errors)
+                logger.error("Failed to fully load dialogs: %s", errors)
                 return []
             if dialogs:
-                print(f"[INFO] Loaded {len(dialogs)} dialogs from {path}")
+                logger.info("Loaded %d dialogs from %s", len(dialogs), path)
                 return dialogs
             return []
         except Exception as e:
-            print(f"[ERROR] Failed to load dialogs: {e}")
+            logger.error("Failed to load dialogs: %s", e)
             return []
 
     def start_session(self):
@@ -62,12 +65,12 @@ class SessionManager:
 
         :return: The created session ID.
         """
-        run_id = os.environ.get("RUN_ID") or f"run_{np.random.randint(1_000_000):06d}"
+        run_id = os.environ.get("RUN_ID") or f"run_{random.randint(0, 999_999):06d}"
         session_id = self.conversation_state.start_session(
             participant_id=self.conversation_state.participant_id,
             run_id=run_id
         )
-        print(f"[INFO] Started session_id={session_id} run_id={run_id}")
+        logger.info("Started session_id=%s run_id=%s", session_id, run_id)
         return session_id
 
     def build_session_block(self):
@@ -80,7 +83,7 @@ class SessionManager:
         :return: List of dialog objects to execute.
         """
         if len(self.session_agenda) == 0:
-            print("[INFO] Session agenda is empty, running all dialogs.")
+            logger.info("Session agenda is empty, running all dialogs.")
             return self.dialogs
 
         dialog_map = {d.dialog_id: d for d in self.dialogs}
@@ -103,7 +106,12 @@ class SessionManager:
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
         """
-        session_history = []
+        context = RunContext(
+            session_history=[],
+            topics_of_interest=self.conversation_state.topics_of_interest,
+            user_model=self.conversation_state.user_model,
+        )
+
         for dialog in self.session_block:
             if not DialogLogic.is_dialog_eligible(
                     dialog,
@@ -111,25 +119,20 @@ class SessionManager:
                     self.conversation_state.user_model,
                     self.dialogs
             ):
-                print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
+                logger.debug("Skipped %s (cannot run now)", dialog.dialog_id)
                 continue
 
             self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
 
-            session_history.append({
+            context.session_history.append({
                 "role": "system",
                 "type": "dialog_start",
                 "dialog_id": dialog.dialog_id
             })
 
-            dialog.run(
-                self.agent,
-                session_history,
-                self.conversation_state.topics_of_interest,
-                self.conversation_state.user_model
-            )
+            dialog.run(self.agent, context)
 
-            session_history.append({
+            context.session_history.append({
                 "role": "system",
                 "type": "dialog_end",
                 "dialog_id": dialog.dialog_id
@@ -137,13 +140,13 @@ class SessionManager:
 
             self.conversation_state.completed_dialogs.append(dialog.dialog_id)
 
-        print(json.dumps(session_history, indent=2))
-        print("Topics of interest:", self.conversation_state.topics_of_interest)
+        logger.debug("Session history:\n%s", json.dumps(context.session_history, indent=2))
+        logger.debug("Topics of interest: %s", context.topics_of_interest)
 
         # Condense topics_of_interest into single-word keywords
-        topics_of_interest = self.condense_topics(self.conversation_state.topics_of_interest)
+        topics_of_interest = self.condense_topics(context.topics_of_interest)
 
-        self.conversation_state.add_events(self.session_id, session_history)
+        self.conversation_state.add_events(self.session_id, context.session_history)
         self.conversation_state.end_session(
             self.session_id,
             completed_ids=self.conversation_state.completed_dialogs,
@@ -162,8 +165,8 @@ class SessionManager:
         :return: Condensed list of topic keywords.
         """
         try:
-            topics_of_interest = self.agent.extract_topics_with_gpt(list(topics_of_interest))
-            print(f"[DEBUG] Condensed topics: {topics_of_interest}")
+            topics_of_interest = self.agent.extract_topics_with_llm(list(topics_of_interest))
+            logger.debug("Condensed topics: %s", topics_of_interest)
         except Exception as e:
-            print(f"[WARN] Topic condensation failed: {e}")
+            logger.warning("Topic condensation failed: %s", e)
         return topics_of_interest

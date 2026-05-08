@@ -1,0 +1,101 @@
+[
+  {
+    "id": "creative_greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "_doc": "Opens with an ask_open that has an llm_followup — the LLM generates a warm, personalised reaction to whatever the user shares. Stores creative_topic for use in later dialogs.",
+    "moves": [
+      { "type": "say", "text": "Hello! I am really looking forward to our conversation today." },
+      { "type": "say", "text": "I love hearing about what people are passionate about." },
+      {
+        "type": "ask_open",
+        "text": "What creative topic or hobby has been on your mind lately?",
+        "set_variable": "creative_topic",
+        "add_interest_from_answer": true,
+        "llm_followup": "Reply in one warm, genuinely curious sentence that reacts to what the user just shared. Sound interested and human — no generic phrases.",
+        "outcomes": { "*": "topic_given" },
+        "default_outcome": "topic_missing"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "topic_given": [
+            { "type": "say", "text": "I cannot wait to explore that with you." }
+          ],
+          "topic_missing": [
+            { "type": "say", "text": "That is okay — let's just see where our conversation takes us!" }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "free_creative_chat",
+    "type": "llm_based",
+    "_doc": "Fully autonomous LLM-driven dialog — the only llm_based type in the demo suite. The agent speaks first, then drives a multi-turn open conversation. Exercises speak_first, max_turns, and quit_phrases.",
+    "prompt": "You are a curious, warm companion having a short conversation with a human about creativity and imagination. Your role is to explore their interests with genuine enthusiasm. Ask open-ended follow-up questions and keep your responses concise — two sentences maximum. Steer naturally toward their creative passions. When the topic feels well explored or the user signals they are done, end the conversation by including the phrase <<QUIT>> at the end of your last message.",
+    "speak_first": true,
+    "max_turns": 4,
+    "quit_phrases": ["that's all", "i'm done", "let's stop", "goodbye"],
+    "moves": []
+  },
+
+  {
+    "id": "story_moment",
+    "type": "chitchat",
+    "theme": "creativity",
+    "topics": ["creativity", "storytelling", "imagination", "making"],
+    "dependencies": ["creative_greeting"],
+    "_doc": "Demonstrates ask_llm within a scripted dialog: the LLM generates a question on the fly, then the robot listens. Followed by ask_open and a branch on outcome.",
+    "moves": [
+      { "type": "say", "text": "I want to try something a little different now." },
+      { "type": "say", "text": "I am going to ask you a question I just came up with on the spot." },
+      {
+        "type": "ask_llm",
+        "prompt": "You are a thoughtful interviewer. Ask the user ONE open-ended question about creativity, imagination, or the experience of making something. One sentence only — make it genuinely interesting.",
+        "max_turns": 1
+      },
+      {
+        "type": "ask_open",
+        "text": "I'd love to hear your honest thoughts.",
+        "set_variable": "story_reflection",
+        "add_interest_from_answer": true,
+        "outcomes": { "*": "reflection_given" },
+        "default_outcome": "reflection_missing"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "reflection_given": [
+            { "type": "say", "text": "That is a really meaningful perspective — thank you for sharing it." },
+            { "type": "say", "text": "I find that kind of reflection genuinely inspiring." }
+          ],
+          "reflection_missing": [
+            { "type": "say", "text": "No worries at all. Sometimes thoughts take time to form." }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "creative_goodbye",
+    "type": "functional",
+    "functional_type": "farewell",
+    "dependencies": ["creative_greeting"],
+    "_doc": "Uses ask_llm to generate a personalised piece of creative advice and invite a final response, then closes with a fixed farewell. Demonstrates ask_llm in a farewell context.",
+    "moves": [
+      { "type": "say", "text": "Before we say goodbye, I want to leave you with something." },
+      {
+        "type": "ask_llm",
+        "prompt": "Give the user one short, inspiring piece of creative advice — something that feels personal and actionable. Then ask if they feel ready to go and explore it. Keep the whole thing warm and encouraging. Two sentences maximum.",
+        "max_turns": 1,
+        "set_variable": "creative_advice_response"
+      },
+      { "type": "say", "text": "It was truly wonderful talking with you about %creative_topic%. Until next time — goodbye!" }
+    ]
+  }
+]

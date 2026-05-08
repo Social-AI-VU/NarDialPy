@@ -10,12 +10,13 @@ It lets you author complete conversations declaratively in JSON, then drive them
 
 1. [What is nardial?](#what-is-nardial)
 2. [Prerequisites & Setup](#prerequisites--setup)
-3. [Defining Dialogs in JSON](#defining-dialogs-in-json)
+3. [Providers & Initialization](#providers--initialization)
+4. [Defining Dialogs in JSON](#defining-dialogs-in-json)
    - [Dialog Structure](#dialog-structure)
    - [Dialog Types](#dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
-4. [Demos / Creating a Session](#demos--creating-a-session)
+5. [Demos / Creating a Session](#demos--creating-a-session)
 6. [Development](#development)
 
 ---
@@ -66,20 +67,30 @@ python -m venv venv_myproject
 source venv_myproject/bin/activate
 ```
 
-### 4. Install Social Interaction Cloud (SIC)
-
-NarDialPy relies on `social-interaction-cloud` for Speech-to-Text, Text-to-Speech, NLU, and Redis-based communication.
-
-```bash
-pip install social-interaction-cloud
-pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt,alphamini]
-```
-
 ### 4. Install NarDial
+
+Install the core package, then add extras for each service you intend to use:
 
 ```bash
 pip install nardial
 ```
+
+| Extra | Enables | Install command |
+|---|---|---|
+| `google-tts` | Google Cloud Text-to-Speech | `pip install "nardial[google-tts]"` |
+| `elevenlabs` | ElevenLabs Text-to-Speech | `pip install "nardial[elevenlabs]"` |
+| `dialogflow` | Google Dialogflow NLU | `pip install "nardial[dialogflow]"` |
+| `openai` | OpenAI GPT | `pip install "nardial[openai]"` |
+| `all` | All of the above | `pip install "nardial[all]"` |
+| `dev` | Development tools (pytest) | `pip install "nardial[dev]"` |
+
+For robot devices, install the matching SIC device extra directly:
+
+```bash
+pip install "social-interaction-cloud[alphamini]"   # Alphamini
+```
+
+Pepper and NAO are included in the base SIC package.
 
 
 ### 5. Configure Credentials
@@ -108,6 +119,138 @@ redis-server conf/redis/redis.conf
 run-dialogflow
 run-google-tts
 run-gpt
+```
+
+---
+
+## Providers & Initialization
+
+NarDialPy is built around a set of provider protocols. Each protocol defines a role (device, TTS, NLU, LLM, vector store) and multiple concrete implementations are available. You pick one implementation per role, instantiate it, and pass everything into `ConversationAgent` or `SessionManager`.
+
+### Available Providers
+
+| Role | Provider | Import path | Requires |
+|---|---|---|---|
+| **Device** | `DesktopAdapter` | `nardial.providers.device.desktop` | base |
+| | `PepperAdapter` | `nardial.providers.device.pepper` | base |
+| | `NaoAdapter` | `nardial.providers.device.nao` | base |
+| | `AlphaminiAdapter` | `nardial.providers.device.alphamini` | `social-interaction-cloud[alphamini]` |
+| **TTS** | `GoogleTTSProvider` | `nardial.providers.tts.google` | `nardial[google-tts]` |
+| | `ElevenLabsTTSProvider` | `nardial.providers.tts.elevenlabs` | `nardial[elevenlabs]` |
+| | `NaoqiTTSProvider` | `nardial.providers.tts.naoqi` | base (uses device's built-in TTS) |
+| | `NullTTSProvider` | `nardial.providers.tts.null` | base (prints to terminal) |
+| **NLU** | `DialogflowNLUProvider` | `nardial.providers.nlu.dialogflow` | `nardial[dialogflow]` |
+| | `WrittenKeywordNLUProvider` | `nardial.providers.nlu.written_keyword` | base (keyboard input) |
+| **LLM** | `OpenAIGPTProvider` | `nardial.providers.llm.openai_gpt` | `nardial[openai]` |
+| | `EchoLLMProvider` | `nardial.providers.llm.echo` | base (echoes user input) |
+| **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
+| | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
+
+---
+
+### Minimal setup (no external services)
+
+Good for local development and testing — all I/O goes through the terminal:
+
+```python
+import logging
+from sic_framework.devices.desktop import Desktop
+
+from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.null import NullTTSProvider
+from nardial.providers.nlu.written_keyword import WrittenKeywordNLUProvider
+from nardial.conversation_agent import ConversationAgent
+
+desktop = Desktop()
+device = DesktopAdapter(desktop)
+device.setup(logger=logging.getLogger())
+
+agent = ConversationAgent(
+    device=device,
+    tts_provider=NullTTSProvider(),
+    nlu_provider=WrittenKeywordNLUProvider(),
+)
+```
+
+---
+
+### Desktop with cloud services
+
+```python
+import json, logging
+from sic_framework.devices.desktop import Desktop
+from sic_framework.services.dialogflow.dialogflow import DialogflowConf
+
+from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.google import GoogleTTSProvider, GoogleTTSConf
+from nardial.providers.tts.cacher import TTSCacher
+from nardial.providers.nlu.dialogflow import DialogflowNLUProvider
+from nardial.providers.llm.openai_gpt import OpenAIGPTProvider
+from nardial.conversation_agent import ConversationAgent
+
+desktop = Desktop()
+device = DesktopAdapter(desktop)
+device.setup(logger=logging.getLogger())
+
+tts = GoogleTTSProvider(
+    conf=GoogleTTSConf(speaking_rate=0.9, google_tts_voice_name="en-US-Neural2-F"),
+    device=device,
+    keyfile_path="conf/google/google_keyfile.json",
+    tts_cacher=TTSCacher(tts_cache_dir="tts_cache"),
+)
+
+nlu = DialogflowNLUProvider(
+    conf=DialogflowConf(keyfile_json=json.load(open("conf/google/google_keyfile.json"))),
+    mic=desktop.mic,
+)
+
+llm = OpenAIGPTProvider(api_key="<YOUR_OPENAI_KEY>")
+
+agent = ConversationAgent(
+    device=device,
+    tts_provider=tts,
+    nlu_provider=nlu,
+    llm_provider=llm,
+)
+```
+
+---
+
+### Pepper robot
+
+Swap the device adapter and TTS provider — everything else stays the same:
+
+```python
+import logging
+from sic_framework.devices import Pepper
+
+from nardial.providers.device.pepper import PepperAdapter
+from nardial.providers.tts.naoqi import NaoqiTTSProvider
+
+pepper = Pepper(ip="<PEPPER_IP>")
+device = PepperAdapter(pepper)
+device.setup(logger=logging.getLogger())
+
+tts = NaoqiTTSProvider(device=device, language="en")
+```
+
+Then pass `device` and `tts` to `ConversationAgent` as above.
+
+---
+
+### Using SessionManager
+
+`SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state:
+
+```python
+from nardial.session_manager import SessionManager
+
+manager = SessionManager(
+    agent=agent,
+    dialog_file="dialogs/my_dialogs.json",
+    participant_id="user_42",
+)
+manager.run()
 ```
 
 ---
@@ -525,10 +668,112 @@ You can find additional demos in the [SIC Applications repository](https://githu
 
 ## Development
 
-Run tests from the repository root:
+Install the dev extra to get the test dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
+### Unit tests
+
+Run all unit tests from the repository root:
 
 ```bash
 python -m pytest -q
 ```
+
+Run a single file or class:
+
+```bash
+python -m pytest tests/test_moves.py -q
+python -m pytest tests/test_moves.py::TestSay
+```
+
+### Integration tests
+
+Integration tests are opt-in and skipped by default. Pass `--integration` to enable them:
+
+```bash
+python -m pytest tests/integration --integration -v
+```
+
+Most integration tests only require the filesystem. The Redis tests need a running **Redis Stack** instance (plain Redis is not sufficient — Redis Stack adds the vector search module required by SIC).
+
+The easiest way to run Redis Stack is via Docker:
+
+```bash
+docker run -d --name redis-stack \
+  -p 6379:6379 \
+  -p 8001:8001 \
+  -e REDIS_ARGS="--requirepass changemeplease" \
+  -v redis-stack-data:/data \
+  redis/redis-stack:latest
+```
+
+Then start the SIC datastore service (in a separate terminal):
+
+```bash
+run-datastore-redis
+```
+
+Then run the Redis integration tests:
+
+```bash
+python -m pytest tests/integration/test_user_model_redis.py --integration -v
+```
+
+| Test file | Requires |
+|---|---|
+| `test_session_persistence.py` | Nothing (filesystem only) |
+| `test_full_session.py` | Nothing (filesystem only) |
+| `test_branch_session.py` | Nothing (filesystem only) |
+| `test_user_model_redis.py` | Redis Stack on `127.0.0.1:6379` + `run-datastore-redis` |
+| `test_llm_echo.py` | SIC LLM service |
+| `test_nlu_written_keyword.py` | SIC NLU service |
+
+---
+
+### For framework developers
+
+The sections below explain how to extend NarDialPy without breaking existing behaviour.
+
+#### Adding a new move type
+
+1. **`src/nardial/moves.py`** — Define a new Pydantic model that extends `Move`. Set `type: Literal["your_type"]` and declare its fields. Add the new class to the `AnyMove` discriminated union at the bottom of the file. Export the `MOVE_YOUR_TYPE` string constant.
+
+2. **`src/nardial/authoring/schemas.py`** — If the move needs its own authoring-schema representation, add it there; otherwise the same Pydantic class serves both layers. Ensure `AnyMove` in `schemas.py` includes the new type.
+
+3. **`src/nardial/mini_dialogs.py`** — Add a handler method `handle_move_your_type(self, move: MoveYourType) -> None` to `MiniDialog`. Register it in the `_MOVE_HANDLERS` class-level dict:
+   ```python
+   _MOVE_HANDLERS: Dict[str, str] = {
+       ...
+       MOVE_YOUR_TYPE: "handle_move_your_type",
+   }
+   ```
+   No other changes to `_dispatch_move` are needed.
+
+4. **`tests/test_moves.py`** — Add validation tests for the new Pydantic model.
+
+5. **`tests/test_mini_dialogs_extra.py`** (or a new file) — Add a handler test that creates a `MiniDialog`, sets `_agent` and `_context`, calls `handle_move_your_type()`, and asserts the expected side-effects.
+
+#### Adding a new dialog type
+
+1. **`src/nardial/base_dialog.py`** — Subclass `BaseDialog` and implement `run(self, agent, context)`. The base class provides `dialog_id`, `dependencies`, and `variable_dependencies` for free.
+
+2. **`src/nardial/authoring/schemas.py`** — Add a new `*DialogSpec` Pydantic model and include it in the `AnyDialogSpec` discriminated union. Set a unique `type` literal that matches the JSON `"type"` field.
+
+3. **`src/nardial/authoring/factory.py`** — Add an `isinstance` branch in `_spec_to_dialog()` (spec → runtime object) and in `_dialog_to_spec()` (runtime object → spec) for the new type.
+
+4. **`tests/test_authoring.py`** — Add round-trip tests: construct the spec from a dict, assert the right runtime type is returned, call `to_json()` and verify the output matches the input.
+
+#### Adding a new provider
+
+1. Create a concrete class in `src/nardial/providers/<category>/your_impl.py` that implements the category's base class/protocol (e.g., `LLMProvider`, `TTSProvider`).
+
+2. Re-export it from `src/nardial/providers/__init__.py`.
+
+3. Inject it into `InteractionOrchestrator` via the relevant constructor argument. No other wiring is needed — dialogs talk through `ConversationAgent`, which delegates to the orchestrator.
+
+4. Add a test in `tests/test_providers.py` that exercises the contract methods against your implementation (using mocked I/O where necessary).
 
 ---

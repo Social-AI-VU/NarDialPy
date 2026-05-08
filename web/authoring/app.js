@@ -184,7 +184,7 @@ function collectMoves() {
     const addi = get('.mv-addinterest').value.trim();
     if (addi) mv.add_interest = addi;
     if (get('.mv-add-from-answer').checked) mv.add_interest_from_answer = true;
-    if (get('.mv-add-from-var').checked) mv.add_interest_from_variable = true;
+    if (get('.mv-add-from-var').checked && setv) mv.add_interest_from_variable = setv;
     const nextRaw = get('.mv-next').value.trim();
     if (nextRaw) {
       try { mv.next = JSON.parse(nextRaw); } catch (e) { alert('Invalid JSON in move.next'); throw e; }

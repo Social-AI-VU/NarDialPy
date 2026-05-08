@@ -184,7 +184,7 @@
         "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
         "options": ["sea", "forest", "mountains", "beach"],
         "set_variable": "favorite_nature_place",
-        "add_interest_from_variable": true,
+        "add_interest_from_variable": "favorite_nature_place",
         "outcomes": { "sea": "sea", "forest": "forest", "mountains": "mountains", "beach": "beach" },
         "default_outcome": "fail_place"
       },

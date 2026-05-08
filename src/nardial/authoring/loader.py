@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any, Dict, List, Tuple
 
-from nardial.authoring.factory import DialogFactory
+from nardial.authoring.factory import from_json, to_json
 from nardial.mini_dialogs import MiniDialog
 
 
@@ -32,13 +32,13 @@ def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
                 p = os.path.join(path_or_dir, fn)
                 try:
                     for doc in _load_json_file(p):
-                        dialogs.append(DialogFactory.from_json(doc))
+                        dialogs.append(from_json(doc))
                 except Exception as e:
                     errors.append(f"{p}: {e}")
         else:
             for doc in _load_json_file(path_or_dir):
                 try:
-                    dialogs.append(DialogFactory.from_json(doc))
+                    dialogs.append(from_json(doc))
                 except Exception as e:
                     errors.append(f"{path_or_dir}: {e}")
     except Exception as e:
@@ -49,7 +49,7 @@ def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
 
 def dialog_to_doc(d: MiniDialog) -> Dict[str, Any]:
     """Serialize a dialog object back to a JSON-ready dict (round-trip)."""
-    return DialogFactory.to_json(d)
+    return to_json(d)
 
 
 def save_dialogs(path: str, dialogs: List[MiniDialog]) -> None:

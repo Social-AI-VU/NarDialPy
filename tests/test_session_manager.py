@@ -21,6 +21,13 @@ SIMPLE_DIALOGS = [
         "functional_type": "farewell",
         "moves": [{"type": "say", "text": "Goodbye!"}],
     },
+    {
+        "id": "chapter_1",
+        "type": "narrative",
+        "thread": "main",
+        "position": 1,
+        "moves": [{"type": "say", "text": "Chapter 1."}],
+    },
 ]
 
 
@@ -62,7 +69,7 @@ def session_manager(dialogs_file, mock_agent):
 class TestLoadDialogsFromJson:
     def test_loads_all_dialogs_from_valid_file(self, dialogs_file):
         result = SessionManager.load_dialogs_from_json(dialogs_file)
-        assert len(result) == 2
+        assert len(result) == 3
 
     def test_returns_empty_list_for_missing_file(self, tmp_path):
         result = SessionManager.load_dialogs_from_json(str(tmp_path / "missing.json"))
@@ -135,16 +142,27 @@ class TestRun:
         sm.run()
         assert "greeting" in sm.conversation_state.completed_dialogs
 
-    def test_run_skips_already_completed_dialog(self, dialogs_file, mock_agent):
+    def test_run_skips_already_completed_narrative_dialog(self, dialogs_file, mock_agent):
+        sm = SessionManager(
+            session_agenda=["chapter_1"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+        )
+        # NarrativeDialog has ExcludeIfSeenRule — it must not run when completed.
+        sm.conversation_state.completed_dialogs.append("chapter_1")
+        sm.run()
+        mock_agent.say.assert_not_called()
+
+    def test_functional_dialog_runs_even_when_previously_completed(self, dialogs_file, mock_agent):
         sm = SessionManager(
             session_agenda=["greeting"],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
-        # Mark greeting as done before running
+        # FunctionalDialog has no ExcludeIfSeenRule — greetings re-run each session.
         sm.conversation_state.completed_dialogs.append("greeting")
         sm.run()
-        mock_agent.say.assert_not_called()
+        mock_agent.say.assert_called_with("Hello!")
 
     def test_run_executes_dialogs_in_agenda_order(self, dialogs_file, mock_agent):
         sm = SessionManager(

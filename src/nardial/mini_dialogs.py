@@ -5,6 +5,13 @@ from dataclasses import dataclass, field
 from time import monotonic
 
 from nardial.base_dialog import BaseDialog
+from nardial.agenda.rules import (
+    DepsMetRule,
+    EligibilityPolicy,
+    ExcludeIfSeenRule,
+    NarrativeOrderingRule,
+    VariableDepsMetRule,
+)
 
 from nardial.moves import (
     AnyMove,
@@ -168,6 +175,9 @@ def _run_llm_exchange(agent: Any, context: "RunContext", prompt: str, max_turns:
 
 
 class MiniDialog(BaseDialog):
+    # Fallback policy for direct MiniDialog instantiation (e.g. in tests).
+    DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
+
     # Registry mapping move type string → handler method name.
     # To add a new move type: implement handle_move_<name> and add one entry here.
     _MOVE_HANDLERS: Dict[str, str] = {
@@ -399,7 +409,8 @@ class FunctionalType(Enum):
 class FunctionalDialog(MiniDialog):
     # Indexed by the string value of functional_type (e.g. "greeting", "farewell").
     INDEX_ATTRS: List[str] = ["functional_type"]
-    DEFAULT_ELIGIBILITY: list = []
+    # No ExcludeIfSeenRule — greetings and farewells re-run at the start of every session.
+    DEFAULT_ELIGIBILITY = EligibilityPolicy([DepsMetRule()])
     dialog_type: DialogType = DialogType.FUNCTIONAL
 
     def __init__(self, dialog_id, moves, type, dependencies=None):
@@ -422,7 +433,7 @@ class FunctionalDialog(MiniDialog):
 
 class NarrativeDialog(MiniDialog):
     INDEX_ATTRS: List[str] = ["thread"]
-    DEFAULT_ELIGIBILITY: list = []
+    DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule(), NarrativeOrderingRule()])
     dialog_type: DialogType = DialogType.NARRATIVE
 
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
@@ -436,7 +447,7 @@ class ChitchatDialog(MiniDialog):
     # topics is a list — each element is indexed individually so get_by_attr("topics", "pizza")
     # returns all ChitchatDialogs whose topics list contains "pizza".
     INDEX_ATTRS: List[str] = ["topics"]
-    DEFAULT_ELIGIBILITY: list = []
+    DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
     dialog_type: DialogType = DialogType.CHITCHAT
 
     def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None):
@@ -458,7 +469,7 @@ class LLMDialog(BaseDialog):
     """
 
     INDEX_ATTRS: List[str] = []
-    DEFAULT_ELIGIBILITY: list = []
+    DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
     dialog_type: DialogType = DialogType.LLM_BASED
 
     def __init__(self, dialog_id, moves=None, prompt=None, max_turns=None, dependencies=None,

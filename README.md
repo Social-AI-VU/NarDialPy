@@ -10,12 +10,13 @@ It lets you author complete conversations declaratively in JSON, then drive them
 
 1. [What is nardial?](#what-is-nardial)
 2. [Prerequisites & Setup](#prerequisites--setup)
-3. [Defining Dialogs in JSON](#defining-dialogs-in-json)
+3. [Providers & Initialization](#providers--initialization)
+4. [Defining Dialogs in JSON](#defining-dialogs-in-json)
    - [Dialog Structure](#dialog-structure)
    - [Dialog Types](#dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
-4. [Demos / Creating a Session](#demos--creating-a-session)
+5. [Demos / Creating a Session](#demos--creating-a-session)
 6. [Development](#development)
 
 ---
@@ -66,20 +67,29 @@ python -m venv venv_myproject
 source venv_myproject/bin/activate
 ```
 
-### 4. Install Social Interaction Cloud (SIC)
-
-NarDialPy relies on `social-interaction-cloud` for Speech-to-Text, Text-to-Speech, NLU, and Redis-based communication.
-
-```bash
-pip install social-interaction-cloud
-pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt,alphamini]
-```
-
 ### 4. Install NarDial
+
+Install the core package, then add extras for each service you intend to use:
 
 ```bash
 pip install nardial
 ```
+
+| Extra | Enables | Install command |
+|---|---|---|
+| `google-tts` | Google Cloud Text-to-Speech | `pip install "nardial[google-tts]"` |
+| `elevenlabs` | ElevenLabs Text-to-Speech | `pip install "nardial[elevenlabs]"` |
+| `dialogflow` | Google Dialogflow NLU | `pip install "nardial[dialogflow]"` |
+| `openai` | OpenAI GPT | `pip install "nardial[openai]"` |
+| `all` | All of the above | `pip install "nardial[all]"` |
+
+For robot devices, install the matching SIC device extra directly:
+
+```bash
+pip install "social-interaction-cloud[alphamini]"   # Alphamini
+```
+
+Pepper and NAO are included in the base SIC package.
 
 
 ### 5. Configure Credentials
@@ -108,6 +118,138 @@ redis-server conf/redis/redis.conf
 run-dialogflow
 run-google-tts
 run-gpt
+```
+
+---
+
+## Providers & Initialization
+
+NarDialPy is built around a set of provider protocols. Each protocol defines a role (device, TTS, NLU, LLM, vector store) and multiple concrete implementations are available. You pick one implementation per role, instantiate it, and pass everything into `ConversationAgent` or `SessionManager`.
+
+### Available Providers
+
+| Role | Provider | Import path | Requires |
+|---|---|---|---|
+| **Device** | `DesktopAdapter` | `nardial.providers.device.desktop` | base |
+| | `PepperAdapter` | `nardial.providers.device.pepper` | base |
+| | `NaoAdapter` | `nardial.providers.device.nao` | base |
+| | `AlphaminiAdapter` | `nardial.providers.device.alphamini` | `social-interaction-cloud[alphamini]` |
+| **TTS** | `GoogleTTSProvider` | `nardial.providers.tts.google` | `nardial[google-tts]` |
+| | `ElevenLabsTTSProvider` | `nardial.providers.tts.elevenlabs` | `nardial[elevenlabs]` |
+| | `NaoqiTTSProvider` | `nardial.providers.tts.naoqi` | base (uses device's built-in TTS) |
+| | `NullTTSProvider` | `nardial.providers.tts.null` | base (prints to terminal) |
+| **NLU** | `DialogflowNLUProvider` | `nardial.providers.nlu.dialogflow` | `nardial[dialogflow]` |
+| | `WrittenKeywordNLUProvider` | `nardial.providers.nlu.written_keyword` | base (keyboard input) |
+| **LLM** | `OpenAIGPTProvider` | `nardial.providers.llm.openai_gpt` | `nardial[openai]` |
+| | `EchoLLMProvider` | `nardial.providers.llm.echo` | base (echoes user input) |
+| **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
+| | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
+
+---
+
+### Minimal setup (no external services)
+
+Good for local development and testing — all I/O goes through the terminal:
+
+```python
+import logging
+from sic_framework.devices.desktop import Desktop
+
+from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.null import NullTTSProvider
+from nardial.providers.nlu.written_keyword import WrittenKeywordNLUProvider
+from nardial.conversation_agent import ConversationAgent
+
+desktop = Desktop()
+device = DesktopAdapter(desktop)
+device.setup(logger=logging.getLogger())
+
+agent = ConversationAgent(
+    device=device,
+    tts_provider=NullTTSProvider(),
+    nlu_provider=WrittenKeywordNLUProvider(),
+)
+```
+
+---
+
+### Desktop with cloud services
+
+```python
+import json, logging
+from sic_framework.devices.desktop import Desktop
+from sic_framework.services.dialogflow.dialogflow import DialogflowConf
+
+from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.google import GoogleTTSProvider, GoogleTTSConf
+from nardial.providers.tts.cacher import TTSCacher
+from nardial.providers.nlu.dialogflow import DialogflowNLUProvider
+from nardial.providers.llm.openai_gpt import OpenAIGPTProvider
+from nardial.conversation_agent import ConversationAgent
+
+desktop = Desktop()
+device = DesktopAdapter(desktop)
+device.setup(logger=logging.getLogger())
+
+tts = GoogleTTSProvider(
+    conf=GoogleTTSConf(speaking_rate=0.9, google_tts_voice_name="en-US-Neural2-F"),
+    device=device,
+    keyfile_path="conf/google/google_keyfile.json",
+    tts_cacher=TTSCacher(tts_cache_dir="tts_cache"),
+)
+
+nlu = DialogflowNLUProvider(
+    conf=DialogflowConf(keyfile_json=json.load(open("conf/google/google_keyfile.json"))),
+    mic=desktop.mic,
+)
+
+llm = OpenAIGPTProvider(api_key="<YOUR_OPENAI_KEY>")
+
+agent = ConversationAgent(
+    device=device,
+    tts_provider=tts,
+    nlu_provider=nlu,
+    llm_provider=llm,
+)
+```
+
+---
+
+### Pepper robot
+
+Swap the device adapter and TTS provider — everything else stays the same:
+
+```python
+import logging
+from sic_framework.devices import Pepper
+
+from nardial.providers.device.pepper import PepperAdapter
+from nardial.providers.tts.naoqi import NaoqiTTSProvider
+
+pepper = Pepper(ip="<PEPPER_IP>")
+device = PepperAdapter(pepper)
+device.setup(logger=logging.getLogger())
+
+tts = NaoqiTTSProvider(device=device, language="en")
+```
+
+Then pass `device` and `tts` to `ConversationAgent` as above.
+
+---
+
+### Using SessionManager
+
+`SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state:
+
+```python
+from nardial.session_manager import SessionManager
+
+manager = SessionManager(
+    agent=agent,
+    dialog_file="dialogs/my_dialogs.json",
+    participant_id="user_42",
+)
+manager.run()
 ```
 
 ---

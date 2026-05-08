@@ -285,7 +285,7 @@ class MiniDialog:
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
-                          rag_enabled: bool = False, rag_index_name: Optional[str] = None):
+                          rag_enabled: bool = False, index_name: Optional[str] = None):
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -300,8 +300,8 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            reply, _ = agent.orchestrator.listen(timeout=timeout or 10)
-            user_input = reply or ""
+            result = agent.orchestrator.listen(timeout=timeout or 10)
+            user_input = result.transcript or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
         for _ in range(max_turns or MAX_LLM_TURNS):
@@ -313,7 +313,7 @@ class MiniDialog:
                 context_messages=dialog_history,
                 system_prompt=prompt,
                 rag_enabled=rag_enabled,
-                rag_index_name=rag_index_name,
+                index_name=index_name,
             )
             if llm_text is None:
                 continue
@@ -331,9 +331,8 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            user_input, _ = agent.orchestrator.listen(timeout=timeout or 10)
-            if not user_input:
-                user_input = ""
+            result = agent.orchestrator.listen(timeout=timeout or 10)
+            user_input = result.transcript or ""
 
             # Record the exchange using the provided record types
             self._record_robot(MOVE_ASK_LLM, llm_text)
@@ -395,14 +394,14 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, rag_index_name: Optional[str] = None):
+                 rag_enabled: bool = False, index_name: Optional[str] = None):
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first
         self.duration = duration
         self.rag_enabled = rag_enabled
-        self.rag_index_name = rag_index_name
+        self.index_name = index_name
         # Quit phrases (user utterances) and quit signal (LLM-inserted token)
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
@@ -419,5 +418,5 @@ class LLMDialog(MiniDialog):
             speak_first=self.speak_first,
             duration=self.duration,
             rag_enabled=self.rag_enabled,
-            rag_index_name=self.rag_index_name,
+            index_name=self.index_name,
         )

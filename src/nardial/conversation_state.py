@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import re
@@ -48,7 +48,7 @@ class Session:
         self.participant_id = participant_id
         self.run_id = run_id
         self.metadata = metadata or {}
-        self.started_at = started_at or datetime.utcnow().isoformat()
+        self.started_at = started_at or datetime.now(timezone.utc).isoformat()
         self.ended_at = ended_at
         self.events: List[Dict[str, Any]] = events or []
         self.dialog_ids: List[str] = dialog_ids or []
@@ -298,7 +298,7 @@ class ConversationState:
         - Saves transcript to disk
         """
         sess = self._get_session(session_id)
-        sess.ended_at = datetime.utcnow().isoformat()
+        sess.ended_at = datetime.now(timezone.utc).isoformat()
         user_model_snapshot: Dict[str, Any] = {}
         if isinstance(user_model, dict):
             user_model_snapshot = dict(user_model)
@@ -413,7 +413,7 @@ class ConversationState:
                 "total_sessions": len(sessions),
                 "dialog_ids_seen": self._collect_dialog_ids(sessions),
                 "topics_of_interest": self._collect_topics_from_summaries(sessions),
-                "last_updated": datetime.utcnow().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             },
         }
 

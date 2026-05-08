@@ -732,3 +732,48 @@ python -m pytest tests/integration/test_user_model_redis.py --integration -v
 | `test_nlu_written_keyword.py` | SIC NLU service |
 
 ---
+
+### For framework developers
+
+The sections below explain how to extend NarDialPy without breaking existing behaviour.
+
+#### Adding a new move type
+
+1. **`src/nardial/moves.py`** — Define a new Pydantic model that extends `Move`. Set `type: Literal["your_type"]` and declare its fields. Add the new class to the `AnyMove` discriminated union at the bottom of the file. Export the `MOVE_YOUR_TYPE` string constant.
+
+2. **`src/nardial/authoring/schemas.py`** — If the move needs its own authoring-schema representation, add it there; otherwise the same Pydantic class serves both layers. Ensure `AnyMove` in `schemas.py` includes the new type.
+
+3. **`src/nardial/mini_dialogs.py`** — Add a handler method `handle_move_your_type(self, move: MoveYourType) -> None` to `MiniDialog`. Register it in the `_MOVE_HANDLERS` class-level dict:
+   ```python
+   _MOVE_HANDLERS: Dict[str, str] = {
+       ...
+       MOVE_YOUR_TYPE: "handle_move_your_type",
+   }
+   ```
+   No other changes to `_dispatch_move` are needed.
+
+4. **`tests/test_moves.py`** — Add validation tests for the new Pydantic model.
+
+5. **`tests/test_mini_dialogs_extra.py`** (or a new file) — Add a handler test that creates a `MiniDialog`, sets `_agent` and `_context`, calls `handle_move_your_type()`, and asserts the expected side-effects.
+
+#### Adding a new dialog type
+
+1. **`src/nardial/base_dialog.py`** — Subclass `BaseDialog` and implement `run(self, agent, context)`. The base class provides `dialog_id`, `dependencies`, and `variable_dependencies` for free.
+
+2. **`src/nardial/authoring/schemas.py`** — Add a new `*DialogSpec` Pydantic model and include it in the `AnyDialogSpec` discriminated union. Set a unique `type` literal that matches the JSON `"type"` field.
+
+3. **`src/nardial/authoring/factory.py`** — Add an `isinstance` branch in `_spec_to_dialog()` (spec → runtime object) and in `_dialog_to_spec()` (runtime object → spec) for the new type.
+
+4. **`tests/test_authoring.py`** — Add round-trip tests: construct the spec from a dict, assert the right runtime type is returned, call `to_json()` and verify the output matches the input.
+
+#### Adding a new provider
+
+1. Create a concrete class in `src/nardial/providers/<category>/your_impl.py` that implements the category's base class/protocol (e.g., `LLMProvider`, `TTSProvider`).
+
+2. Re-export it from `src/nardial/providers/__init__.py`.
+
+3. Inject it into `InteractionOrchestrator` via the relevant constructor argument. No other wiring is needed — dialogs talk through `ConversationAgent`, which delegates to the orchestrator.
+
+4. Add a test in `tests/test_providers.py` that exercises the contract methods against your implementation (using mocked I/O where necessary).
+
+---

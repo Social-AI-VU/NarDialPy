@@ -1,4 +1,4 @@
-from nardial.mini_dialogs import MiniDialog, LLMDialog, RunContext
+from nardial.mini_dialogs import MiniDialog, LLMDialog, RunContext, _run_llm_exchange
 from nardial.moves import (
     MoveAskLLM,
     MoveAskOpen,
@@ -18,12 +18,9 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["My favorite is 'pizza'", "I like cats"]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
+    _run_llm_exchange(agent, context, prompt="p", max_turns=2, set_variable='favorite')
 
     assert agent.ask_llm.call_count == 2
     assert agent.orchestrator.listen.call_count == 2
@@ -41,12 +38,9 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["stop please"]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
+    _run_llm_exchange(agent, context, prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
     assert agent.ask_llm.call_count == 1
     assert agent.orchestrator.listen.call_count == 1
@@ -57,12 +51,9 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
         ask_llm_side_effect=["finished <<QUIT>>"],
         ask_open_side_effect=[]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
+    _run_llm_exchange(agent, context, prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
 
     assert agent.ask_llm.call_count == 1
     agent.say.assert_called_once()

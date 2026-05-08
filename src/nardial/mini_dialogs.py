@@ -1,8 +1,10 @@
-from typing import List, Optional, cast, Any, Dict
+from typing import List, Optional, Any, Dict
 import re
 import logging
 from dataclasses import dataclass, field
 from time import monotonic
+
+from nardial.base_dialog import BaseDialog
 
 from nardial.moves import (
     AnyMove,
@@ -44,16 +46,149 @@ class DialogType(Enum):
 MAX_LLM_TURNS = 5
 
 
-class MiniDialog:
+def extract_open_value(answer: str) -> str:
+    """General-purpose cleaner for open answers used with set_variable.
+
+    Heuristics (language-agnostic):
+    - If quoted text is present, return the first quoted segment.
+    - Otherwise, return the last alphabetic token (e.g., 'zebra' from
+      'my favorite animal is a zebra').
+    - Fallback to trimmed original answer if nothing matches.
+    """
+    if not answer:
+        return ""
+    text = str(answer).strip()
+    m = re.search(r'["\']([^"\']+)["\']', text)
+    if m:
+        return m.group(1).strip()
+    tokens = re.findall(r"[A-Za-z][A-Za-z\-']+", text)
+    if tokens:
+        return tokens[-1]
+    return text
+
+
+def _run_llm_exchange(agent: Any, context: "RunContext", prompt: str, max_turns: int,
+                      set_variable: Optional[str] = None,
+                      quit_phrases: Optional[List[str]] = None,
+                      quit_signal: Optional[str] = None,
+                      speak_first: bool = True,
+                      duration: Optional[float] = None,
+                      rag_enabled: bool = False,
+                      index_name: Optional[str] = None) -> None:
+    """Drive a multi-turn LLM conversation loop.
+
+    Parameters
+    ----------
+    agent : ConversationAgent
+        Provides ask_llm, say, and orchestrator.listen.
+    context : RunContext
+        Accumulates session history and user model updates.
+    prompt : str
+        System prompt passed to the LLM on every turn.
+    max_turns : int
+        Maximum number of LLM turns to execute.
+    set_variable : str, optional
+        Store the last user answer in context.user_model under this key.
+    quit_phrases : list of str, optional
+        User utterances that stop the loop early.
+    quit_signal : str, optional
+        Token the LLM embeds to signal end of conversation.
+    speak_first : bool
+        If False, listen for the user's opening utterance before the first LLM call.
+    duration : float, optional
+        Total wall-clock time budget in seconds; the loop stops when time runs out.
+    rag_enabled : bool
+        Whether to enable retrieval-augmented generation.
+    index_name : str, optional
+        Vector store index name for RAG queries.
+    """
+    dialog_history: List[str] = []
+    user_input = ""
+    start_time = monotonic()
+
+    def remaining_time() -> Optional[float]:
+        if duration is None:
+            return None
+        return max(0.0, duration - (monotonic() - start_time))
+
+    if not speak_first:
+        timeout = remaining_time()
+        if timeout is not None and timeout <= 0:
+            return
+        result = agent.orchestrator.listen(timeout=timeout or 10)
+        user_input = result.transcript or ""
+        context.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
+
+    for _ in range(max_turns or MAX_LLM_TURNS):
+        timeout = remaining_time()
+        if timeout is not None and timeout <= 0:
+            return
+        llm_text = agent.ask_llm(
+            user_prompt=user_input,
+            context_messages=dialog_history,
+            system_prompt=prompt,
+            rag_enabled=rag_enabled,
+            index_name=index_name,
+        )
+        if llm_text is None:
+            continue
+
+        # If the LLM embeds a quit signal, speak any remaining content and stop
+        if quit_signal and quit_signal in llm_text:
+            clean = llm_text.replace(quit_signal, "").strip()
+            if clean:
+                agent.say(clean)
+                context.session_history.append({"role": "robot", "type": MOVE_SAY, "text": clean})
+            return
+
+        # Ask the user the LLM's text and listen for reply
+        agent.say(llm_text)
+        timeout = remaining_time()
+        if timeout is not None and timeout <= 0:
+            return
+        result = agent.orchestrator.listen(timeout=timeout or 10)
+        user_input = result.transcript or ""
+
+        # Record the exchange using the provided record types
+        context.session_history.append({"role": "robot", "type": MOVE_ASK_LLM, "text": llm_text})
+        context.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
+
+        # Optionally store a variable from user's answer
+        if set_variable and user_input:
+            context.user_model[set_variable] = extract_open_value(user_input)
+
+        # If the user said a configured quit phrase, stop early
+        quit_happened = any(
+            qp and qp.lower() in user_input.lower() for qp in (quit_phrases or [])
+        )
+        if quit_happened:
+            return
+
+        dialog_history.append(user_input)
+
+
+class MiniDialog(BaseDialog):
+    # Registry mapping move type string → handler method name.
+    # To add a new move type: implement handle_move_<name> and add one entry here.
+    _MOVE_HANDLERS: Dict[str, str] = {
+        MOVE_SAY:             "handle_move_say",
+        MOVE_ASK_YESNO:       "handle_move_ask_yesno",
+        MOVE_ASK_OPEN:        "handle_move_ask_open",
+        MOVE_ASK_OPTIONS:     "handle_move_ask_options",
+        MOVE_BRANCH:          "handle_move_branch",
+        MOVE_PLAY_AUDIO:      "handle_move_play_audio",
+        MOVE_MOTION_SEQUENCE: "handle_move_motion_sequence",
+        MOVE_ANIMATION:       "handle_move_animation",
+        MOVE_ASK_LLM:         "handle_move_ask_llm",
+    }
+
     def __init__(self, dialog_id: str, moves: List[AnyMove], dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of typed move objects representing the dialog steps
         """
-        self.dialog_id = dialog_id
+        super().__init__(dialog_id, dependencies, variable_dependencies)
         self.moves = moves
-        self.dependencies = dependencies or []
-        self.variable_dependencies = variable_dependencies or []
         self._agent: Optional[Any] = None
         self._context: Optional[RunContext] = None
 
@@ -114,23 +249,12 @@ class MiniDialog:
 
     @staticmethod
     def extract_open_value(answer: str) -> str:
+        """Delegate to the module-level extract_open_value helper.
+
+        Kept as a static method for backward compatibility with callers that
+        reference it as MiniDialog.extract_open_value.
         """
-        General-purpose cleaner for open answers used with set_variable.
-        Heuristics (language-agnostic):
-        - If quoted text is present, return the first quoted segment.
-        - Otherwise, return the last alphabetic token (e.g., 'zebra' from 'my favorite animal is a zebra').
-        - Fallback to trimmed original answer if nothing matches.
-        """
-        if not answer:
-            return ""
-        text = str(answer).strip()
-        m = re.search(r'["\']([^"\']+)["\']', text)
-        if m:
-            return m.group(1).strip()
-        tokens = re.findall(r"[A-Za-z][A-Za-z\-']+", text)
-        if tokens:
-            return tokens[-1]
-        return text
+        return extract_open_value(answer)
 
     def run(self, agent: Any, context: RunContext) -> None:
         """Execute all moves in sequence using the given agent and runtime context.
@@ -165,32 +289,20 @@ class MiniDialog:
             self._context.current_outcome = default_outcome
 
     def handle_move_branch(self, move: MoveBranch) -> None:
+        """Execute the sub-moves for the case matching the current outcome or user model key."""
         key = self._context.current_outcome if move.on == "outcome" else self._context.user_model.get(move.on)
         for sub_move in move.cases.get(key, []):
             self._dispatch_move(sub_move)
 
     def _dispatch_move(self, move: AnyMove) -> None:
-        if move.type == MOVE_SAY:
-            self.handle_move_say(move)
-        elif move.type == MOVE_ASK_YESNO:
-            answer = self.handle_move_ask_yesno(move)
-            self._resolve_outcome(move, answer)
-        elif move.type == MOVE_ASK_OPEN:
-            answer = self.handle_move_ask_open(move)
-            self._resolve_outcome(move, answer)
-        elif move.type == MOVE_ASK_OPTIONS:
-            answer = self.handle_move_ask_options(move)
-            self._resolve_outcome(move, answer)
-        elif move.type == MOVE_BRANCH:
-            self.handle_move_branch(move)
-        elif move.type == MOVE_PLAY_AUDIO:
-            self.handle_move_play_audio(move)
-        elif move.type == MOVE_MOTION_SEQUENCE:
-            self.handle_move_motion_sequence(move)
-        elif move.type == MOVE_ANIMATION:
-            self.handle_move_animation(move)
-        elif move.type == MOVE_ASK_LLM:
-            self.handle_move_ask_llm(move)
+        """Route a move to its handler via the _MOVE_HANDLERS registry.
+
+        Adding a new move type requires only a new entry in _MOVE_HANDLERS and
+        a corresponding handle_move_<name> method — no changes here.
+        """
+        handler_name = self._MOVE_HANDLERS.get(move.type)
+        if handler_name:
+            getattr(self, handler_name)(move)
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         context_messages = [
@@ -212,7 +324,8 @@ class MiniDialog:
         self._agent.say(text)
         self._record_robot(MOVE_SAY, text)
 
-    def handle_move_ask_yesno(self, move: MoveAskYesNo) -> str:
+    def handle_move_ask_yesno(self, move: MoveAskYesNo) -> None:
+        """Ask a yes/no question, record the answer, handle side-effects, and resolve the outcome."""
         answer = self._agent.ask_yesno(move.text)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
@@ -225,9 +338,10 @@ class MiniDialog:
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
-        return answer
+        self._resolve_outcome(move, answer)
 
-    def handle_move_ask_open(self, move: MoveAskOpen) -> str:
+    def handle_move_ask_open(self, move: MoveAskOpen) -> None:
+        """Ask an open-ended question, record the answer, handle side-effects, and resolve the outcome."""
         answer = self._agent.ask_open(move.text)
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
@@ -239,9 +353,10 @@ class MiniDialog:
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
-        return answer
+        self._resolve_outcome(move, answer)
 
-    def handle_move_ask_options(self, move: MoveAskOptions) -> str:
+    def handle_move_ask_options(self, move: MoveAskOptions) -> None:
+        """Ask a multiple-choice question, record the answer, handle side-effects, and resolve the outcome."""
         answer = self._agent.ask_options(move.text, move.options)
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
@@ -253,7 +368,7 @@ class MiniDialog:
         if move.llm_followup:
             self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
 
-        return answer
+        self._resolve_outcome(move, answer)
 
     def handle_move_play_audio(self, move: MovePlayAudio) -> None:
         self._agent.play_audio(move.audio)
@@ -268,82 +383,15 @@ class MiniDialog:
         self._record_robot(MOVE_ANIMATION, "Played animation.", animation_name=move.animation_name)
 
     def handle_move_ask_llm(self, move: MoveAskLLM) -> None:
-        self._run_llm_exchange(
+        _run_llm_exchange(
+            agent=self._agent,
+            context=self._context,
             prompt=move.prompt,
             max_turns=move.max_turns or MAX_LLM_TURNS,
             set_variable=move.set_variable,
             quit_phrases=move.quit_phrases,
             quit_signal=move.quit_signal,
         )
-
-    def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
-                          quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
-                          speak_first: bool = True, duration: Optional[float] = None,
-                          rag_enabled: bool = False, index_name: Optional[str] = None):
-        dialog_history = []
-        user_input = ""
-        start_time = monotonic()
-
-        def remaining_time():
-            if duration is None:
-                return None
-            return max(0.0, duration - (monotonic() - start_time))
-
-        agent = cast(Any, self._agent)
-        if not speak_first:
-            timeout = remaining_time()
-            if timeout is not None and timeout <= 0:
-                return
-            result = agent.orchestrator.listen(timeout=timeout or 10)
-            user_input = result.transcript or ""
-            self._record_user(MOVE_ANSWER_LLM, user_input)
-
-        for _ in range(max_turns or MAX_LLM_TURNS):
-            timeout = remaining_time()
-            if timeout is not None and timeout <= 0:
-                return
-            llm_text = agent.ask_llm(
-                user_prompt=user_input,
-                context_messages=dialog_history,
-                system_prompt=prompt,
-                rag_enabled=rag_enabled,
-                index_name=index_name,
-            )
-            if llm_text is None:
-                continue
-
-            # If the LLM embeds a quit signal, speak any remaining content and stop
-            if quit_signal and quit_signal in llm_text:
-                clean = llm_text.replace(quit_signal, "").strip()
-                if clean:
-                    agent.say(clean)
-                    self._record_robot(MOVE_SAY, clean)
-                return
-
-            # Ask the user the LLM's text and listen for reply
-            agent.say(llm_text)
-            timeout = remaining_time()
-            if timeout is not None and timeout <= 0:
-                return
-            result = agent.orchestrator.listen(timeout=timeout or 10)
-            user_input = result.transcript or ""
-
-            # Record the exchange using the provided record types
-            self._record_robot(MOVE_ASK_LLM, llm_text)
-            self._record_user(MOVE_ANSWER_LLM, user_input)
-
-            # Optionally store a variable from user's answer
-            if set_variable and user_input:
-                self._context.user_model[set_variable] = self.extract_open_value(user_input)
-
-            # If the user said a configured quit phrase, stop early
-            quit_happened = any(
-                qp and qp.lower() in user_input.lower() for qp in (quit_phrases or [])
-            )
-            if quit_happened:
-                return
-
-            dialog_history.append(user_input)
 
 
 class FunctionalType(Enum):
@@ -381,13 +429,26 @@ class ChitchatDialog(MiniDialog):
         self.topics = topics or []
 
 
-class LLMDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
+class LLMDialog(BaseDialog):
+    """A dialog driven entirely by a free-form multi-turn LLM conversation.
+
+    Unlike ``MiniDialog``, ``LLMDialog`` carries no scripted move list — it
+    delegates fully to ``_run_llm_exchange``. It inherits ``BaseDialog``
+    directly, reflecting that it is a distinct execution strategy rather than
+    a specialisation of scripted move execution.
+
+    The ``moves`` attribute is kept (always ``[]``) for serialisation
+    round-trip compatibility with the authoring layer.
+    """
+
+    def __init__(self, dialog_id, moves=None, prompt=None, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None,
                  quit_signal: Optional[str] = None, speak_first: bool = True,
                  duration: Optional[float] = None, rag_enabled: bool = False,
                  index_name: Optional[str] = None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, dependencies, variable_dependencies)
+        # moves is accepted for factory round-trip compat but unused at runtime
+        self.moves: List[AnyMove] = list(moves or [])
         self.prompt = prompt
         self.max_turns = max_turns  # None means use MAX_LLM_TURNS default at runtime
         self.speak_first = speak_first
@@ -399,9 +460,10 @@ class LLMDialog(MiniDialog):
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
     def run(self, agent: Any, context: RunContext) -> None:
-        self._agent = agent
-        self._context = context
-        self._run_llm_exchange(
+        """Run the LLM-driven dialog exchange."""
+        _run_llm_exchange(
+            agent=agent,
+            context=context,
             prompt=self.prompt,
             max_turns=self.max_turns or MAX_LLM_TURNS,
             set_variable=None,

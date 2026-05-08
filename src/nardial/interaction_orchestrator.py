@@ -94,7 +94,7 @@ class InteractionOrchestrator:
 
         self.logger.info("SETTING UP DEVICE")
         self.device = device
-        device.setup(self.background_loop, self.logger)
+        device.setup(self.logger)
         self.logger.info("Complete")
 
         self.logger.info("SETTING UP NLU")

@@ -1,5 +1,5 @@
 from nardial.mini_dialogs import (
-    MiniDialog, RunContext,
+    MiniDialog, RunContext, _run_llm_exchange,
     FunctionalDialog, FunctionalType,
     NarrativeDialog,
     ChitchatDialog,
@@ -32,11 +32,9 @@ def test_extract_open_value_quotes_and_tokens():
 def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
     # ask_llm returns None first (simulating transient LLM failure), then returns text
     agent = make_mock_agent(ask_llm_side_effect=[None, 'Hello LLM'], ask_open_side_effect=['hi'])
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md._run_llm_exchange(prompt='p', max_turns=3)
+    _run_llm_exchange(agent, context, prompt='p', max_turns=3)
 
     # ask_llm retried until a non-None response
     assert agent.ask_llm.call_count >= 2

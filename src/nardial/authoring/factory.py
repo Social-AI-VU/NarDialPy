@@ -9,6 +9,7 @@ from nardial.authoring.schemas import (
     LLMDialogSpec,
     NarrativeDialogSpec,
 )
+from nardial.base_dialog import BaseDialog
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
@@ -20,7 +21,7 @@ from nardial.mini_dialogs import (
 _dialog_adapter: TypeAdapter[AnyDialogSpec] = TypeAdapter(AnyDialogSpec)
 
 
-def from_json(doc: Dict[str, Any]) -> MiniDialog:
+def from_json(doc: Dict[str, Any]) -> BaseDialog:
     """Parse and validate a dialog document dict, returning a typed runtime dialog object.
 
     Raises ``pydantic.ValidationError`` with field-level details on invalid input.
@@ -29,12 +30,12 @@ def from_json(doc: Dict[str, Any]) -> MiniDialog:
     return _spec_to_dialog(spec)
 
 
-def to_json(d: MiniDialog) -> Dict[str, Any]:
+def to_json(d: BaseDialog) -> Dict[str, Any]:
     """Serialize a runtime dialog object back to a JSON-ready dict."""
     return _dialog_to_spec(d).model_dump(exclude_none=True)
 
 
-def _spec_to_dialog(spec: AnyDialogSpec) -> MiniDialog:
+def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
     moves = list(spec.moves)
     deps = list(spec.dependencies)
     vdeps = [vd.model_dump() for vd in spec.variable_dependencies]
@@ -82,7 +83,7 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> MiniDialog:
     raise ValueError(f"Unknown spec type: {type(spec)}")
 
 
-def _dialog_to_spec(d: MiniDialog) -> AnyDialogSpec:
+def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
     vdeps = list(getattr(d, "variable_dependencies", []) or [])
 
     if isinstance(d, FunctionalDialog):

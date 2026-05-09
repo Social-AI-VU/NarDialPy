@@ -263,6 +263,14 @@ class TestCountCompletedSessions:
         assert len(state2.sessions) == 0
         assert state2.count_completed_sessions() == 1
 
+    def test_incomplete_session_not_counted(self, tmp_path):
+        """A session that was started but never ended must not increment the count."""
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        # Deliberately do NOT call end_session — save the incomplete session.
+        state.save()
+        assert state.count_completed_sessions() == 0
+
 
 # ── find_incomplete_session ───────────────────────────────────────────────────
 

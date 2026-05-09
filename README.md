@@ -11,13 +11,17 @@ It lets you author complete conversations declaratively in JSON, then drive them
 1. [What is nardial?](#what-is-nardial)
 2. [Prerequisites & Setup](#prerequisites--setup)
 3. [Providers & Initialization](#providers--initialization)
-4. [Defining Dialogs in JSON](#defining-dialogs-in-json)
+4. [Authoring a Session Agenda](#authoring-a-session-agenda)
+   - [Agenda items](#agenda-items)
+   - [Slot bounds](#slot-bounds)
+   - [Multi-session plans](#multi-session-plans)
+5. [Defining Dialogs in JSON](#defining-dialogs-in-json)
    - [Dialog Structure](#dialog-structure)
    - [Dialog Types](#dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
-5. [Demos / Creating a Session](#demos--creating-a-session)
-6. [Development](#development)
+6. [Demos / Creating a Session](#demos--creating-a-session)
+7. [Development](#development)
 
 ---
 
@@ -30,7 +34,7 @@ The `nardial` package provides the building blocks for authoring and executing m
 | **Dialog JSON** | Conversations are written as structured JSON files. Each file holds one or more *dialogs*, each containing a sequence of *moves* that the robot performs. |
 | **Session Manager** | Loads your dialog JSON, resolves a session agenda, and runs dialogs in order — checking dependencies and tracking state. |
 | **ConversationAgent** | The runtime bridge to the hardware: it calls TTS, STT, LLM, and motion services on your chosen device. |
-| **Dialog Logic** | Checks eligibility rules (dependencies, variable requirements) before executing each dialog. |
+| **Agenda system** | Controls which dialogs run, in what order, and how many times — using composable eligibility rules and typed agenda items that can be configured per session. |
 
 Typical use case:
 
@@ -240,17 +244,245 @@ Then pass `device` and `tts` to `ConversationAgent` as above.
 
 ### Using SessionManager
 
-`SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state:
+`SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state. Pass it a `session_agenda` — a list of agenda items that control which dialogs run — and a path to your dialog JSON:
 
 ```python
 from nardial.session_manager import SessionManager
 
 manager = SessionManager(
+    session_agenda=["greeting", "farewell"],   # see Authoring a Session Agenda below
     agent=agent,
-    dialog_file="dialogs/my_dialogs.json",
+    dialog_json_path="dialogs/my_dialogs.json",
     participant_id="user_42",
 )
 manager.run()
+```
+
+`SessionManager` also supports multi-session studies, crash recovery, and history resets — see [Authoring a Session Agenda](#authoring-a-session-agenda).
+
+---
+
+## Authoring a Session Agenda
+
+A session agenda is the ordered list of items passed to `SessionManager` that controls what dialogs run and in what sequence. Each item resolves to zero or one dialog per call. The resolver advances through the list, re-queuing items that are configured to repeat, and skipping items whose pool is exhausted.
+
+Agendas accept a mix of plain strings (backward-compatible — resolved as a direct dialog ID lookup), dicts, and typed Python objects. All three forms work anywhere an agenda list is accepted.
+
+```python
+session_agenda = [
+    "greeting",                                              # direct dialog ID
+    {"type": "narrative_slot", "thread": "main"},           # next step in thread
+    {"type": "chitchat_slot"},                              # any eligible chitchat
+    {"type": "functional_slot", "functional_type": "farewell"},
+]
+```
+
+---
+
+### Agenda items
+
+#### `dialog_ref` — direct ID lookup
+
+Runs a specific dialog by ID. The dialog's own eligibility policy still applies (e.g. a narrative dialog won't re-run if it's already been completed).
+
+```json
+"greeting"
+```
+```json
+{ "type": "dialog_ref", "id": "greeting" }
+```
+
+---
+
+#### `narrative_slot` — next step in a thread
+
+Selects the lowest-position eligible `narrative` dialog in the named thread. Enforces sequential ordering automatically — position 2 is not offered until position 1 is completed.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `thread` | string | required | Thread name; must match `"thread"` on the narrative dialogs |
+| `bounds` | object | `{"count_min": 1, "count_max": 1}` | How many steps to advance (see [Slot bounds](#slot-bounds)) |
+
+```json
+{ "type": "narrative_slot", "thread": "main" }
+```
+
+Advance two steps in one agenda item:
+```json
+{ "type": "narrative_slot", "thread": "main", "bounds": { "count_min": 2, "count_max": 2 } }
+```
+
+---
+
+#### `chitchat_slot` — relevance-ranked chitchat
+
+Selects from the pool of eligible `chitchat` dialogs. Candidates are ranked by (1) how many of their declared `dependencies` are already completed, then (2) topic overlap with the user's accumulated interests. A random tiebreak ensures variety across sessions.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `bounds` | object | `{"count_min": 1, "count_max": 1}` | How many chitchat dialogs to run |
+| `topics_filter` | array of strings | `null` | When set, only dialogs containing at least one of these topics are considered |
+
+```json
+{ "type": "chitchat_slot" }
+```
+
+Two chitchat dialogs, restricted to animal topics:
+```json
+{ "type": "chitchat_slot", "topics_filter": ["animals", "pets"], "bounds": { "count_min": 2, "count_max": 2 } }
+```
+
+---
+
+#### `functional_slot` — dialog by role
+
+Selects from all eligible `functional` dialogs with the given `functional_type`. Because functional dialogs have no "exclude if already seen" rule, greetings and farewells re-run every session by design.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `functional_type` | string | required | Role: `"greeting"`, `"farewell"`, or any custom value |
+| `bounds` | object | `{"count_min": 1, "count_max": 1}` | |
+
+```json
+{ "type": "functional_slot", "functional_type": "greeting" }
+```
+
+---
+
+#### `llm_dialog_ref` — LLM dialog by ID
+
+Runs a specific `llm_based` dialog by ID. Optional fields override the dialog's own settings for this run only without modifying the stored definition.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | string | required | Dialog ID |
+| `max_turns` | integer | `null` | Override max turns for this run |
+| `duration` | number | `null` | Override time limit (seconds) for this run |
+
+```json
+{ "type": "llm_dialog_ref", "id": "free_chat", "max_turns": 3 }
+```
+
+---
+
+### Slot bounds
+
+All slot types (not `dialog_ref` or `llm_dialog_ref`) accept a `bounds` object that controls how many times the slot is resolved before the resolver moves on.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `count_min` | integer | `1` | Minimum resolutions required |
+| `count_max` | integer or `null` | `1` | Maximum resolutions; `null` means unlimited (runs until the pool is empty) |
+| `duration_min` | number | `null` | Keep resolving until at least this many seconds have elapsed |
+| `duration_max` | number | `null` | Stop resolving after this many seconds even if `count_min` is not met |
+
+```json
+{ "count_min": 1, "count_max": 3 }
+```
+
+Run at least one chitchat, up to three, until five minutes have elapsed:
+```json
+{ "count_min": 1, "count_max": null, "duration_max": 300 }
+```
+
+---
+
+### Multi-session plans
+
+For longitudinal studies where each session should follow a different agenda, define a `SessionPlan` in a separate JSON file and pass it to `SessionManager`. The manager automatically selects the right template based on how many sessions the participant has already completed.
+
+**`study_plan.json`:**
+```json
+{
+  "plan_id": "companion_study",
+  "sessions": [
+    {
+      "session_index": 1,
+      "agenda": [
+        { "type": "functional_slot", "functional_type": "greeting" },
+        { "type": "narrative_slot", "thread": "intro" },
+        { "type": "functional_slot", "functional_type": "farewell" }
+      ]
+    },
+    {
+      "session_index": 2,
+      "agenda": [
+        { "type": "functional_slot", "functional_type": "greeting" },
+        { "type": "chitchat_slot" },
+        { "type": "narrative_slot", "thread": "intro", "bounds": { "count_min": 2, "count_max": 2 } },
+        { "type": "functional_slot", "functional_type": "farewell" }
+      ]
+    },
+    {
+      "session_index": 3,
+      "agenda": [
+        { "type": "functional_slot", "functional_type": "greeting" },
+        { "type": "chitchat_slot", "bounds": { "count_min": 2, "count_max": 2 } },
+        { "type": "narrative_slot", "thread": "main" },
+        { "type": "functional_slot", "functional_type": "farewell" }
+      ]
+    }
+  ]
+}
+```
+
+The last template (here session 3) is reused for any session number beyond 3, so you don't need to define a template for every possible session in an open-ended study.
+
+**Python:**
+```python
+manager = SessionManager(
+    session_agenda=[],                         # overridden by the plan
+    agent=agent,
+    dialog_json_path="dialogs/my_dialogs.json",
+    participant_id="user_42",
+    session_plan_path="study_plan.json",
+)
+manager.run()
+```
+
+#### Forcing a specific session
+
+Override the automatic session-number detection with `session_index` — useful for testing a specific template:
+
+```python
+manager = SessionManager(
+    session_agenda=[],
+    agent=agent,
+    dialog_json_path="dialogs/my_dialogs.json",
+    participant_id="user_42",
+    session_plan_path="study_plan.json",
+    session_index=2,   # always use template 2, regardless of history
+)
+```
+
+#### Crash recovery
+
+If a session is interrupted before it completes, pass `resume=True` on the next run. The manager detects the incomplete session and picks up where it left off, skipping dialogs that already ran:
+
+```python
+manager = SessionManager(
+    session_agenda=[],
+    agent=agent,
+    dialog_json_path="dialogs/my_dialogs.json",
+    participant_id="user_42",
+    session_plan_path="study_plan.json",
+    resume=True,
+)
+```
+
+#### Resetting history
+
+To discard session history from a given session onward — for example to re-run a participant from session 2 — use `reset_history_from_session`. A warning is logged before the destructive operation:
+
+```python
+manager = SessionManager(
+    session_agenda=[],
+    agent=agent,
+    dialog_json_path="dialogs/my_dialogs.json",
+    participant_id="user_42",
+    session_plan_path="study_plan.json",
+    reset_history_from_session=2,   # discards sessions 2, 3, … and all dialogs run in them
+)
 ```
 
 ---
@@ -315,18 +547,16 @@ Utility dialogs for session management — greetings, farewells, and structural 
 
 #### 2. `chitchat`
 
-Short, theme-based conversations on everyday topics. Chitchat dialogs can be seeded with topics of interest so the system selects contextually relevant ones.
+Short conversational exchanges on everyday topics. Chitchat dialogs are selected by the agenda's `chitchat_slot` based on topic relevance and how many of their declared dependencies have already been completed.
 
 | Extra field | Type | Required | Description |
 |---|---|---|---|
-| `theme` | string | ✅ | Broad category (e.g. `"nature"`, `"animals"`, `"robots"`) |
-| `topics` | array of strings | | Specific keywords used for relevance matching |
+| `topics` | array of strings | | Keywords used for relevance matching against the user's accumulated interests |
 
 ```json
 {
   "id": "favorite_animal",
   "type": "chitchat",
-  "theme": "animals",
   "topics": ["animals", "pets"],
   "moves": [
     {
@@ -637,7 +867,6 @@ Triggers a named animation behavior on the robot.
 | `functional_type` | functional dialog | `"greeting"` or `"farewell"` |
 | `thread` | narrative dialog | Story thread name |
 | `position` | narrative dialog | Order within the thread |
-| `theme` | chitchat dialog | Broad topic category |
 | `topics` | chitchat dialog | Keywords for relevance matching |
 | `prompt` | llm_based dialog / `ask_llm` | LLM system prompt |
 | `moves` | dialog | Ordered list of move objects |

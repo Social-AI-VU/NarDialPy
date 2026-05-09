@@ -228,11 +228,16 @@ class NarrativeSlot(BaseModel, AgendaItem):
 # ── ChitchatSlot ──────────────────────────────────────────────────────────────
 
 class ChitchatSlot(BaseModel, AgendaItem):
-    """Select a chitchat dialog ranked by topic overlap with the user's interests.
+    """Select a chitchat dialog ranked by contextual specificity, then topic overlap.
 
     Candidates are all eligible ``ChitchatDialog`` instances.  They are first
-    shuffled (random tiebreak), then sorted descending by the count of topics
-    shared with ``AgendaContext.topics_of_interest``.
+    shuffled for a random tiebreak, then sorted descending by:
+
+    1. Number of declared dependencies already completed (primary) — dialogs
+       authored to follow prior ones are more contextually specific and win.
+    2. Number of topics shared with ``AgendaContext.topics_of_interest``
+       (secondary) — among equally specific dialogs, relevance to the user's
+       known interests breaks the tie.
 
     Attributes
     ----------

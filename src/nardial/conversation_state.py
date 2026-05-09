@@ -414,7 +414,7 @@ class ConversationState:
             "participant_id": participant_id if participant_id is not None else target_id,
             "sessions": [s.model_dump() for s in sessions],
             "summary": {
-                "total_sessions": len(sessions),
+                "total_sessions": sum(1 for s in sessions if s.ended_at is not None),
                 "dialog_ids_seen": list(self.completed_dialogs),
                 "topics_of_interest": list(self.topics_of_interest),
                 "last_updated": datetime.now(timezone.utc).isoformat(),

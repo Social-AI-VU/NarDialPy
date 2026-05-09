@@ -463,6 +463,105 @@ class ConversationState:
                         seen.add(k)
         return topics
 
+    # ── Session-plan helpers ──────────────────────────────────────────────────
+
+    def _load_participant_json(self) -> Dict[str, Any]:
+        """Load the raw participant JSON, returning an empty dict if unavailable.
+
+        Used by session-plan helpers that need the full session list even when
+        the in-memory ``sessions`` list is empty (the default when
+        ``use_json_file=False``).
+        """
+        if self.participant_id is None:
+            return {}
+        safe_id = self._sanitize_participant_id(self.participant_id)
+        path = self.participants_dir / f"{safe_id}.json"
+        if not path.exists():
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f) or {}
+        except Exception as exc:
+            logger.warning("Could not read participant JSON for %r: %s", self.participant_id, exc)
+            return {}
+
+    def count_completed_sessions(self) -> int:
+        """Return the number of completed (ended) sessions from the participant JSON.
+
+        Reads the persisted transcript rather than the in-memory ``sessions``
+        list so the count is accurate even when the file backend is not loaded
+        (``use_json_file=False``).  Returns 0 when no participant data exists.
+
+        Returns
+        -------
+        int
+        """
+        data = self._load_participant_json()
+        return data.get("summary", {}).get("total_sessions", 0)
+
+    def find_incomplete_session(self) -> Optional["Session"]:
+        """Check whether the participant's last session is incomplete.
+
+        A session is incomplete when its ``ended_at`` field is ``None``.
+        Loads the participant JSON to inspect the last session.
+
+        Returns
+        -------
+        Session or None
+            The incomplete session, or ``None`` if the last session is complete
+            or no sessions exist.
+        """
+        data = self._load_participant_json()
+        sessions_data = data.get("sessions", [])
+        if not sessions_data:
+            return None
+        try:
+            last = Session.model_validate(sessions_data[-1])
+        except Exception as exc:
+            logger.warning("find_incomplete_session: could not parse last session: %s", exc)
+            return None
+        return last if last.ended_at is None else None
+
+    def truncate_from_session(self, from_session: int) -> None:
+        """Remove sessions from session N onward and recompute persistent state.
+
+        Loads the participant JSON to get the full session list (which may not
+        be in the in-memory ``sessions`` list when ``use_json_file=False``),
+        retains only the sessions whose 1-based index is strictly less than
+        *from_session*, recomputes ``completed_dialogs`` and
+        ``topics_of_interest`` from the retained sessions, and writes the
+        truncated transcript back to disk.
+
+        Parameters
+        ----------
+        from_session : int
+            1-based session number.  Sessions at this index and beyond are
+            removed.  ``from_session=2`` keeps only the first session.
+        """
+        data = self._load_participant_json()
+        all_sessions_data = data.get("sessions", [])
+        try:
+            all_sessions = [Session.model_validate(s) for s in all_sessions_data]
+        except Exception as exc:
+            logger.warning("truncate_from_session: could not parse session list: %s", exc)
+            return
+
+        retained = all_sessions[: from_session - 1]
+        self.sessions = retained
+        self.completed_dialogs = self._collect_dialog_ids(retained)
+        self.topics_of_interest = self._collect_topics_from_summaries(retained)
+
+        # Persist the truncated state.
+        self.save_participant_transcript(self.participant_id)
+        if self.use_json_file:
+            self.save_state_to_json()
+
+        logger.info(
+            "History truncated to %d session(s); completed_dialogs=%s",
+            len(retained),
+            self.completed_dialogs,
+        )
+
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
         """

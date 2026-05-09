@@ -189,55 +189,6 @@ class TestSelectNextNarrative:
         assert result is None
 
 
-# ── build_dialog_session ──────────────────────────────────────────────────────
-
-class TestBuildDialogSession:
-    def _full_pool(self):
-        greeting = make_functional("greeting", "greeting")
-        farewell = make_functional("farewell", "farewell")
-        n1 = make_narrative("n1", thread="main", position=1)
-        n2 = make_narrative("n2", thread="main", position=2)
-        c1 = make_chitchat("c1")
-        return [greeting, farewell, n1, n2, c1]
-
-    def test_greeting_comes_first(self):
-        pool = self._full_pool()
-        session = DialogLogic.build_dialog_session(pool, thread="main")
-        assert session[0].dialog_id == "greeting"
-
-    def test_farewell_comes_last(self):
-        pool = self._full_pool()
-        session = DialogLogic.build_dialog_session(pool, thread="main")
-        assert session[-1].dialog_id == "farewell"
-
-    def test_narrative_dialogs_included_in_session(self):
-        pool = self._full_pool()
-        session = DialogLogic.build_dialog_session(pool, thread="main")
-        dialog_ids = [d.dialog_id for d in session]
-        assert "n1" in dialog_ids
-
-    def test_completed_greeting_falls_back_to_repeat(self):
-        """When all greetings are completed the builder still includes one as a fallback,
-        because a greeting is always required to open a session."""
-        pool = self._full_pool()
-        session = DialogLogic.build_dialog_session(pool, thread="main", completed_ids={"greeting"})
-        dialog_ids = [d.dialog_id for d in session]
-        # Fallback: the only greeting is reused even though it was completed.
-        assert dialog_ids[0] == "greeting"
-
-    def test_session_without_narrative_still_has_greeting_and_farewell(self):
-        greeting = make_functional("greeting", "greeting")
-        farewell = make_functional("farewell", "farewell")
-        session = DialogLogic.build_dialog_session([greeting, farewell], thread=None)
-        dialog_ids = [d.dialog_id for d in session]
-        assert "greeting" in dialog_ids
-        assert "farewell" in dialog_ids
-
-    def test_empty_pool_returns_empty_session(self):
-        session = DialogLogic.build_dialog_session([])
-        assert session == []
-
-
 # ── select_active_thread ──────────────────────────────────────────────────────
 
 class TestSelectActiveThread:

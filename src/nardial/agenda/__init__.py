@@ -24,6 +24,7 @@ from nardial.agenda.items import (
     coerce_agenda_item,
 )
 from nardial.agenda.resolver import resolve_agenda
+from nardial.agenda.session_plan import SessionPlan, SessionTemplate, load_session_plan
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.eligibility import (
     DepsMetRule,
@@ -52,4 +53,7 @@ __all__ = [
     "ExcludeIfSeenRule",
     "NarrativeOrderingRule",
     "VariableDepsMetRule",
+    "SessionPlan",
+    "SessionTemplate",
+    "load_session_plan",
 ]

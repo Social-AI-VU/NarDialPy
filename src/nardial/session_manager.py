@@ -2,15 +2,19 @@ import json
 import logging
 import os
 import random
+from typing import TYPE_CHECKING
 
 from nardial.agenda import AgendaContext, resolve_agenda
 from nardial.conversation_agent import ConversationAgent
-from nardial.conversation_state import ConversationState
+from nardial.conversation_state import ConversationState, Session
 from nardial.dialog_logic import DialogLogic
 from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import RunContext
 
 from nardial.authoring import load_dialogs
+
+if TYPE_CHECKING:
+    from nardial.agenda.session_plan import SessionPlan
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,7 @@ class SessionManager:
         Ordered agenda items: plain dialog ID strings, ``AgendaItem`` objects,
         or dicts are all accepted.  Strings are coerced to ``DialogRef`` items
         at resolution time so existing call sites continue to work unchanged.
+        Overridden by ``session_plan_path`` when a plan is provided.
     agent : ConversationAgent
         Responsible for interaction (speech, LLM, etc.).
     dialog_json_path : str
@@ -36,13 +41,20 @@ class SessionManager:
     participant_id : str, optional
         Identifier for the user/participant.
     session_plan_path : str | None
-        Reserved for issue #108 (multi-session arc JSON).
+        Path to a :class:`~nardial.agenda.session_plan.SessionPlan` JSON file.
+        When provided, the plan's agenda for the current session overrides
+        ``session_agenda``.
     session_index : int | None
-        Reserved for issue #108.
+        Force a specific 1-based session index when selecting a template from
+        the plan, ignoring the participant's actual session count.  Only
+        meaningful when ``session_plan_path`` is also provided.
     reset_history_from_session : int | None
-        Reserved for issue #108.
+        Truncate participant history from this 1-based session index onward
+        before starting.  A warning is logged before the destructive operation.
     resume : bool
-        Reserved for issue #109.
+        If ``True``, check for an incomplete session (one with ``ended_at``
+        still ``None``) and resume it by skipping already-completed dialogs.
+        Proceeds as a fresh session when no incomplete session is found.
     """
 
     def __init__(
@@ -56,12 +68,44 @@ class SessionManager:
         reset_history_from_session: int | None = None,
         resume: bool = False,
     ):
-        self.session_agenda = session_agenda
         self._registry = self.load_dialog_registry(dialog_json_path)
         self.agent = agent
 
+        # Dialog IDs that were already run in an incomplete session; pre-populated
+        # by _apply_resume() so _build_agenda_context() treats them as completed.
+        self._resume_completed_ids: set[str] = set()
+
         self.conversation_state = ConversationState(participant_id=participant_id)
-        self.session_id = self.start_session()
+
+        # Apply history reset *before* counting sessions or loading the plan.
+        if reset_history_from_session is not None:
+            logger.warning(
+                "Resetting participant history from session %d forward for participant %r",
+                reset_history_from_session,
+                participant_id,
+            )
+            self.conversation_state.truncate_from_session(reset_history_from_session)
+
+        # Resolve agenda: session plan overrides the caller-supplied session_agenda.
+        if session_plan_path is not None:
+            plan_agenda = self._resolve_plan_agenda(session_plan_path, session_index)
+            self.session_agenda = plan_agenda if plan_agenda is not None else session_agenda
+        else:
+            self.session_agenda = session_agenda
+
+        # Handle crash recovery — must come after agenda resolution so the same
+        # agenda is replayed on resume.
+        if resume:
+            incomplete = self.conversation_state.find_incomplete_session()
+            if incomplete is not None:
+                self.session_id = self._apply_resume(incomplete)
+            else:
+                logger.info(
+                    "resume=True but no incomplete session found — proceeding as fresh session"
+                )
+                self.session_id = self.start_session()
+        else:
+            self.session_id = self.start_session()
 
     # ── Dialog loading ────────────────────────────────────────────────────────
 
@@ -132,10 +176,100 @@ class SessionManager:
         logger.info("Started session_id=%s run_id=%s", session_id, run_id)
         return session_id
 
+    # ── Plan resolution ───────────────────────────────────────────────────────
+
+    def _resolve_plan_agenda(
+        self,
+        plan_path: str,
+        override_index: int | None,
+    ) -> list | None:
+        """Load a :class:`SessionPlan` and return the raw agenda for the current session.
+
+        The session number is determined by counting the participant's completed
+        sessions and adding 1, unless *override_index* is supplied.
+
+        Parameters
+        ----------
+        plan_path : str
+            Path to the session plan JSON file.
+        override_index : int | None
+            Force this 1-based session index; ignored when ``None``.
+
+        Returns
+        -------
+        list or None
+            Raw agenda entries from the matching template, or ``None`` on error.
+        """
+        from nardial.agenda.session_plan import load_session_plan
+
+        try:
+            plan = load_session_plan(plan_path)
+        except Exception as exc:
+            logger.error("Failed to load session plan from %r: %s", plan_path, exc)
+            return None
+
+        session_number = (
+            override_index
+            if override_index is not None
+            else self.conversation_state.count_completed_sessions() + 1
+        )
+
+        template = plan.get_template(session_number)
+        if template is None:
+            logger.warning(
+                "SessionPlan '%s' returned no template for session_number=%d",
+                plan.plan_id,
+                session_number,
+            )
+            return None
+
+        logger.info(
+            "SessionPlan '%s': using template session_index=%d (session_number=%d)",
+            plan.plan_id,
+            template.session_index,
+            session_number,
+        )
+        return template.agenda
+
+    # ── Crash recovery ────────────────────────────────────────────────────────
+
+    def _apply_resume(self, incomplete: Session) -> str:
+        """Prepare to resume an incomplete session.
+
+        Pre-populates :attr:`_resume_completed_ids` with the dialog IDs already
+        run in *incomplete* so that :meth:`_build_agenda_context` skips them.
+        Returns the existing session ID so the resumed session appends its new
+        events to the same record rather than starting a fresh one.
+
+        Parameters
+        ----------
+        incomplete : Session
+            The last session for this participant, whose ``ended_at`` is
+            ``None``.
+
+        Returns
+        -------
+        str
+            The session ID to reuse.
+        """
+        already_run = set(incomplete.dialog_ids or [])
+        self._resume_completed_ids = already_run
+        logger.info(
+            "Resuming incomplete session %s — %d dialog(s) already completed: %s",
+            incomplete.session_id,
+            len(already_run),
+            sorted(already_run),
+        )
+        return incomplete.session_id
+
     # ── Agenda resolution ─────────────────────────────────────────────────────
 
     def _build_agenda_context(self) -> AgendaContext:
         """Build an ``AgendaContext`` from the current conversation state.
+
+        When a resume is in progress, the dialog IDs from the incomplete session
+        are merged into both ``completed_ids`` and ``session_completed_ids`` so
+        that eligibility rules correctly exclude already-run dialogs.
 
         Returns
         -------
@@ -144,8 +278,8 @@ class SessionManager:
         """
         return AgendaContext(
             registry=self._registry,
-            completed_ids=set(self.conversation_state.completed_dialogs),
-            session_completed_ids=set(),
+            completed_ids=set(self.conversation_state.completed_dialogs) | self._resume_completed_ids,
+            session_completed_ids=set(self._resume_completed_ids),
             user_model=self.conversation_state.user_model,
             topics_of_interest=list(self.conversation_state.topics_of_interest),
         )

@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from nardial.agenda import AgendaContext, resolve_agenda
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState, Session
-from nardial.dialog_logic import DialogLogic
 from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import RunContext
 
@@ -254,6 +253,11 @@ class SessionManager:
         """
         already_run = set(incomplete.dialog_ids or [])
         self._resume_completed_ids = already_run
+        # Restore the incomplete session into the in-memory sessions list so
+        # run() can call add_dialog_id() against the same session record.
+        if not any(s.session_id == incomplete.session_id
+                   for s in self.conversation_state.sessions):
+            self.conversation_state.sessions.append(incomplete)
         logger.info(
             "Resuming incomplete session %s — %d dialog(s) already completed: %s",
             incomplete.session_id,
@@ -291,8 +295,8 @@ class SessionManager:
 
         For each dialog yielded by ``resolve_agenda()``:
 
-        1. A final eligibility check via ``DialogLogic.is_dialog_eligible()``
-           guards against stale state (defense-in-depth).
+        1. A final eligibility check via the dialog's ``DEFAULT_ELIGIBILITY``
+           policy guards against stale state (defense-in-depth).
         2. The dialog runs via ``dialog.run(agent, run_context)``.
         3. Completion is recorded in both the ``AgendaContext`` (so subsequent
            eligibility decisions in this session see fresh state) and the
@@ -309,11 +313,7 @@ class SessionManager:
         context = self._build_agenda_context()
 
         for dialog in resolve_agenda(self.session_agenda, context):
-            if not DialogLogic.is_dialog_eligible(
-                dialog,
-                context.completed_ids,
-                context.user_model,
-            ):
+            if not type(dialog).DEFAULT_ELIGIBILITY.is_eligible(dialog, context):
                 logger.debug("Skipped %s (final eligibility gate failed)", dialog.dialog_id)
                 continue
 

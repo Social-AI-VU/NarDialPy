@@ -281,8 +281,14 @@ class ChitchatSlot(BaseModel, AgendaItem):
             return None
         # Shuffle first so equal-scoring candidates have a random tiebreak
         random.shuffle(eligible)
+        # Primary rank: dialogs with more dependencies already met are more
+        # contextually specific (they were authored to follow prior dialogs).
+        # Secondary rank: topic overlap with user interests.
         eligible.sort(
-            key=lambda d: len(set(d.topics) & set(context.topics_of_interest)),
+            key=lambda d: (
+                sum(1 for dep in d.dependencies if dep in context.completed_ids),
+                len(set(d.topics) & set(context.topics_of_interest)),
+            ),
             reverse=True,
         )
         return eligible[0]

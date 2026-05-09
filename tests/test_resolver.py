@@ -57,12 +57,6 @@ def make_llm(dialog_id):
     return LLMDialog(dialog_id=dialog_id, prompt="Chat.")
 
 
-def collect(gen):
-    """Drain a resolve_agenda generator, calling mark_completed after each yield."""
-    # We need to call mark_completed externally; capture dialogs + the context.
-    raise NotImplementedError  # use collect_with_context instead
-
-
 def collect_with_context(items, context):
     """Run resolve_agenda to completion, calling mark_completed after each dialog."""
     results = []

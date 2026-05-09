@@ -1,5 +1,6 @@
 import json
 import pytest
+from unittest.mock import patch
 
 from nardial.conversation_state import ConversationState, Session
 
@@ -228,3 +229,127 @@ class TestAtomicWriteJson:
         path = tmp_path / "deep" / "nested" / "out.json"
         ConversationState._atomic_write_json(path, {"x": 1})
         assert path.exists()
+
+
+# ── count_completed_sessions ──────────────────────────────────────────────────
+
+class TestCountCompletedSessions:
+    def test_returns_zero_when_no_participant_file(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        assert state.count_completed_sessions() == 0
+
+    def test_returns_one_after_one_session(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        state.end_session(sid, completed_ids=["greeting"])
+        # end_session writes the transcript — count is readable immediately
+        assert state.count_completed_sessions() == 1
+
+    def test_returns_correct_count_after_multiple_sessions(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        for i in range(3):
+            sid = state.start_session(participant_id="alice")
+            state.end_session(sid, completed_ids=[f"dialog_{i}"])
+        assert state.count_completed_sessions() == 3
+
+    def test_reads_from_disk_not_memory(self, tmp_path):
+        """count_completed_sessions must consult the JSON file, not self.sessions."""
+        state1 = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid = state1.start_session(participant_id="alice")
+        state1.end_session(sid)
+
+        # A fresh instance with no in-memory sessions still gets the correct count.
+        state2 = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        assert len(state2.sessions) == 0
+        assert state2.count_completed_sessions() == 1
+
+
+# ── find_incomplete_session ───────────────────────────────────────────────────
+
+class TestFindIncompleteSession:
+    def test_returns_none_when_no_sessions(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        assert state.find_incomplete_session() is None
+
+    def test_returns_none_when_last_session_complete(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        state.end_session(sid)
+        assert state.find_incomplete_session() is None
+
+    def test_returns_session_when_not_ended(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        # Save without ending — session.ended_at remains None
+        state.save()
+        result = state.find_incomplete_session()
+        assert result is not None
+        assert result.session_id == sid
+        assert result.ended_at is None
+
+    def test_returns_none_when_only_complete_sessions_present(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid1 = state.start_session(participant_id="alice")
+        state.end_session(sid1)
+        sid2 = state.start_session(participant_id="alice")
+        state.end_session(sid2)
+        assert state.find_incomplete_session() is None
+
+    def test_detects_incomplete_last_session_after_complete_ones(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid1 = state.start_session(participant_id="alice")
+        state.end_session(sid1)
+        sid2 = state.start_session(participant_id="alice")
+        # Second session started but not ended
+        state.save()
+        result = state.find_incomplete_session()
+        assert result is not None
+        assert result.session_id == sid2
+
+
+# ── truncate_from_session ─────────────────────────────────────────────────────
+
+class TestTruncateFromSession:
+    def _setup_two_sessions(self, tmp_path):
+        state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+        sid1 = state.start_session(participant_id="alice")
+        state.end_session(sid1, completed_ids=["d1", "d2"])
+        sid2 = state.start_session(participant_id="alice")
+        state.end_session(sid2, completed_ids=["d3"])
+        return state
+
+    def test_sessions_list_is_truncated(self, tmp_path):
+        state = self._setup_two_sessions(tmp_path)
+        state.truncate_from_session(2)
+        assert len(state.sessions) == 1
+
+    def test_completed_dialogs_updated(self, tmp_path):
+        state = self._setup_two_sessions(tmp_path)
+        state.truncate_from_session(2)
+        # Only dialogs from session 1 should remain
+        assert set(state.completed_dialogs) == {"d1", "d2"}
+        assert "d3" not in state.completed_dialogs
+
+    def test_participant_json_is_rewritten(self, tmp_path):
+        state = self._setup_two_sessions(tmp_path)
+        state.truncate_from_session(2)
+        path = tmp_path / "participants" / "alice.json"
+        data = json.loads(path.read_text())
+        assert data["summary"]["total_sessions"] == 1
+        assert "d3" not in data["summary"]["dialog_ids_seen"]
+
+    def test_truncate_from_session_1_clears_all(self, tmp_path):
+        state = self._setup_two_sessions(tmp_path)
+        state.truncate_from_session(1)
+        assert state.sessions == []
+        assert state.completed_dialogs == []
+
+    def test_user_model_save_continuity_called(self, tmp_path):
+        """truncate_from_session must sync Redis via save_continuity (Fix A)."""
+        state = self._setup_two_sessions(tmp_path)
+        with patch.object(state.user_model, "save_continuity") as mock_save:
+            state.truncate_from_session(2)
+        mock_save.assert_called_once()
+        call_kwargs = mock_save.call_args.kwargs
+        assert set(call_kwargs["completed_dialogs"]) == {"d1", "d2"}
+        assert "topics_of_interest" in call_kwargs

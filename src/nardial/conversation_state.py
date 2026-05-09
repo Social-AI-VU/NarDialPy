@@ -556,6 +556,14 @@ class ConversationState:
         if self.use_json_file:
             self.save_state_to_json()
 
+        # Mirror the truncated state to Redis so subsequent sessions read
+        # the correct completed_dialogs regardless of which backend is active.
+        if self.participant_id is not None:
+            self.user_model.save_continuity(
+                completed_dialogs=list(self.completed_dialogs),
+                topics_of_interest=list(self.topics_of_interest),
+            )
+
         logger.info(
             "History truncated to %d session(s); completed_dialogs=%s",
             len(retained),

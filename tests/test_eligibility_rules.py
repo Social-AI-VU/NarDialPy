@@ -267,26 +267,33 @@ class TestDefaultEligibilityAttachment:
         assert rule_types == {ExcludeIfSeenRule, DepsMetRule, VariableDepsMetRule, NarrativeOrderingRule}
 
 
-# ── is_dialog_eligible integration ───────────────────────────────────────────
+# ── DEFAULT_ELIGIBILITY integration ──────────────────────────────────────────
 
-class TestIsDialogEligibleWithPolicy:
-    """Verify that DialogLogic.is_dialog_eligible uses and respects policies."""
+class TestDefaultEligibilityIntegration:
+    """Verify that each dialog class's DEFAULT_ELIGIBILITY behaves correctly."""
 
-    def test_custom_policy_overrides_class_default(self):
-        from nardial.dialog_logic import DialogLogic
+    def _ctx(self, dialog, completed_ids=(), user_model=None):
+        registry = make_registry(dialog)
+        return AgendaContext(
+            registry=registry,
+            completed_ids=set(completed_ids),
+            user_model=user_model or {},
+        )
+
+    def test_custom_policy_blocks_functional_when_completed(self):
         # FunctionalDialog default has no ExcludeIfSeenRule, but a custom policy does.
         f = make_functional("greeting")
+        ctx = self._ctx(f, completed_ids=["greeting"])
         custom = EligibilityPolicy([ExcludeIfSeenRule()])
-        result = DialogLogic.is_dialog_eligible(f, completed_ids=["greeting"], user_model={}, policy=custom)
-        assert not result
+        assert not custom.is_eligible(f, ctx)
 
     def test_functional_passes_when_completed_under_default_policy(self):
-        from nardial.dialog_logic import DialogLogic
         f = make_functional("greeting")
-        # Default policy has no ExcludeIfSeenRule → should pass even when completed.
-        assert DialogLogic.is_dialog_eligible(f, completed_ids=["greeting"], user_model={})
+        ctx = self._ctx(f, completed_ids=["greeting"])
+        # Default policy has no ExcludeIfSeenRule → passes even when completed.
+        assert FunctionalDialog.DEFAULT_ELIGIBILITY.is_eligible(f, ctx)
 
     def test_narrative_blocked_when_completed_under_default_policy(self):
-        from nardial.dialog_logic import DialogLogic
         n = make_narrative("n1")
-        assert not DialogLogic.is_dialog_eligible(n, completed_ids=["n1"], user_model={})
+        ctx = self._ctx(n, completed_ids=["n1"])
+        assert not NarrativeDialog.DEFAULT_ELIGIBILITY.is_eligible(n, ctx)

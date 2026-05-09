@@ -5,9 +5,8 @@ from typing import Any, List, Optional
 class BaseDialog(ABC):
     """Abstract base for all dialog types in NarDialPy.
 
-    Defines the minimal interface required by ``SessionManager`` and
-    ``DialogLogic``: dialog identity, dependency declarations, and the
-    ``run()`` execution hook.
+    Defines the minimal interface required by ``SessionManager``: dialog
+    identity, dependency declarations, and the ``run()`` execution hook.
 
     Concrete subclasses:
 

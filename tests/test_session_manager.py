@@ -1,8 +1,9 @@
 """Tests for SessionManager — dialog loading, registry building, and run behaviour."""
 import json
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+from nardial.conversation_state import ConversationState
 from nardial.dialog_registry import DialogRegistry
 from nardial.session_manager import SessionManager
 
@@ -214,3 +215,199 @@ class TestRun:
         sm.run()
         mock_agent.say.assert_not_called()
         assert sm.conversation_state.completed_dialogs == []
+
+
+# ── session_plan_path ─────────────────────────────────────────────────────────
+
+class TestSessionPlanPath:
+    def _write_plan(self, tmp_path, sessions):
+        data = {"plan_id": "test_plan", "sessions": sessions}
+        path = tmp_path / "plan.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return str(path)
+
+    def test_plan_overrides_session_agenda(self, dialogs_file, mock_agent, tmp_path):
+        plan_path = self._write_plan(tmp_path, [
+            {"session_index": 1, "agenda": ["greeting", "farewell"]},
+        ])
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=plan_path,
+        )
+        assert len(sm.session_agenda) == 2
+        assert sm.session_agenda[0] == "greeting"
+
+    def test_plan_fallback_when_session_number_exceeds_templates(self, dialogs_file, mock_agent, tmp_path):
+        """When session_number > all template indices, the last template is used."""
+        plan_path = self._write_plan(tmp_path, [
+            {"session_index": 1, "agenda": ["greeting"]},
+            {"session_index": 2, "agenda": ["farewell"]},
+        ])
+        # No participant history → session_number=1 → uses template 1
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=plan_path,
+        )
+        assert sm.session_agenda == ["greeting"]
+
+    def test_missing_plan_falls_back_to_supplied_agenda(self, dialogs_file, mock_agent, tmp_path):
+        missing_path = str(tmp_path / "nonexistent_plan.json")
+        sm = SessionManager(
+            session_agenda=["greeting"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=missing_path,
+        )
+        # Plan load fails → session_agenda unchanged
+        assert sm.session_agenda == ["greeting"]
+
+
+# ── session_index ─────────────────────────────────────────────────────────────
+
+class TestSessionIndex:
+    def test_session_index_selects_correct_template(self, dialogs_file, mock_agent, tmp_path):
+        data = {
+            "plan_id": "test_plan",
+            "sessions": [
+                {"session_index": 1, "agenda": ["greeting"]},
+                {"session_index": 2, "agenda": ["farewell"]},
+            ],
+        }
+        plan_path = tmp_path / "plan.json"
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
+
+        # Force session index 2 despite no prior history (which would compute session 1)
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=str(plan_path),
+            session_index=2,
+        )
+        assert sm.session_agenda == ["farewell"]
+
+
+# ── reset_history_from_session ────────────────────────────────────────────────
+
+class TestResetHistoryFromSession:
+    def test_truncate_from_session_is_called(self, dialogs_file, mock_agent):
+        with patch.object(ConversationState, "truncate_from_session") as mock_truncate:
+            SessionManager(
+                session_agenda=[],
+                agent=mock_agent,
+                dialog_json_path=dialogs_file,
+                participant_id="alice",
+                reset_history_from_session=3,
+            )
+        mock_truncate.assert_called_once_with(3)
+
+    def test_reset_happens_before_plan_loading(self, dialogs_file, mock_agent, tmp_path):
+        """History must be reset before the session count is read for plan resolution."""
+        call_order = []
+
+        data = {
+            "plan_id": "p",
+            "sessions": [{"session_index": 1, "agenda": ["greeting"]}],
+        }
+        plan_path = tmp_path / "plan.json"
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
+
+        _orig_truncate = ConversationState.truncate_from_session
+        _orig_count = ConversationState.count_completed_sessions
+
+        def _rec_truncate(self_inner, n):
+            call_order.append("truncate")
+            return _orig_truncate(self_inner, n)
+
+        def _rec_count(self_inner):
+            call_order.append("count")
+            return _orig_count(self_inner)
+
+        with patch.object(ConversationState, "truncate_from_session", _rec_truncate):
+            with patch.object(ConversationState, "count_completed_sessions", _rec_count):
+                SessionManager(
+                    session_agenda=[],
+                    agent=mock_agent,
+                    dialog_json_path=dialogs_file,
+                    participant_id="alice",
+                    reset_history_from_session=1,
+                    session_plan_path=str(plan_path),
+                )
+
+        assert "truncate" in call_order
+        assert "count" in call_order
+        assert call_order.index("truncate") < call_order.index("count")
+
+
+# ── resume ────────────────────────────────────────────────────────────────────
+
+class TestResume:
+    def test_resume_reuses_incomplete_session_id(self, dialogs_file, mock_agent):
+        # Create an incomplete session in the participant transcript
+        state = ConversationState(participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        state.add_dialog_id(sid, "greeting")
+        state.save()  # writes session with ended_at=None
+
+        sm = SessionManager(
+            session_agenda=["farewell"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            participant_id="alice",
+            resume=True,
+        )
+        assert sm.session_id == sid
+
+    def test_resume_pre_populates_completed_ids(self, dialogs_file, mock_agent):
+        state = ConversationState(participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        state.add_dialog_id(sid, "greeting")
+        state.save()
+
+        sm = SessionManager(
+            session_agenda=["farewell"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            participant_id="alice",
+            resume=True,
+        )
+        assert "greeting" in sm._resume_completed_ids
+
+    def test_resume_starts_fresh_when_no_incomplete_session(self, dialogs_file, mock_agent):
+        # No participant file at all → fresh start
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            participant_id="alice",
+            resume=True,
+        )
+        # A fresh session is created; no pre-populated resume IDs
+        assert sm._resume_completed_ids == set()
+        assert sm.session_id is not None
+
+    def test_resume_skips_already_completed_dialog(self, dialogs_file, mock_agent):
+        """NarrativeDialog run in the incomplete session must not run again on resume.
+
+        FunctionalDialogs deliberately have no ExcludeIfSeenRule (they re-run
+        every session), so this test uses the narrative dialog 'chapter_1'.
+        """
+        state = ConversationState(participant_id="alice")
+        sid = state.start_session(participant_id="alice")
+        state.add_dialog_id(sid, "chapter_1")
+        state.save()
+
+        sm = SessionManager(
+            session_agenda=["chapter_1"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            participant_id="alice",
+            resume=True,
+        )
+        sm.run()
+        # chapter_1 is in _resume_completed_ids → ExcludeIfSeenRule blocks it
+        mock_agent.say.assert_not_called()

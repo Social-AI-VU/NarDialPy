@@ -62,6 +62,21 @@ class AgendaContext:
     user_model: Any = field(default_factory=dict)
     topics_of_interest: list[str] = field(default_factory=list)
 
+    def mark_completed(self, dialog_id: str) -> None:
+        """Record a dialog as completed in both cumulative and in-session history.
+
+        Called by the resolver's caller (typically ``SessionManager``) after each
+        dialog finishes running, so that subsequent ``resolve()`` calls see
+        up-to-date eligibility state.
+
+        Parameters
+        ----------
+        dialog_id : str
+            ID of the dialog that just finished.
+        """
+        self.completed_ids.add(dialog_id)
+        self.session_completed_ids.add(dialog_id)
+
 
 # ── Base ──────────────────────────────────────────────────────────────────────
 

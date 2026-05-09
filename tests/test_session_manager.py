@@ -1,8 +1,9 @@
-"""Tests for SessionManager — dialog loading, session block construction, and run behaviour."""
+"""Tests for SessionManager — dialog loading, registry building, and run behaviour."""
 import json
 import pytest
 from unittest.mock import Mock
 
+from nardial.dialog_registry import DialogRegistry
 from nardial.session_manager import SessionManager
 
 
@@ -88,37 +89,58 @@ class TestLoadDialogsFromJson:
         assert result == []
 
 
-# ── build_session_block ───────────────────────────────────────────────────────
+# ── load_dialog_registry / DialogRegistry ────────────────────────────────────
 
-class TestBuildSessionBlock:
-    def test_empty_agenda_uses_all_dialogs(self, session_manager):
-        assert len(session_manager.session_block) == len(session_manager.dialogs)
-
-    def test_agenda_filters_to_requested_ids(self, dialogs_file, mock_agent):
+class TestDialogRegistry:
+    def test_registry_built_from_valid_file(self, dialogs_file, mock_agent):
         sm = SessionManager(
-            session_agenda=["greeting"],
+            session_agenda=[],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
-        assert len(sm.session_block) == 1
-        assert sm.session_block[0].dialog_id == "greeting"
+        assert isinstance(sm._registry, DialogRegistry)
+        assert len(sm._registry) == 3
 
-    def test_agenda_preserves_order(self, dialogs_file, mock_agent):
+    def test_registry_contains_all_loaded_dialogs(self, dialogs_file, mock_agent):
         sm = SessionManager(
-            session_agenda=["farewell", "greeting"],
+            session_agenda=[],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
-        ids = [d.dialog_id for d in sm.session_block]
-        assert ids == ["farewell", "greeting"]
+        assert sm._registry.get_by_id("greeting") is not None
+        assert sm._registry.get_by_id("farewell") is not None
+        assert sm._registry.get_by_id("chapter_1") is not None
 
-    def test_unknown_agenda_ids_silently_skipped(self, dialogs_file, mock_agent):
+    def test_load_dialog_registry_returns_registry(self, dialogs_file):
+        reg = SessionManager.load_dialog_registry(dialogs_file)
+        assert isinstance(reg, DialogRegistry)
+        assert len(reg) == 3
+
+    def test_load_dialog_registry_empty_on_missing_file(self, tmp_path):
+        reg = SessionManager.load_dialog_registry(str(tmp_path / "missing.json"))
+        assert isinstance(reg, DialogRegistry)
+        assert len(reg) == 0
+
+    def test_build_agenda_context_uses_completed_dialogs(self, dialogs_file, mock_agent):
         sm = SessionManager(
-            session_agenda=["nonexistent_dialog"],
+            session_agenda=[],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
-        assert sm.session_block == []
+        sm.conversation_state.completed_dialogs.append("greeting")
+        ctx = sm._build_agenda_context()
+        assert "greeting" in ctx.completed_ids
+
+    def test_build_agenda_context_session_completed_starts_empty(self, dialogs_file, mock_agent):
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+        )
+        sm.conversation_state.completed_dialogs.append("greeting")
+        ctx = sm._build_agenda_context()
+        # session_completed_ids is always fresh at context build time
+        assert ctx.session_completed_ids == set()
 
 
 # ── run ───────────────────────────────────────────────────────────────────────
@@ -173,3 +195,22 @@ class TestRun:
         sm.run()
         calls = [call.args[0] for call in mock_agent.say.call_args_list]
         assert calls == ["Hello!", "Goodbye!"]
+
+    def test_empty_agenda_runs_nothing(self, dialogs_file, mock_agent):
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+        )
+        sm.run()
+        mock_agent.say.assert_not_called()
+
+    def test_unknown_agenda_ids_silently_skipped(self, dialogs_file, mock_agent):
+        sm = SessionManager(
+            session_agenda=["nonexistent_dialog"],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+        )
+        sm.run()
+        mock_agent.say.assert_not_called()
+        assert sm.conversation_state.completed_dialogs == []

@@ -1,13 +1,13 @@
-"""Eligibility rules and EligibilityPolicy for dialog selection.
+"""Eligibility rules and EligibilityPolicy for agenda-based dialog selection.
 
 Rules are composable predicates that together decide whether a dialog may run
 given the current ``AgendaContext``.  ``EligibilityPolicy`` combines a list of
 rules with short-circuit ``all()`` evaluation.
 
-At the bottom of this module the default ``EligibilityPolicy`` for each dialog
-class is attached to that class's ``DEFAULT_ELIGIBILITY`` attribute.  Doing it
-here (rather than in ``mini_dialogs.py``) avoids a circular import: this module
-already imports the dialog classes it needs.
+This module lives at the package root (not inside ``agenda/``) so that
+``mini_dialogs.py`` can import from it without creating a layer inversion.
+Each dialog class sets its own ``DEFAULT_ELIGIBILITY`` class attribute using
+the classes defined here.
 """
 
 from __future__ import annotations
@@ -178,5 +178,3 @@ class EligibilityPolicy:
     def __repr__(self) -> str:
         rule_names = ", ".join(type(r).__name__ for r in self.rules)
         return f"EligibilityPolicy([{rule_names}])"
-
-

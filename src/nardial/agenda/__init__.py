@@ -6,6 +6,7 @@ Import from here for the public API:
         AgendaItem, AgendaContext, DialogRef, coerce_agenda_item, AnyAgendaItem,
         EligibilityPolicy, EligibilityRule,
         ExcludeIfSeenRule, DepsMetRule, VariableDepsMetRule, NarrativeOrderingRule,
+        SlotBounds,
     )
 """
 
@@ -16,7 +17,8 @@ from nardial.agenda.items import (
     DialogRef,
     coerce_agenda_item,
 )
-from nardial.agenda.rules import (
+from nardial.agenda.slot_bounds import SlotBounds
+from nardial.eligibility import (
     DepsMetRule,
     EligibilityPolicy,
     EligibilityRule,
@@ -31,6 +33,7 @@ __all__ = [
     "AnyAgendaItem",
     "DialogRef",
     "coerce_agenda_item",
+    "SlotBounds",
     "DepsMetRule",
     "EligibilityPolicy",
     "EligibilityRule",

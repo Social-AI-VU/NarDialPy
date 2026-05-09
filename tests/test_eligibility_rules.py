@@ -3,7 +3,7 @@
 import pytest
 
 from nardial.agenda.items import AgendaContext
-from nardial.agenda.rules import (
+from nardial.eligibility import (
     DepsMetRule,
     EligibilityPolicy,
     EligibilityRule,

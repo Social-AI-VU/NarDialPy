@@ -28,7 +28,7 @@ class DialogLogic:
 
         Delegates to an ``EligibilityPolicy`` — a composable list of rules.
         When no policy is supplied, uses the class-level ``DEFAULT_ELIGIBILITY``
-        policy attached to the dialog's class by ``agenda.rules``.
+        policy attached to the dialog's class by ``nardial.eligibility``.
 
         Parameters
         ----------

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from time import monotonic
 
 from nardial.base_dialog import BaseDialog
-from nardial.agenda.rules import (
+from nardial.eligibility import (
     DepsMetRule,
     EligibilityPolicy,
     ExcludeIfSeenRule,

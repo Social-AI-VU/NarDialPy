@@ -3,10 +3,11 @@
 Import from here for the public API:
 
     from nardial.agenda import (
-        AgendaItem, AgendaContext, DialogRef, coerce_agenda_item, AnyAgendaItem,
+        AgendaItem, AgendaContext, AnyAgendaItem, coerce_agenda_item,
+        DialogRef, NarrativeSlot, ChitchatSlot, FunctionalSlot, LLMDialogRef,
+        SlotBounds,
         EligibilityPolicy, EligibilityRule,
         ExcludeIfSeenRule, DepsMetRule, VariableDepsMetRule, NarrativeOrderingRule,
-        SlotBounds,
     )
 """
 
@@ -14,7 +15,11 @@ from nardial.agenda.items import (
     AgendaContext,
     AgendaItem,
     AnyAgendaItem,
+    ChitchatSlot,
     DialogRef,
+    FunctionalSlot,
+    LLMDialogRef,
+    NarrativeSlot,
     coerce_agenda_item,
 )
 from nardial.agenda.slot_bounds import SlotBounds
@@ -31,8 +36,12 @@ __all__ = [
     "AgendaContext",
     "AgendaItem",
     "AnyAgendaItem",
-    "DialogRef",
     "coerce_agenda_item",
+    "DialogRef",
+    "NarrativeSlot",
+    "ChitchatSlot",
+    "FunctionalSlot",
+    "LLMDialogRef",
     "SlotBounds",
     "DepsMetRule",
     "EligibilityPolicy",

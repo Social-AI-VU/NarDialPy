@@ -68,7 +68,7 @@ def make_chitchat(dialog_id, topics=None, dependencies=None):
 
 
 def make_functional(dialog_id, functional_type="greeting"):
-    return FunctionalDialog(dialog_id=dialog_id, moves=[], type=functional_type)
+    return FunctionalDialog(dialog_id=dialog_id, moves=[], functional_type=functional_type)
 
 
 def make_llm(dialog_id, max_turns=None, duration=None):

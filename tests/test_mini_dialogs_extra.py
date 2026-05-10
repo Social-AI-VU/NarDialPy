@@ -4,6 +4,7 @@ from nardial.mini_dialogs import (
     NarrativeDialog,
     ChitchatDialog,
     LLMDialog,
+    extract_open_value,
 )
 from nardial.moves import (
     MoveAskLLM,
@@ -19,14 +20,14 @@ from nardial.moves import (
 
 def test_extract_open_value_quotes_and_tokens():
     # Quoted content should be preferred
-    assert MiniDialog.extract_open_value("I love 'apples' so much") == 'apples'
-    assert MiniDialog.extract_open_value('She said "banana" is nice') == 'banana'
+    assert extract_open_value("I love 'apples' so much") == 'apples'
+    assert extract_open_value('She said "banana" is nice') == 'banana'
 
     # Last alphabetic token should be returned when no quotes
-    assert MiniDialog.extract_open_value('My favorite animal is a zebra') == 'zebra'
+    assert extract_open_value('My favorite animal is a zebra') == 'zebra'
 
     # If no alphabetic tokens, return trimmed original
-    assert MiniDialog.extract_open_value('  12345  ') == '12345'
+    assert extract_open_value('  12345  ') == '12345'
 
 
 def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
@@ -395,18 +396,18 @@ class TestExtractOpenValueEdgeCases:
     """Edge cases not covered by the existing standalone test."""
 
     def test_empty_string_returns_empty(self):
-        assert MiniDialog.extract_open_value("") == ""
+        assert extract_open_value("") == ""
 
     def test_single_alphabetic_word_returned_verbatim(self):
-        assert MiniDialog.extract_open_value("Alice") == "Alice"
+        assert extract_open_value("Alice") == "Alice"
 
     def test_hyphenated_word_captured_as_last_token(self):
         # The regex [A-Za-z][A-Za-z\-']+ matches hyphenated tokens.
-        assert MiniDialog.extract_open_value("My name is Mary-Jane") == "Mary-Jane"
+        assert extract_open_value("My name is Mary-Jane") == "Mary-Jane"
 
     def test_quoted_segment_preferred_over_token(self):
         # Double-quotes take precedence over the last-token heuristic.
-        assert MiniDialog.extract_open_value('call me "Alex" please') == "Alex"
+        assert extract_open_value('call me "Alex" please') == "Alex"
 
     def test_exact_outcome_beats_wildcard(self):
         """When a specific key and '*' both exist, the exact key wins."""

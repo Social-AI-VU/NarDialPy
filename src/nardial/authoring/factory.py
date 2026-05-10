@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, assert_never
 
 from pydantic import TypeAdapter
 
@@ -21,7 +21,7 @@ from nardial.mini_dialogs import (
 _dialog_adapter: TypeAdapter[AnyDialogSpec] = TypeAdapter(AnyDialogSpec)
 
 
-def from_json(doc: Dict[str, Any]) -> BaseDialog:
+def from_json(doc: dict[str, Any]) -> BaseDialog:
     """Parse and validate a dialog document dict, returning a typed runtime dialog object.
 
     Raises ``pydantic.ValidationError`` with field-level details on invalid input.
@@ -30,7 +30,7 @@ def from_json(doc: Dict[str, Any]) -> BaseDialog:
     return _spec_to_dialog(spec)
 
 
-def to_json(d: BaseDialog) -> Dict[str, Any]:
+def to_json(d: BaseDialog) -> dict[str, Any]:
     """Serialize a runtime dialog object back to a JSON-ready dict."""
     return _dialog_to_spec(d).model_dump(exclude_none=True)
 
@@ -44,7 +44,7 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
         return FunctionalDialog(
             dialog_id=spec.id,
             moves=moves,
-            type=spec.functional_type,
+            functional_type=spec.functional_type,
             dependencies=deps,
         )
     if isinstance(spec, NarrativeDialogSpec):
@@ -79,7 +79,7 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
             rag_enabled=spec.rag_enabled,
             index_name=spec.index_name,
         )
-    raise ValueError(f"Unknown spec type: {type(spec)}")
+    assert_never(spec)
 
 
 def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
@@ -124,4 +124,4 @@ def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
             rag_enabled=d.rag_enabled,
             index_name=d.index_name,
         )
-    raise ValueError(f"Unknown dialog type: {type(d)}")
+    assert_never(d)

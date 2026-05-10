@@ -419,6 +419,10 @@ AnyAgendaItem = Annotated[
     Field(discriminator="type"),
 ]
 
+# Module-level singleton — TypeAdapter construction is expensive; build once.
+from pydantic import TypeAdapter as _TypeAdapter
+_agenda_item_adapter: _TypeAdapter[AnyAgendaItem] = _TypeAdapter(AnyAgendaItem)
+
 
 # ── Coercion helper ───────────────────────────────────────────────────────────
 
@@ -451,9 +455,7 @@ def coerce_agenda_item(item: "str | dict | AgendaItem") -> AgendaItem:
     if isinstance(item, str):
         return DialogRef(id=item)
     if isinstance(item, dict):
-        from pydantic import TypeAdapter
-        _adapter: TypeAdapter[AnyAgendaItem] = TypeAdapter(AnyAgendaItem)
-        return _adapter.validate_python(item)
+        return _agenda_item_adapter.validate_python(item)
     if isinstance(item, AgendaItem):
         return item
     raise TypeError(f"Cannot coerce {type(item)!r} to AgendaItem")

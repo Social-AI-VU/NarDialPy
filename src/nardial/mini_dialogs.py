@@ -1,8 +1,11 @@
-from typing import List, Optional, Any, Dict
-import re
+from __future__ import annotations
+
 import logging
+import re
 from dataclasses import dataclass, field
+from enum import Enum
 from time import monotonic
+from typing import Any
 
 from nardial.base_dialog import BaseDialog
 from nardial.eligibility import (
@@ -12,18 +15,31 @@ from nardial.eligibility import (
     NarrativeOrderingRule,
     VariableDepsMetRule,
 )
-
 from nardial.moves import (
-    AnyMove,
-    MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS,
-    MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, MOVE_ANIMATION, MOVE_BRANCH, MOVE_ASK_LLM,
-    MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MOVE_ANSWER_LLM,
+    MOVE_ANIMATION,
+    MOVE_ANSWER_LLM,
+    MOVE_ANSWER_OPEN,
+    MOVE_ANSWER_OPTIONS,
+    MOVE_ANSWER_YESNO,
+    MOVE_ASK_LLM,
+    MOVE_ASK_OPEN,
+    MOVE_ASK_OPTIONS,
+    MOVE_ASK_YESNO,
     MOVE_LLM_FOLLOWUP,
-    MoveSay, MoveAskYesNo, MoveAskOpen, MoveAskOptions, MoveAskLLM,
-    MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch,
+    MOVE_MOTION_SEQUENCE,
+    MOVE_PLAY_AUDIO,
+    MOVE_SAY,
+    AnyMove,
+    MoveAskLLM,
+    MoveAskOpen,
+    MoveAskOptions,
+    MoveAskYesNo,
+    MoveAnimation,
+    MoveBranch,
+    MoveMotionSequence,
+    MovePlayAudio,
+    MoveSay,
 )
-
-from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +53,10 @@ class RunContext:
     dialog runs* belongs here: the growing history, the user model, discovered
     topics, and the outcome of the most recent ask-move.
     """
-    session_history: List[Dict[str, Any]] = field(default_factory=list)
-    topics_of_interest: List[str] = field(default_factory=list)
+    session_history: list[dict[str, Any]] = field(default_factory=list)
+    topics_of_interest: list[str] = field(default_factory=list)
     user_model: Any = field(default_factory=dict)  # UserModel or plain dict
-    current_outcome: Optional[str] = None
+    current_outcome: str | None = None
 
 
 class DialogType(Enum):
@@ -74,14 +90,14 @@ def extract_open_value(answer: str) -> str:
     return text
 
 
-def _run_llm_exchange(agent: Any, context: "RunContext", prompt: str, max_turns: int,
-                      set_variable: Optional[str] = None,
-                      quit_phrases: Optional[List[str]] = None,
-                      quit_signal: Optional[str] = None,
+def _run_llm_exchange(agent: Any, context: RunContext, prompt: str, max_turns: int,
+                      set_variable: str | None = None,
+                      quit_phrases: list[str] | None = None,
+                      quit_signal: str | None = None,
                       speak_first: bool = True,
-                      duration: Optional[float] = None,
+                      duration: float | None = None,
                       rag_enabled: bool = False,
-                      index_name: Optional[str] = None) -> None:
+                      index_name: str | None = None) -> None:
     """Drive a multi-turn LLM conversation loop.
 
     Parameters
@@ -109,7 +125,7 @@ def _run_llm_exchange(agent: Any, context: "RunContext", prompt: str, max_turns:
     index_name : str, optional
         Vector store index name for RAG queries.
     """
-    dialog_history: List[str] = []
+    dialog_history: list[str] = []
     user_input = ""
     start_time = monotonic()
 
@@ -178,37 +194,23 @@ class MiniDialog(BaseDialog):
     # Fallback policy for direct MiniDialog instantiation (e.g. in tests).
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
 
-    # Registry mapping move type string → handler method name.
-    # To add a new move type: implement handle_move_<name> and add one entry here.
-    _MOVE_HANDLERS: Dict[str, str] = {
-        MOVE_SAY:             "handle_move_say",
-        MOVE_ASK_YESNO:       "handle_move_ask_yesno",
-        MOVE_ASK_OPEN:        "handle_move_ask_open",
-        MOVE_ASK_OPTIONS:     "handle_move_ask_options",
-        MOVE_BRANCH:          "handle_move_branch",
-        MOVE_PLAY_AUDIO:      "handle_move_play_audio",
-        MOVE_MOTION_SEQUENCE: "handle_move_motion_sequence",
-        MOVE_ANIMATION:       "handle_move_animation",
-        MOVE_ASK_LLM:         "handle_move_ask_llm",
-    }
-
-    def __init__(self, dialog_id: str, moves: List[AnyMove], dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id: str, moves: list[AnyMove], dependencies=None, variable_dependencies=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of typed move objects representing the dialog steps
         """
         super().__init__(dialog_id, dependencies, variable_dependencies)
         self.moves = moves
-        self._agent: Optional[Any] = None
-        self._context: Optional[RunContext] = None
+        self._agent: Any = None
+        self._context: RunContext | None = None
 
     @property
-    def current_outcome(self) -> Optional[str]:
+    def current_outcome(self) -> str | None:
         """The outcome set by the most recent ask-move; read by subsequent branch moves."""
         return self._context.current_outcome if self._context is not None else None
 
     @current_outcome.setter
-    def current_outcome(self, value: Optional[str]) -> None:
+    def current_outcome(self, value: str | None) -> None:
         if self._context is not None:
             self._context.current_outcome = value
 
@@ -247,7 +249,7 @@ class MiniDialog(BaseDialog):
         if not answer:
             return
         if getattr(move, "set_variable", None):
-            self._context.user_model[move.set_variable] = self.extract_open_value(answer)
+            self._context.user_model[move.set_variable] = extract_open_value(answer)
 
     def _store_interests(self, move, answer: str):
         if answer and getattr(move, "add_interest_from_answer", False):
@@ -256,15 +258,6 @@ class MiniDialog(BaseDialog):
             val = self._context.user_model.get(move.add_interest_from_variable)
             if val:
                 self.add_interest(self._context.topics_of_interest, val)
-
-    @staticmethod
-    def extract_open_value(answer: str) -> str:
-        """Delegate to the module-level extract_open_value helper.
-
-        Kept as a static method for backward compatibility with callers that
-        reference it as MiniDialog.extract_open_value.
-        """
-        return extract_open_value(answer)
 
     def run(self, agent: Any, context: RunContext) -> None:
         """Execute all moves in sequence using the given agent and runtime context.
@@ -305,14 +298,16 @@ class MiniDialog(BaseDialog):
             self._dispatch_move(sub_move)
 
     def _dispatch_move(self, move: AnyMove) -> None:
-        """Route a move to its handler via the _MOVE_HANDLERS registry.
+        """Route a move to its handler by naming convention: handle_move_<move.type>.
 
-        Adding a new move type requires only a new entry in _MOVE_HANDLERS and
-        a corresponding handle_move_<name> method — no changes here.
+        To add a new move type, implement handle_move_<name> — no registration needed.
+        Unknown move types are logged as a warning and skipped rather than raising.
         """
-        handler_name = self._MOVE_HANDLERS.get(move.type)
-        if handler_name:
-            getattr(self, handler_name)(move)
+        handler = getattr(self, f"handle_move_{move.type}", None)
+        if handler is None:
+            logger.warning("No handler for move type %r — move skipped", move.type)
+        else:
+            handler(move)
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         context_messages = [
@@ -408,16 +403,16 @@ class FunctionalType(Enum):
 
 class FunctionalDialog(MiniDialog):
     # Indexed by the string value of functional_type (e.g. "greeting", "farewell").
-    INDEX_ATTRS: List[str] = ["functional_type"]
+    INDEX_ATTRS: list[str] = ["functional_type"]
     # No ExcludeIfSeenRule — greetings and farewells re-run at the start of every session.
     DEFAULT_ELIGIBILITY = EligibilityPolicy([DepsMetRule()])
     dialog_type: DialogType = DialogType.FUNCTIONAL
 
-    def __init__(self, dialog_id, moves, type, dependencies=None):
+    def __init__(self, dialog_id, moves, functional_type, dependencies=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         # Coerce string values to the enum so comparisons work regardless of the caller's source.
-        self.type = FunctionalType(type) if isinstance(type, str) else type
+        self.type = FunctionalType(functional_type) if isinstance(functional_type, str) else functional_type
 
     @property
     def functional_type(self) -> str:
@@ -432,7 +427,7 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
-    INDEX_ATTRS: List[str] = ["thread"]
+    INDEX_ATTRS: list[str] = ["thread"]
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule(), NarrativeOrderingRule()])
     dialog_type: DialogType = DialogType.NARRATIVE
 
@@ -446,7 +441,7 @@ class NarrativeDialog(MiniDialog):
 class ChitchatDialog(MiniDialog):
     # topics is a list — each element is indexed individually so get_by_attr("topics", "pizza")
     # returns all ChitchatDialogs whose topics list contains "pizza".
-    INDEX_ATTRS: List[str] = ["topics"]
+    INDEX_ATTRS: list[str] = ["topics"]
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
     dialog_type: DialogType = DialogType.CHITCHAT
 
@@ -468,15 +463,15 @@ class LLMDialog(BaseDialog):
     round-trip compatibility with the authoring layer.
     """
 
-    INDEX_ATTRS: List[str] = []
+    INDEX_ATTRS: list[str] = []
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
     dialog_type: DialogType = DialogType.LLM_BASED
 
     def __init__(self, dialog_id, moves=None, prompt=None, max_turns=None, dependencies=None,
-                 variable_dependencies=None, quit_phrases: Optional[List[str]] = None,
-                 quit_signal: Optional[str] = None, speak_first: bool = True,
-                 duration: Optional[float] = None, rag_enabled: bool = False,
-                 index_name: Optional[str] = None):
+                 variable_dependencies=None, quit_phrases: list[str] | None = None,
+                 quit_signal: str | None = None, speak_first: bool = True,
+                 duration: float | None = None, rag_enabled: bool = False,
+                 index_name: str | None = None):
         super().__init__(dialog_id, dependencies, variable_dependencies)
         # moves is accepted for factory round-trip compat but unused at runtime
         self.moves: List[AnyMove] = list(moves or [])

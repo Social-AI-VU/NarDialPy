@@ -1,7 +1,10 @@
+from __future__ import annotations
+
+import json
+import os
 from collections.abc import MutableMapping
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-import json
+from typing import Any
 
 # Attempt to import the SIC Redis datastore message classes and client used by the demo.
 # The proxy will hide these details and gracefully fall back to in-memory behavior when unavailable.
@@ -52,18 +55,21 @@ class UserModel(MutableMapping):
     - If no datastore can be used, remain in pure in-memory mode.
     """
 
-    def __init__(self, *, participant_id: Optional[str] = None):
-        self._cache: Dict[str, Any] = {}
+    def __init__(self, *, participant_id: str | None = None):
+        self._cache: dict[str, Any] = {}
         self._pid = participant_id
         self._datastore = None
 
         # Attempt to create a default RedisDatastore.
+        # Connection parameters are read from environment variables so that
+        # deployments can override them without touching source code.
+        # Matching the variable names already documented in the project .env file.
         if _HAS_REDIS_DS and RedisDatastoreConf and RedisDatastore:
             try:
                 conf = RedisDatastoreConf(
-                    host="127.0.0.1",
-                    port=6379,
-                    password="changemeplease",
+                    host=os.environ.get("DB_IP", "127.0.0.1"),
+                    port=int(os.environ.get("DB_PORT", "6379")),
+                    password=os.environ.get("DB_PASS", "changemeplease"),
                     namespace="usermodel",
                     version="v1",
                     developer_id=0,
@@ -73,7 +79,7 @@ class UserModel(MutableMapping):
                 # If any error occurs, fall back to in-memory only.
                 self._datastore = None
 
-    def set_participant(self, participant_id: Optional[str]):
+    def set_participant(self, participant_id: str | None):
         self._pid = participant_id
         if self._datastore and self._pid:
             try:
@@ -129,25 +135,25 @@ class UserModel(MutableMapping):
 
     # ---- continuity helpers (completed_dialogs, topics_of_interest, metadata) ----
 
-    def get_completed_dialogs(self) -> List[str]:
+    def get_completed_dialogs(self) -> list[str]:
         """Return the list of completed dialog IDs stored for this participant."""
         self._ensure_loaded()
         return list(self._cache.get(_KEY_COMPLETED_DIALOGS) or [])
 
-    def set_completed_dialogs(self, dialog_ids: List[str]) -> None:
+    def set_completed_dialogs(self, dialog_ids: list[str]) -> None:
         """Persist the completed dialog IDs for this participant."""
         self[_KEY_COMPLETED_DIALOGS] = list(dialog_ids)
 
-    def get_topics_of_interest(self) -> List[str]:
+    def get_topics_of_interest(self) -> list[str]:
         """Return the list of topics of interest stored for this participant."""
         self._ensure_loaded()
         return list(self._cache.get(_KEY_TOPICS_OF_INTEREST) or [])
 
-    def set_topics_of_interest(self, topics: List[str]) -> None:
+    def set_topics_of_interest(self, topics: list[str]) -> None:
         """Persist the topics of interest for this participant."""
         self[_KEY_TOPICS_OF_INTEREST] = list(topics)
 
-    def save_continuity(self, completed_dialogs: List[str], topics_of_interest: List[str]) -> None:
+    def save_continuity(self, completed_dialogs: list[str], topics_of_interest: list[str]) -> None:
         """Persist all continuity fields (completed_dialogs, topics, metadata) in one write."""
         self.update({
             _KEY_COMPLETED_DIALOGS: list(completed_dialogs),
@@ -176,7 +182,7 @@ class UserModel(MutableMapping):
         else:
             self._cache[key] = value
 
-    def update(self, mapping: Optional[Dict[str, Any]] = None, **kwargs) -> None:
+    def update(self, mapping: dict[str, Any] | None = None, **kwargs) -> None:
         items = dict(mapping or {})
         items.update(kwargs)
         if not items:
@@ -194,7 +200,7 @@ class UserModel(MutableMapping):
         else:
             self._cache.update(items)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         self._ensure_loaded()
         return dict(self._cache)
 

@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from nardial.conversation_agent import ConversationAgent
+    from nardial.mini_dialogs import RunContext
 
 
 class BaseDialog(ABC):
@@ -25,14 +31,14 @@ class BaseDialog(ABC):
         Each entry is ``{"variable": str, "required": bool}``.
     """
 
-    def __init__(self, dialog_id: str, dependencies: Optional[List[str]] = None,
-                 variable_dependencies: Optional[List[Any]] = None) -> None:
+    def __init__(self, dialog_id: str, dependencies: list[str] | None = None,
+                 variable_dependencies: list[Any] | None = None) -> None:
         self.dialog_id = dialog_id
-        self.dependencies: List[str] = dependencies or []
-        self.variable_dependencies: List[Any] = variable_dependencies or []
+        self.dependencies: list[str] = dependencies or []
+        self.variable_dependencies: list[Any] = variable_dependencies or []
 
     @abstractmethod
-    def run(self, agent: Any, context: Any) -> None:
+    def run(self, agent: ConversationAgent, context: RunContext) -> None:
         """Execute this dialog using the given agent and run context.
 
         Parameters

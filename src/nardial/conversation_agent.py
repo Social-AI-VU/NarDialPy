@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from nardial.providers.device import DeviceAdapter
@@ -10,6 +11,9 @@ from nardial.providers.nlu import (
 from nardial.providers.llm import LLMProvider
 from nardial.providers.vector_store import VectorStoreProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
+
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationAgent:
@@ -122,7 +126,7 @@ class ConversationAgent:
             await self.say(question)
             result = await self.orchestrator.listen()
             if result.intent:
-                print(f'context: answer_yesno, recognized_intent: {result.intent}')
+                logger.debug("answer_yesno: recognized_intent=%s", result.intent)
                 if result.intent == INTENT_YESNO_YES:
                     return "yes"
                 elif result.intent == INTENT_YESNO_NO:

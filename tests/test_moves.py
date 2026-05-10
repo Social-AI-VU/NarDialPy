@@ -1,3 +1,5 @@
+import pytest
+from pydantic import ValidationError
 from unittest.mock import AsyncMock, MagicMock
 
 from nardial.dialog_runtime import DialogRuntime, RunContext
@@ -10,6 +12,9 @@ from nardial.moves import (
     MovePlayAudio,
     MoveAnimation,
     MoveMotionSequence,
+    MoveWaitForButton,
+    MoveTimedWait,
+    MoveWaitForWebInput,
 )
 
 
@@ -123,3 +128,72 @@ async def test_move_ask_yesno_interest_not_added_when_answer_is_no():
     await DialogRuntime(agent).run(dialog, context)
 
     assert "pizza" not in context.topics_of_interest
+
+
+# ---------------------------------------------------------------------------
+# Pydantic validation tests for new event wait move types
+# ---------------------------------------------------------------------------
+
+class TestMoveWaitForButton:
+    def test_defaults(self):
+        m = MoveWaitForButton(buttons=["chest_button"])
+        assert m.type == "wait_for_button"
+        assert m.buttons == ["chest_button"]
+        assert m.timeout is None
+        assert m.outcomes == {}
+        assert m.default_outcome == "timeout"
+
+    def test_with_all_fields(self):
+        m = MoveWaitForButton(
+            buttons=["chest_button", "head_middle"],
+            timeout=30.0,
+            outcomes={"chest_button": "path_a", "head_middle": "path_b"},
+            default_outcome="no_press",
+        )
+        assert m.timeout == 30.0
+        assert m.outcomes["chest_button"] == "path_a"
+        assert m.default_outcome == "no_press"
+
+    def test_requires_buttons(self):
+        with pytest.raises(ValidationError):
+            MoveWaitForButton()
+
+
+class TestMoveTimedWait:
+    def test_basic(self):
+        m = MoveTimedWait(duration_seconds=5.0)
+        assert m.type == "timed_wait"
+        assert m.duration_seconds == 5.0
+
+    def test_requires_duration(self):
+        with pytest.raises(ValidationError):
+            MoveTimedWait()
+
+    def test_integer_duration_coerced_to_float(self):
+        m = MoveTimedWait(duration_seconds=3)
+        assert isinstance(m.duration_seconds, float)
+
+
+class TestMoveWaitForWebInput:
+    def test_defaults(self):
+        m = MoveWaitForWebInput()
+        assert m.type == "wait_for_web_input"
+        assert m.prompt == ""
+        assert m.options == []
+        assert m.timeout is None
+        assert m.outcomes == {}
+        assert m.default_outcome == "timeout"
+
+    def test_with_all_fields(self):
+        m = MoveWaitForWebInput(
+            prompt="Choose an option",
+            options=["yes", "no"],
+            timeout=60.0,
+            outcomes={"yes": "confirmed", "no": "declined"},
+            default_outcome="timed_out",
+        )
+        assert m.prompt == "Choose an option"
+        assert m.options == ["yes", "no"]
+        assert m.timeout == 60.0
+        assert m.outcomes["no"] == "declined"
+        assert m.default_outcome == "timed_out"

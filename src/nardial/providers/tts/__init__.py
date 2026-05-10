@@ -9,12 +9,16 @@ class TTSProvider(Protocol):
     def speak(self, text: str, **kwargs) -> None: ...
     def close(self) -> None: ...
     def cancel(self) -> None:
-        """Interrupt an in-progress ``speak`` call.
+        """Attempt to interrupt an in-progress ``speak`` call.
 
-        Called when the dialog runtime needs to preempt speech (e.g. to handle
-        a button-press interrupt).  Implementations that support mid-speech
-        cancellation should signal their TTS thread/service here.  The default
-        stub is a safe no-op for providers that do not support cancellation.
+        Called by :class:`~nardial.interaction_orchestrator.InteractionOrchestrator`
+        when a PREEMPTIVE interrupt cancels the running dialog task.
+
+        **Current limitation**: the SIC framework does not expose a mid-request
+        cancel handle for any TTS service.  All concrete implementations are
+        therefore no-ops: the asyncio task is cancelled (preventing future moves
+        from running), but any audio already submitted to the device will play
+        to its natural end.  True mid-speech interruption requires SIC support.
         """
 
 

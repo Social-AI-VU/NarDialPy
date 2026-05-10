@@ -62,7 +62,12 @@ class ElevenLabsTTSProvider(TTSProvider):
         self._tts.stop()
 
     def cancel(self) -> None:
-        pass
+        """No-op: the SIC ElevenLabs service does not expose a mid-request cancel handle.
+
+        True mid-speech interruption is not possible without SIC framework support.
+        The PREEMPTIVE interrupt will still cancel the asyncio task (stopping future
+        moves and chunks), but the currently-playing audio chunk will finish on the device.
+        """
 
     @staticmethod
     def _split_text(text: str, max_len: int = 80, min_tail: int = 20) -> list[str]:

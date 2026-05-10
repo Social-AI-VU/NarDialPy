@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_WATCHDOG_POLL_INTERVAL = 0.05  # seconds between preemptive-event polls
+
 
 class SessionManager:
     """Orchestrates a full conversational session by resolving the agenda
@@ -303,6 +305,7 @@ class SessionManager:
         SessionManager
         """
         self._event_sources.append(source)
+        logger.debug("Registered event source: %s", source.source_id)
         return self
 
     def add_event_handler(self, spec: "EventHandlerSpec") -> "SessionManager":
@@ -321,6 +324,10 @@ class SessionManager:
         SessionManager
         """
         self._event_handlers[spec.event_type] = spec
+        logger.debug(
+            "Registered event handler: event_type=%r → dialog=%r",
+            spec.event_type, spec.handler_dialog_id,
+        )
         return self
 
     # ── Crash recovery ────────────────────────────────────────────────────────
@@ -406,6 +413,8 @@ class SessionManager:
         application).
         """
         self._bus = EventBus()
+        # set_loop must happen before any source task starts so that emit_sync()
+        # calls from callback threads (e.g. robot SDK) have a valid loop reference.
         self._bus.set_loop(asyncio.get_running_loop())
 
         # Add any sources provided by the device adapter.
@@ -513,7 +522,11 @@ class SessionManager:
             try:
                 returned = await dialog_task
             except asyncio.CancelledError:
-                if self._last_preemptive_event is None:
+                # Determine whether the watchdog or an outer cancellation fired.
+                # The watchdog sets _last_preemptive_event and returns (so its task
+                # is done) BEFORE the CancelledError reaches this except block,
+                # making watchdog_task.done() a reliable discriminator.
+                if self._last_preemptive_event is None or not watchdog_task.done():
                     # Outer session cancellation — propagate after cleaning up.
                     watchdog_task.cancel()
                     raise
@@ -524,6 +537,14 @@ class SessionManager:
                     "Dialog %r preemptively interrupted by event %r",
                     dialog.dialog_id, ev.type,
                 )
+                run_context.session_history.append({
+                    "role": "system",
+                    "type": "dialog_interrupted",
+                    "dialog_id": dialog.dialog_id,
+                    "event_type": ev.type,
+                    "resume_policy": ev.resume_policy.value,
+                    "move_index": runtime._current_move_index,
+                })
                 await self._run_handler_dialog(ev, runtime, run_context, context)
                 if ev.resume_policy == ResumePolicy.PAUSE:
                     from nardial.events.checkpoint import MiniDialogCheckpoint
@@ -598,10 +619,19 @@ class SessionManager:
             The running dialog task to watch.
         """
         while not dialog_task.done():
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(_WATCHDOG_POLL_INTERVAL)
             if dialog_task.done():
                 break
-            ev = await self._bus.get_preemptive()
+            try:
+                ev = await self._bus.get_preemptive()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.critical(
+                    "Preemptive watchdog: unexpected error polling bus — watchdog disabled",
+                    exc_info=True,
+                )
+                return
             if ev is not None:
                 logger.debug(
                     "Preemptive watchdog: PREEMPTIVE event %r detected — cancelling dialog task",
@@ -667,12 +697,16 @@ class SessionManager:
             "dialog_id": dialog_id,
             "event_type": event.type,
         })
-        await runtime.run(dialog, run_context)
-        run_context.session_history.append({
-            "role": "system",
-            "type": "handler_dialog_end",
-            "dialog_id": dialog_id,
-        })
+        try:
+            await runtime.run(dialog, run_context)
+        finally:
+            # Always close the history bracket so the transcript stays consistent
+            # even if the handler dialog raises (e.g. a bug in a move handler).
+            run_context.session_history.append({
+                "role": "system",
+                "type": "handler_dialog_end",
+                "dialog_id": dialog_id,
+            })
 
     async def condense_topics(self, topics_of_interest: list) -> list:
         """Reduce a list of topics of interest into concise keywords using GPT.

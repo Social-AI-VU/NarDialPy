@@ -102,6 +102,7 @@ class WebhookSource(EventSource):
         finally:
             await writer.drain()
             writer.close()
+            await writer.wait_closed()
 
     @staticmethod
     def _extract_body(raw: bytes) -> bytes | None:
@@ -142,8 +143,14 @@ class WebhookSource(EventSource):
         except KeyError:
             resume_policy = ResumePolicy.DISCARD
 
+        try:
+            priority = int(payload.get("priority", self._default_priority))
+        except (TypeError, ValueError):
+            logger.warning("WebhookSource: 'priority' must be an integer — rejecting request")
+            return None
+
         return Event(
-            priority=int(payload.get("priority", self._default_priority)),
+            priority=priority,
             type=event_type,
             source=payload.get("source", self.source_id),
             data=payload.get("data"),

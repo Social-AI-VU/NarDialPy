@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import Callable
 
 from nardial.events.types import Event, InterruptLevel
@@ -34,10 +35,13 @@ class EventBus:
 
     def __init__(self) -> None:
         self._queue: asyncio.PriorityQueue[Event] = asyncio.PriorityQueue()
-        # Each subscription is a (predicate, delivery_queue) pair.
-        self._subscriptions: list[tuple[Callable[[Event], bool], asyncio.Queue[Event]]] = []
+        # Subscriptions keyed by id(queue) for O(1) subscribe/unsubscribe.
+        self._subscriptions: dict[int, tuple[Callable[[Event], bool], asyncio.Queue[Event]]] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
         self._closed = False
+        # Per-level pending counts — updated in emit() and drain_at_level() so
+        # has_pending() can answer in O(1) without touching asyncio internals.
+        self._pending_counts: dict[InterruptLevel, int] = {level: 0 for level in InterruptLevel}
 
     # ------------------------------------------------------------------
     # Session-level: priority queue
@@ -54,27 +58,37 @@ class EventBus:
         consumed = await self._deliver_to_subscribers(event)
         if not consumed:
             await self._queue.put(event)
+            self._pending_counts[event.interrupt_level] += 1
 
     def emit_sync(self, event: Event) -> None:
         """Thread-safe emit for use from non-asyncio threads.
 
         Schedules ``emit`` on the running event loop via
-        ``call_soon_threadsafe``.  Call ``set_loop()`` (or ensure the bus is
-        first touched from the loop) before using this from a thread.
+        ``call_soon_threadsafe``.  Call ``set_loop()`` before using this from
+        a thread — if the loop is not set or is closed, the call is a no-op
+        and a warning is logged rather than raising from a callback thread.
         """
-        loop = self._loop or asyncio.get_event_loop()
-        loop.call_soon_threadsafe(
-            lambda: asyncio.ensure_future(self.emit(event))
-        )
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            logger.warning(
+                "emit_sync called with no running loop — event dropped: %r", event.type
+            )
+            return
+        # create_task schedules the coroutine properly and the task is tracked
+        # by the loop, preventing silent event loss on loop shutdown.
+        loop.call_soon_threadsafe(loop.create_task, self.emit(event))
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Explicitly bind the bus to an event loop (required for ``emit_sync``)."""
         self._loop = loop
 
     def has_pending(self, level: InterruptLevel) -> bool:
-        """Return True if any queued event has ``interrupt_level == level``."""
-        # asyncio.PriorityQueue stores items in a private `_queue` heap list.
-        return any(e.interrupt_level == level for e in self._queue._queue)  # type: ignore[attr-defined]
+        """Return True if any queued event has ``interrupt_level == level``.
+
+        Uses a per-level counter updated by :meth:`emit` and
+        :meth:`drain_at_level` — O(1) and does not access asyncio internals.
+        """
+        return self._pending_counts.get(level, 0) > 0
 
     async def drain_at_level(self, level: InterruptLevel) -> list[Event]:
         """Remove and return all queued events at exactly ``level`` (non-blocking).
@@ -91,12 +105,13 @@ class EventBus:
                 break
         for ev in remaining:
             await self._queue.put(ev)
+        self._pending_counts[level] = 0
         return matched
 
     async def get_preemptive(self) -> Event | None:
         """Return the highest-priority PREEMPTIVE event, or None if none queued.
 
-        Any other PREEMPTIVE events are re-enqueued.
+        Any other PREEMPTIVE events are re-enqueued and their pending counts restored.
         """
         events = await self.drain_at_level(InterruptLevel.PREEMPTIVE)
         if not events:
@@ -105,6 +120,7 @@ class EventBus:
         for ev in events:
             if ev is not best:
                 await self._queue.put(ev)
+                self._pending_counts[ev.interrupt_level] += 1
         return best
 
     # ------------------------------------------------------------------
@@ -119,25 +135,40 @@ class EventBus:
         block to guarantee clean-up.
         """
         q: asyncio.Queue[Event] = asyncio.Queue()
-        self._subscriptions.append((predicate, q))
+        self._subscriptions[id(q)] = (predicate, q)
         return q
 
     def unsubscribe(self, queue: asyncio.Queue[Event]) -> None:
         """Remove the subscription associated with ``queue``."""
-        self._subscriptions = [
-            (p, q) for p, q in self._subscriptions if q is not queue
-        ]
+        self._subscriptions.pop(id(queue), None)
+
+    @asynccontextmanager
+    async def subscription(self, predicate: Callable[[Event], bool]):
+        """Async context manager that subscribes on enter and unsubscribes on exit.
+
+        Usage::
+
+            async with bus.subscription(lambda ev: ev.type == "button_press") as q:
+                event = await asyncio.wait_for(q.get(), timeout=30)
+        """
+        q = self.subscribe(predicate)
+        try:
+            yield q
+        finally:
+            self.unsubscribe(q)
 
     async def _deliver_to_subscribers(self, event: Event) -> bool:
         """Try to deliver ``event`` to the first matching subscription.
 
         Returns True if consumed (caller should not enqueue it).
         """
-        for predicate, q in self._subscriptions:
+        for predicate, q in self._subscriptions.values():
             try:
                 if predicate(event):
                     await q.put(event)
                     return True
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 logger.exception("EventBus: subscription predicate raised")
         return False

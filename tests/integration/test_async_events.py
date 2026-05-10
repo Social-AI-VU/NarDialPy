@@ -254,7 +254,7 @@ _BUTTON_DIALOGS = [
             },
             {
                 "type": "branch",
-                "condition": "outcome",
+                "on": "outcome",
                 "cases": {
                     "pressed": [{"type": "say", "text": "Button pressed!"}],
                     "timeout":  [{"type": "say", "text": "Timed out."}],
@@ -345,7 +345,7 @@ async def test_wait_for_button_timeout_falls_back_to_default_outcome(button_dial
                 },
                 {
                     "type": "branch",
-                    "condition": "outcome",
+                    "on": "outcome",
                     "cases": {
                         "pressed": [{"type": "say", "text": "Button pressed!"}],
                         "timeout":  [{"type": "say", "text": "Timed out."}],

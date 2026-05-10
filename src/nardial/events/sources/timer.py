@@ -58,17 +58,20 @@ class TimerSource(EventSource):
 
     async def run(self, bus: EventBus) -> None:
         """Sleep for the configured delay, emit, then repeat if configured."""
-        while True:
-            await asyncio.sleep(self._delay)
-            event = Event(
-                priority=self._priority,
-                type=self._event_type,
-                source=self.source_id,
-                interrupt_level=self._interrupt_level,
-                resume_policy=self._resume_policy,
-                handler_dialog_id=self._handler_dialog_id,
-            )
-            logger.debug("TimerSource emitting %r", event.type)
-            await bus.emit(event)
-            if not self._repeat:
-                return
+        try:
+            while True:
+                await asyncio.sleep(self._delay)
+                event = Event(
+                    priority=self._priority,
+                    type=self._event_type,
+                    source=self.source_id,
+                    interrupt_level=self._interrupt_level,
+                    resume_policy=self._resume_policy,
+                    handler_dialog_id=self._handler_dialog_id,
+                )
+                logger.debug("TimerSource emitting %r", event.type)
+                await bus.emit(event)
+                if not self._repeat:
+                    return
+        except asyncio.CancelledError:
+            raise

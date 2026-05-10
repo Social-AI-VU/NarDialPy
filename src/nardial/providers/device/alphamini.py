@@ -35,7 +35,7 @@ class AlphaMiniButtonSource(EventSource):
 
     async def run(self, bus: EventBus) -> None:
         """No-op: Alphamini has no native button hardware to monitor."""
-        logger.debug("AlphaMiniButtonSource: no native button hardware — exiting immediately")
+        logger.info("AlphaMiniButtonSource: no native button hardware — exiting immediately")
 
 
 _SPEAKING_ACTS = [f"speakingAct{i}" for i in range(1, 18)]
@@ -51,7 +51,7 @@ class AlphaminiAdapter:
     def setup(self, logger: Any) -> None:
         self._logger = logger
         self._speaker = self._device.speaker
-        print("\n Device is ALPHAMINI")
+        self._logger.info("Device is ALPHAMINI")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

@@ -28,7 +28,8 @@ class DesktopAdapter:
         pass
 
     def play_animation(self, animation_name: str, run_async: bool = False) -> None:
-        print(f"[Desktop] Animation: {animation_name}")
+        if self._logger:
+            self._logger.debug("[Desktop] Animation: %s", animation_name)
 
     def play_speaking_animation(self, style: AnimationStyle) -> None:
         pass

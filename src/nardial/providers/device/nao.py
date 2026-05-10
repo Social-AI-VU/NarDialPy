@@ -104,14 +104,25 @@ class NaoButtonSource(EventSource):
                 interrupt_level=self._interrupt_level,
                 resume_policy=ResumePolicy.DISCARD,
             )
-            self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+            try:
+                self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+            except RuntimeError:
+                # Loop was closed between the None-check above and this call.
+                logger.debug("NaoButtonSource: loop closed before event could be enqueued")
 
     async def run(self, bus: EventBus) -> None:
         """Receive NAO button events and forward them to *bus*.
 
         Registers a single callback on the ``buttons`` connector, then loops
         indefinitely, forwarding queued events to the session bus until cancelled.
+
+        Note: ``_loop`` and ``_queue`` are assigned *before* registering the callback
+        so that any button press arriving immediately after registration is never
+        silently dropped by the ``self._loop is None`` guard in ``_on_button``.
         """
+        # Assign loop and queue BEFORE registering the callback to close the startup
+        # race: a physical button press arriving right after registration must not
+        # be silently dropped.
         self._loop = asyncio.get_running_loop()
         self._queue = asyncio.Queue()
         self._device.buttons.register_callback(self._on_button)
@@ -123,6 +134,11 @@ class NaoButtonSource(EventSource):
                 await bus.emit(event)
         except asyncio.CancelledError:
             raise
+        finally:
+            # SIC provides no unregister_callback API.  Nulling _loop makes the
+            # still-registered callback a silent no-op so stale button presses
+            # do not enqueue events after this source has stopped.
+            self._loop = None
 
 _EXPRESSIVE_ANIMATIONS = [
     "animations/Stand/Emotions/Positive/Happy_4",

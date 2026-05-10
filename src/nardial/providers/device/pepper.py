@@ -94,7 +94,11 @@ class PepperButtonSource(EventSource):
                     interrupt_level=self._interrupt_level,
                     resume_policy=ResumePolicy.DISCARD,
                 )
-                self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+                try:
+                    self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+                except RuntimeError:
+                    # Loop was closed between the None-check above and this call.
+                    logger.debug("PepperButtonSource: loop closed before event could be enqueued")
         return _on_event
 
     async def run(self, bus: EventBus) -> None:
@@ -102,7 +106,14 @@ class PepperButtonSource(EventSource):
 
         Registers callbacks on each sensor connector, then loops indefinitely,
         forwarding queued events to the session bus until cancelled.
+
+        Note: ``_loop`` and ``_queue`` are assigned *before* registering callbacks
+        so that any button press arriving immediately after registration is never
+        silently dropped by the ``self._loop is not None`` guard in the callback.
         """
+        # Assign loop and queue BEFORE registering callbacks to close the startup
+        # race: a physical button press arriving right after registration must not
+        # be silently dropped.
         self._loop = asyncio.get_running_loop()
         self._queue = asyncio.Queue()
 
@@ -117,6 +128,11 @@ class PepperButtonSource(EventSource):
                 await bus.emit(event)
         except asyncio.CancelledError:
             raise
+        finally:
+            # SIC provides no unregister_callback API.  Nulling _loop makes the
+            # still-registered callbacks silent no-ops so stale presses on the
+            # physical device do not enqueue events after this source has stopped.
+            self._loop = None
 
 
 # ---------------------------------------------------------------------------

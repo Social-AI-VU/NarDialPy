@@ -251,6 +251,103 @@ async def test_wait_for_web_input_subscription_consumed_not_queued():
 
 
 # ---------------------------------------------------------------------------
+# Session history recording
+# ---------------------------------------------------------------------------
+
+async def test_wait_for_button_records_history_on_success():
+    bus = EventBus()
+    runtime = DialogRuntime(_make_agent(), event_bus=bus)
+    move = MoveWaitForButton(
+        buttons=["chest_button"],
+        outcomes={"chest_button": "pressed"},
+        default_outcome="timeout",
+        timeout=1.0,
+    )
+    context = RunContext()
+
+    async def _emit_later():
+        await asyncio.sleep(0.01)
+        await bus.emit(_button_event("chest_button"))
+
+    await asyncio.gather(runtime._handle_wait_for_button(move, context), _emit_later())
+
+    assert len(context.session_history) == 1
+    entry = context.session_history[0]
+    assert entry["role"] == "system"
+    assert entry["type"] == "wait_for_button"
+    assert entry["outcome"] == "pressed"
+    assert entry["source"] == "chest_button"
+
+
+async def test_wait_for_button_records_history_on_timeout():
+    bus = EventBus()
+    runtime = DialogRuntime(_make_agent(), event_bus=bus)
+    move = MoveWaitForButton(buttons=["chest_button"], timeout=0.05, default_outcome="timeout")
+    context = RunContext()
+
+    await runtime._handle_wait_for_button(move, context)
+
+    assert len(context.session_history) == 1
+    entry = context.session_history[0]
+    assert entry["type"] == "wait_for_button"
+    assert entry["outcome"] == "timeout"
+    assert entry["source"] is None
+
+
+async def test_wait_for_web_input_records_history_on_success():
+    bus = EventBus()
+    runtime = DialogRuntime(_make_agent(), event_bus=bus)
+    move = MoveWaitForWebInput(
+        options=["yes", "no"],
+        outcomes={"yes": "confirmed"},
+        timeout=1.0,
+    )
+    context = RunContext()
+
+    async def _emit_later():
+        await asyncio.sleep(0.01)
+        await bus.emit(_web_event("yes"))
+
+    await asyncio.gather(runtime._handle_wait_for_web_input(move, context), _emit_later())
+
+    assert len(context.session_history) == 1
+    entry = context.session_history[0]
+    assert entry["role"] == "system"
+    assert entry["type"] == "wait_for_web_input"
+    assert entry["outcome"] == "confirmed"
+    assert entry["value"] == "yes"
+
+
+async def test_wait_for_web_input_records_history_on_timeout():
+    bus = EventBus()
+    runtime = DialogRuntime(_make_agent(), event_bus=bus)
+    move = MoveWaitForWebInput(options=["yes"], timeout=0.05, default_outcome="timeout")
+    context = RunContext()
+
+    await runtime._handle_wait_for_web_input(move, context)
+
+    assert len(context.session_history) == 1
+    entry = context.session_history[0]
+    assert entry["type"] == "wait_for_web_input"
+    assert entry["outcome"] == "timeout"
+    assert entry["value"] is None
+
+
+async def test_timed_wait_records_history():
+    runtime = DialogRuntime(_make_agent())
+    move = MoveTimedWait(duration_seconds=0.0)
+    context = RunContext()
+
+    await runtime._handle_timed_wait(move, context)
+
+    assert len(context.session_history) == 1
+    entry = context.session_history[0]
+    assert entry["role"] == "system"
+    assert entry["type"] == "timed_wait"
+    assert entry["duration_seconds"] == 0.0
+
+
+# ---------------------------------------------------------------------------
 # Integration: wait move within a full MiniDialog run
 # ---------------------------------------------------------------------------
 

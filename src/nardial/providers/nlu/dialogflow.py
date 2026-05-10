@@ -30,7 +30,12 @@ class DialogflowNLUProvider:
             return NLUResult(transcript="", intent=None)
 
     def cancel(self) -> None:
-        pass
+        """No-op: the SIC Dialogflow service does not expose a mid-request cancel handle.
+
+        True mid-listen interruption is not possible without SIC framework support.
+        The PREEMPTIVE interrupt will cancel the asyncio task so no subsequent moves
+        run, but the underlying gRPC stream will time out naturally.
+        """
 
     def _on_dialog(self, message) -> None:
         if message.response:

@@ -137,11 +137,14 @@ class InteractionOrchestrator:
     def log_writer(self, log_path):
         with open(log_path, 'a', encoding='utf-8') as f:
             while True:
-                item = self._log_queue.get()
-                if item is None:
-                    break
-                f.write(item + '\n')
-                f.flush()
+                try:
+                    item = self._log_queue.get()
+                    if item is None:
+                        break
+                    f.write(item + '\n')
+                    f.flush()
+                except Exception:
+                    self.logger.exception("log_writer: unexpected error — log thread continuing")
 
     def log_utterance(self, speaker, text):
         if self._log_queue:
@@ -180,7 +183,8 @@ class InteractionOrchestrator:
                 chunk_audio=chunk_audio,
             )
         except asyncio.CancelledError:
-            self.tts_provider.cancel()
+            if self.tts_provider is not None:
+                self.tts_provider.cancel()
             raise
         self.log_utterance(speaker='robot', text=text)
         if post_speech_delay and post_speech_delay > 0:
@@ -199,7 +203,8 @@ class InteractionOrchestrator:
                 self.nlu_provider.listen, context=context, timeout=timeout
             )
         except asyncio.CancelledError:
-            self.nlu_provider.cancel()
+            if self.nlu_provider is not None:
+                self.nlu_provider.cancel()
             raise
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=False)
@@ -255,7 +260,7 @@ class InteractionOrchestrator:
                 return json.loads(text)
             return text
         except Exception as e:
-            self.logger.exception("LLM request failed: %s", e)
+            self.logger.warning("LLM request failed: %s", e)
             return None
 
     # ------------------------------------------------------------------
@@ -292,8 +297,10 @@ class InteractionOrchestrator:
     # ------------------------------------------------------------------
 
     def disconnect(self):
-        self.tts_provider.close()
-        self.device.disconnect()
+        if self.tts_provider is not None:
+            self.tts_provider.close()
+        if self.device is not None:
+            self.device.disconnect()
         if self.vector_store is not None:
             self.vector_store.close()
 

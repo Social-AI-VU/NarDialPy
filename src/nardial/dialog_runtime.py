@@ -135,6 +135,11 @@ async def _run_llm_exchange(
     duration: float | None = None,
     rag_enabled: bool = False,
     index_name: str | None = None,
+    *,
+    resume_history: list[str] | None = None,
+    resume_turn_index: int = 0,
+    resume_user_input: str = "",
+    resume_elapsed: float = 0.0,
 ) -> None:
     """Drive an async multi-turn LLM conversation loop.
 
@@ -162,10 +167,18 @@ async def _run_llm_exchange(
         Whether to enable retrieval-augmented generation.
     index_name : str, optional
         Vector store index name for RAG queries.
+    resume_history : list of str, optional
+        Accumulated dialog history from a previous run (used when resuming).
+    resume_turn_index : int
+        Turn to start from when resuming (default 0 = start fresh).
+    resume_user_input : str
+        Last user input from the previous run, used as the opening prompt on resume.
+    resume_elapsed : float
+        Seconds already elapsed in a previous run; subtracted from the duration budget.
     """
-    dialog_history: list[str] = []
-    user_input = ""
-    start_time = monotonic()
+    dialog_history: list[str] = list(resume_history) if resume_history else []
+    user_input = resume_user_input
+    start_time = monotonic() - resume_elapsed
 
     def remaining_time() -> float | None:
         if duration is None:
@@ -180,7 +193,7 @@ async def _run_llm_exchange(
         user_input = result.transcript or ""
         context.session_history.append({"role": "user", "type": MOVE_ANSWER_LLM, "text": user_input})
 
-    for _ in range(max_turns or MAX_LLM_TURNS):
+    for _ in range(resume_turn_index, max_turns or MAX_LLM_TURNS):
         timeout = remaining_time()
         if timeout is not None and timeout <= 0:
             return
@@ -379,18 +392,23 @@ class DialogRuntime:
     async def _run_llm(
         self, dialog: Any, context: RunContext, resume_from: "AnyCheckpoint | None"
     ) -> "AnyCheckpoint | None":
-        """Execute a free-form LLM dialog, optionally resuming from a checkpoint."""
+        """Execute a free-form LLM dialog, optionally resuming from a checkpoint.
+
+        When *resume_from* is an :class:`~nardial.events.checkpoint.LLMDialogCheckpoint`,
+        the accumulated conversation history, turn counter, last user input, and
+        elapsed time are restored so the exchange continues where it left off.
+        """
         from nardial.events.checkpoint import LLMDialogCheckpoint
 
-        elapsed = 0.0
-        dialog_history: list[str] = []
-        turn_index = 0
-        last_user_input = ""
+        resume_history: list[str] = []
+        resume_turn_index = 0
+        resume_user_input = ""
+        resume_elapsed = 0.0
         if isinstance(resume_from, LLMDialogCheckpoint):
-            elapsed = resume_from.elapsed_seconds
-            dialog_history = list(resume_from.dialog_history)
-            turn_index = resume_from.turn_index
-            last_user_input = resume_from.last_user_input
+            resume_elapsed = resume_from.elapsed_seconds
+            resume_history = list(resume_from.dialog_history)
+            resume_turn_index = resume_from.turn_index
+            resume_user_input = resume_from.last_user_input
 
         await _run_llm_exchange(
             agent=self._agent,
@@ -404,6 +422,10 @@ class DialogRuntime:
             duration=dialog.duration,
             rag_enabled=dialog.rag_enabled,
             index_name=dialog.index_name,
+            resume_history=resume_history,
+            resume_turn_index=resume_turn_index,
+            resume_user_input=resume_user_input,
+            resume_elapsed=resume_elapsed,
         )
         return None
 
@@ -570,14 +592,35 @@ class DialogRuntime:
         try:
             ev = await asyncio.wait_for(sub.get(), timeout=move.timeout)
             context.current_outcome = move.outcomes.get(ev.source, move.default_outcome)
+            context.session_history.append({
+                "role": "system",
+                "type": MOVE_WAIT_FOR_BUTTON,
+                "outcome": context.current_outcome,
+                "source": ev.source,
+            })
         except asyncio.TimeoutError:
             context.current_outcome = move.default_outcome
+            logger.debug(
+                "wait_for_button timed out after %ss; resolving to %r",
+                move.timeout, move.default_outcome,
+            )
+            context.session_history.append({
+                "role": "system",
+                "type": MOVE_WAIT_FOR_BUTTON,
+                "outcome": context.current_outcome,
+                "source": None,
+            })
         finally:
             self._bus.unsubscribe(sub)
 
     async def _handle_timed_wait(self, move: Any, context: RunContext) -> None:
         """Sleep for a fixed duration before continuing to the next move."""
         await asyncio.sleep(move.duration_seconds)
+        context.session_history.append({
+            "role": "system",
+            "type": MOVE_TIMED_WAIT,
+            "duration_seconds": move.duration_seconds,
+        })
 
     async def _handle_wait_for_web_input(self, move: Any, context: RunContext) -> None:
         """Wait for a web-input event whose value is in ``move.options``, or until timeout.
@@ -604,7 +647,23 @@ class DialogRuntime:
             ev = await asyncio.wait_for(sub.get(), timeout=move.timeout)
             value = ev.data.get("value")
             context.current_outcome = move.outcomes.get(value, move.default_outcome)
+            context.session_history.append({
+                "role": "system",
+                "type": MOVE_WAIT_FOR_WEB_INPUT,
+                "outcome": context.current_outcome,
+                "value": value,
+            })
         except asyncio.TimeoutError:
             context.current_outcome = move.default_outcome
+            logger.debug(
+                "wait_for_web_input timed out after %ss; resolving to %r",
+                move.timeout, move.default_outcome,
+            )
+            context.session_history.append({
+                "role": "system",
+                "type": MOVE_WAIT_FOR_WEB_INPUT,
+                "outcome": context.current_outcome,
+                "value": None,
+            })
         finally:
             self._bus.unsubscribe(sub)

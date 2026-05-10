@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": "greeting",
     "type": "functional",
@@ -157,7 +157,6 @@
   {
     "id": "pineapple_on_pizza",
     "type": "chitchat",
-    "theme": "food",
     "topics": ["pizza", "pineapple", "food"],
     "moves": [
       { "type": "say", "text": "Do you like pineapple on pizza?" },
@@ -172,7 +171,6 @@
   {
     "id": "place_in_nature",
     "type": "chitchat",
-    "theme": "nature",
     "topics": ["sea", "forest", "mountains", "beach", "nature"],
     "dependencies": ["greeting"],
     "moves": [
@@ -184,7 +182,7 @@
         "text": "Which place in nature would you most like to go to right now? The sea, the forest, the mountains, or the beach?",
         "options": ["sea", "forest", "mountains", "beach"],
         "set_variable": "favorite_nature_place",
-        "add_interest_from_variable": true,
+        "add_interest_from_variable": "favorite_nature_place",
         "outcomes": { "sea": "sea", "forest": "forest", "mountains": "mountains", "beach": "beach" },
         "default_outcome": "fail_place"
       },
@@ -216,7 +214,6 @@
   {
     "id": "talk_about_sea",
     "type": "chitchat",
-    "theme": "nature",
     "topics": ["sea", "ocean", "beach", "water", "nature"],
     "dependencies": ["greeting"],
     "moves": [
@@ -246,7 +243,6 @@
   {
     "id": "favorite_tree",
     "type": "chitchat",
-    "theme": "nature",
     "topics": ["nature", "trees", "forest"],
     "moves": [
       { "type": "say", "text": "There are so many kinds of trees in nature." },
@@ -261,7 +257,6 @@
   {
     "id": "nature_sounds",
     "type": "chitchat",
-    "theme": "nature",
     "topics": ["nature", "sounds"],
     "moves": [
       { "type": "say", "text": "I love listening to the sounds of nature." },
@@ -276,7 +271,6 @@
   {
     "id": "robot_want_to_be",
     "type": "chitchat",
-    "theme": "robots",
     "topics": ["robots", "identity"],
     "dependencies": ["greeting"],
     "moves": [
@@ -354,7 +348,6 @@
   {
     "id": "robot_favorite_feature",
     "type": "chitchat",
-    "theme": "robots",
     "topics": ["robots", "features", "abilities"],
     "dependencies": ["robot_want_to_be"],
     "moves": [
@@ -365,7 +358,6 @@
   {
     "id": "ask_favorite_animal",
     "type": "chitchat",
-    "theme": "animals",
     "topics": ["animals", "pets"],
     "dependencies": ["greeting"],
     "moves": [
@@ -376,7 +368,6 @@
   {
     "id": "favorite_animal_fact",
     "type": "chitchat",
-    "theme": "animals",
     "topics": ["animals"],
     "dependencies": ["greeting"],
     "variable_dependencies": [ { "variable": "favorite_animal", "required": true } ],
@@ -387,7 +378,6 @@
   {
     "id": "likes_dogs",
     "type": "chitchat",
-    "theme": "animals",
     "topics": ["animals","dogs"],
     "moves": [
       {
@@ -415,7 +405,6 @@
   {
     "id": "dogs",
     "type": "chitchat",
-    "theme": "animals",
     "topics": ["animals", "dogs", "pets"],
     "dependencies": ["likes_dogs"],
     "variable_dependencies": [ { "variable": "likes_dogs", "required": true } ],
@@ -446,7 +435,6 @@
   {
     "id": "personalization_test",
     "type": "chitchat",
-    "theme": "nature",
     "topics": ["test", "personalization", "nature"],
     "dependencies": ["greeting"],
     "moves": [

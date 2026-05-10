@@ -1,14 +1,3 @@
-import sys
-from os.path import abspath, dirname, join
-
-from sic_framework.devices import Pepper
-from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
-from sic_framework.devices.desktop import Desktop
-
-from nardial.conversation_agent import ConversationAgent
-from nardial.interaction_orchestrator import InteractionConfig
-from nardial.session_manager import SessionManager
-
 """
 =========================
 Demo - Pre-run Setup
@@ -20,15 +9,15 @@ This demo depends on external services for speech, language understanding, and L
 -------------------------
 From the repository root:
     pip install -e .
-    pip install --upgrade social-interaction-cloud[dialogflow,google-tts,openai-gpt]
+    pip install --upgrade "social-interaction-cloud[dialogflow,google-tts,openai-gpt]"
 -------------------------
 2. Configure credentials
 -------------------------
 You MUST create the following files:
 
-- Dialogflow / Google credentials: conf/google/google_keyfile.json
-- OpenAI API key: conf/openai/.openai_env
-Example `.openai_env` file:
+- Dialogflow / Google credentials: conf/dialogflow/google_keyfile.json
+- OpenAI API key: conf/.env
+Example `.env` file:
     OPENAI_API_KEY="your key"
 
 WARNING: Never commit these files to version control.
@@ -43,45 +32,76 @@ You MUST run these in separate terminals BEFORE starting the demo:
     run-gpt
 =========================
 """
+import json
+import sys
+from os.path import abspath, join
 
-# Path to your Google credentials (used for speech recognition + TTS if using Google)
-# You can replace this with your own path or environment-based config
-google_keyfile_path = join("..", "conf", "google", "google_keyfile.json")
+from dotenv import load_dotenv
+from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
+from sic_framework.devices.desktop import Desktop
+from sic_framework.services.dialogflow.dialogflow import DialogflowConf
+
+from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.google import GoogleTTSProvider, GoogleTTSConf
+from nardial.providers.nlu.dialogflow import DialogflowNLUProvider
+from nardial.providers.llm.openai_gpt import OpenAIGPTProvider
+from nardial.conversation_agent import ConversationAgent
+from nardial.interaction_orchestrator import InteractionConfig
+from nardial.session_manager import SessionManager
+
+# Load OPENAI_API_KEY and other secrets from conf/.env
+load_dotenv(abspath(join("..", "conf", ".env")))
+
+# Path to your Google / Dialogflow credentials
+google_keyfile_path = abspath(join("..", "conf", "google", "google_keyfile.json"))
 
 if __name__ == '__main__':
     # =========================
     # 1. SELECT DEVICE
     # =========================
     # Choose where the conversation runs:
-    # - Desktop: uses your computer's mic + speakers
+    # - Desktop: uses your computer's speakers
     # - Pepper: connects to a Pepper robot (requires IP)
 
-    device = Desktop(
+    desktop = Desktop(
         speakers_conf=SpeakersConf(
             sample_rate=22050  # You can change audio quality (higher = better, but heavier)
         )
     )
+    device = DesktopAdapter(desktop)
 
     # Uncomment to use Pepper instead:
-    # device = Pepper(ip="10.0.0.148")  # Replace with your robot's IP
+    # from nardial.providers.device.pepper import PepperAdapter
+    # from sic_framework.devices import Pepper
+    # device = PepperAdapter(Pepper(ip="10.0.0.148"))  # Replace with your robot's IP
 
     # =========================
     # 2. CONFIGURE INTERACTION
     # =========================
-    # This controls language, speech, APIs, and behavior
+    # Each provider is configured and instantiated separately.
+    # This makes it easy to swap out individual components (e.g. switch TTS engine or NLU backend).
 
+    # --- TTS ---
+    tts_conf = GoogleTTSConf(
+        # speaking_rate=1.0,          # speech speed (0.25–4.0)
+        # google_tts_voice_name="en-US-Neural2-C",  # voice selection
+    )
+    tts = GoogleTTSProvider(conf=tts_conf, device=device, keyfile_path=google_keyfile_path)
+
+    # --- NLU ---
+    # device.get_mic() returns the SIC microphone component used by Dialogflow for live audio input
+    dialogflow_conf = DialogflowConf(keyfile_json=json.load(open(google_keyfile_path)))
+    nlu = DialogflowNLUProvider(conf=dialogflow_conf, mic=device.get_mic())
+
+    # --- LLM (optional) ---
+    # Reads OPENAI_API_KEY from the environment (loaded via dotenv above).
+    # Pass api_key="..." explicitly if you prefer not to use dotenv.
+    llm = OpenAIGPTProvider()
+
+    # --- Behavioral config ---
     interaction_config = InteractionConfig(
-        google_keyfile_path=google_keyfile_path,
-        keyboard_input=True
-
-        # Change language (affects ASR + TTS + dialogflow)
+        # Change language (affects Dialogflow language context)
         # language="nl",
-
-        # Optional: specify microphone manually
-        # microphone_device=1,
-
-        # Optional: path to environment variables (if not using default location)
-        # env_file_path="path/to/.env",
 
         # Add a pause after the agent speaks (seconds)
         # post_speech_delay=0.5,
@@ -90,20 +110,33 @@ if __name__ == '__main__':
         # signal_listening_behavior=True,
     )
 
-    # ADVANCED (inside InteractionConfig defaults):
-    # - Change voice via GoogleTTSConf (voice name, speaking_rate)
-    # - animated = True -> enable gestures (for embodied agents)
-    # - always_regenerate = True -> disable audio caching
-    # - chunk_audio = True -> stream audio in chunks (lower latency)
+    # ADVANCED (InteractionConfig fields you can set directly):
+    # - animated = True         -> enable speaking gestures (for embodied agents)
+    # - always_regenerate = True -> disable TTS audio caching
+    # - chunk_audio = True      -> stream audio in chunks (lower latency)
+    # - animation_style         -> AnimationStyle.EXPLANATORY or .EXPRESSIVE
 
     # =========================
     # 3. CREATE AGENT
     # =========================
-    # The agent combines device + interaction config
+    # The agent combines device + all providers into a single high-level interface.
     agent = ConversationAgent(
-        device_manager=device,
-        int_config=interaction_config
+        device=device,
+        tts_provider=tts,
+        nlu_provider=nlu,
+        llm_provider=llm,
+        int_config=interaction_config,
     )
+
+    # To enable RAG, pass a vector store:
+    # from nardial.providers.vector_store.redis_store import RedisVectorStoreProvider
+    # vector_store = RedisVectorStoreProvider(
+    #     embedding_model="text-embedding-ada-002",
+    #     index_name="my_docs",
+    #     ingest_docs=True,       # set True on first run to index your documents
+    #     input_path="../docs/",
+    # )
+    # agent = ConversationAgent(..., vector_store=vector_store)
 
     # =========================
     # 4. DEFINE SESSION STRUCTURE
@@ -134,18 +167,18 @@ if __name__ == '__main__':
         agent=agent,
 
         # Path to your dialog definitions
-        dialog_json_path="structured_conversation_dialogs.json",
+        dialog_json_path=abspath(join("..", "examples", "structured_conversation_dialogs.json")),
 
         # Optional: identify the user (used for personalization/memory)
         participant_id="2",
     )
 
     # Internally, SessionManager:
-    # - Loads dialogs from JSON
-    # - Filters them based on eligibility (DialogLogic)
+    # - Loads dialogs from JSON into a DialogRegistry
+    # - Resolves the agenda incrementally, applying eligibility rules per dialog class
     # - Tracks conversation state (topics, completed dialogs)
     # - Logs session history
-    # - Extracts topics of interest using GPT
+    # - Extracts topics of interest using the LLM
 
     # =========================
     # 6. RUN SESSION

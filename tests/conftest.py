@@ -3,8 +3,21 @@ import os
 import pytest
 from unittest.mock import Mock
 
+from nardial.providers.nlu import NLUResult
+
 # Ensure tests can import modules from the src/ directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+
+@pytest.fixture(autouse=True)
+def no_redis_connections(monkeypatch):
+    """Block all Redis connections in every test.
+
+    UserModel checks _HAS_REDIS_DS before attempting to connect; setting it to
+    False keeps the model in pure in-memory mode without triggering SIC's
+    SICRedisConnection (which emits a DeprecationWarning and requires a live server).
+    """
+    monkeypatch.setattr("nardial.user_model._HAS_REDIS_DS", False)
 
 
 @pytest.fixture
@@ -64,11 +77,11 @@ def make_mock_agent():
         orchestrator = Mock()
         if ask_open_side_effect is not None:
             def _listen_side_effect(*a, **k):
-                response = open_effect(*a, **k) if open_effect is not None else None
-                return (response, None)
+                transcript = open_effect(*a, **k) if open_effect is not None else None
+                return NLUResult(transcript=transcript or "", intent=None)
             orchestrator.listen = Mock(side_effect=_listen_side_effect)
         else:
-            orchestrator.listen = Mock(return_value=(None, None))
+            orchestrator.listen = Mock(return_value=NLUResult(transcript="", intent=None))
         agent.orchestrator = orchestrator
         return agent
 

@@ -1,7 +1,7 @@
 import sys
 import os
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock
 
 from nardial.providers.nlu import NLUResult
 
@@ -37,51 +37,81 @@ def topics_of_interest():
 
 @pytest.fixture
 def make_mock_agent():
-    """Factory to create a simple mock ConversationAgent with configurable side-effects.
+    """Factory to create an async mock ConversationAgent for use with DialogRuntime.
+
+    All I/O methods (``say``, ``ask_yesno``, ``ask_open``, ``ask_options``,
+    ``ask_llm``) are ``AsyncMock`` instances; ``play_audio``,
+    ``play_motion_sequence``, and ``play_animation`` are regular ``MagicMock``
+    instances (they are not awaited by the runtime).
 
     Usage:
         agent = make_mock_agent(ask_llm_side_effect=[...], ask_open_side_effect=[...])
-    The side-effect lists are wrapped so that if the mock is called more times than the
-    provided sequence length, the last value is returned repeatedly instead of raising StopIteration.
+
+    Side-effect lists are wrapped so that if the mock is called more times than
+    the provided sequence length, the last value is returned repeatedly instead
+    of raising ``StopIteration``.
     """
-    def _wrap_side_effect(seq):
+    def _wrap_async_side_effect(seq):
         if seq is None:
             return None
         seq_list = list(seq)
         if not seq_list:
-            return lambda *a, **k: None
+            async def _empty(*a, **k):
+                return None
+            return _empty
         last = seq_list[-1]
 
-        def fn(*a, **k):
+        async def _fn(*a, **k):
             if seq_list:
                 return seq_list.pop(0)
             return last
 
-        return fn
+        return _fn
 
     def _make(ask_llm_side_effect=None, ask_open_side_effect=None,
               ask_yes_no_side_effect=None, ask_options_side_effect=None):
-        agent = Mock()
-        llm_effect = _wrap_side_effect(ask_llm_side_effect)
-        open_effect = _wrap_side_effect(ask_open_side_effect)
-        yesno_effect = _wrap_side_effect(ask_yes_no_side_effect)
-        options_effect = _wrap_side_effect(ask_options_side_effect)
-        agent.ask_llm = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
-        agent.ask_open = Mock(side_effect=open_effect) if ask_open_side_effect is not None else Mock(return_value=None)
-        agent.ask_yesno = Mock(side_effect=yesno_effect) if ask_yes_no_side_effect is not None else Mock(return_value='no')
-        agent.ask_options = Mock(side_effect=options_effect) if ask_options_side_effect is not None else Mock(return_value=None)
-        agent.say = Mock()
-        agent.play_audio = Mock()
-        agent.play_motion_sequence = Mock()
-        agent.play_animation = Mock()
-        orchestrator = Mock()
+        agent = MagicMock()
+
+        open_effect = _wrap_async_side_effect(ask_open_side_effect)
+
+        agent.ask_llm = (
+            AsyncMock(side_effect=_wrap_async_side_effect(ask_llm_side_effect))
+            if ask_llm_side_effect is not None
+            else AsyncMock(return_value=None)
+        )
+        agent.ask_open = (
+            AsyncMock(side_effect=open_effect)
+            if ask_open_side_effect is not None
+            else AsyncMock(return_value=None)
+        )
+        agent.ask_yesno = (
+            AsyncMock(side_effect=_wrap_async_side_effect(ask_yes_no_side_effect))
+            if ask_yes_no_side_effect is not None
+            else AsyncMock(return_value="no")
+        )
+        agent.ask_options = (
+            AsyncMock(side_effect=_wrap_async_side_effect(ask_options_side_effect))
+            if ask_options_side_effect is not None
+            else AsyncMock(return_value=None)
+        )
+        agent.say = AsyncMock()
+        agent.play_audio = MagicMock()
+        agent.play_motion_sequence = MagicMock()
+        agent.play_animation = MagicMock()
+        agent.personalize = MagicMock(return_value=None)
+
+        orchestrator = MagicMock()
         if ask_open_side_effect is not None:
-            def _listen_side_effect(*a, **k):
-                transcript = open_effect(*a, **k) if open_effect is not None else None
+            captured = open_effect
+
+            async def _listen(*a, **k):
+                transcript = await captured(*a, **k) if captured is not None else None
                 return NLUResult(transcript=transcript or "", intent=None)
-            orchestrator.listen = Mock(side_effect=_listen_side_effect)
+
+            orchestrator.listen = AsyncMock(side_effect=_listen)
         else:
-            orchestrator.listen = Mock(return_value=NLUResult(transcript="", intent=None))
+            orchestrator.listen = AsyncMock(return_value=NLUResult(transcript="", intent=None))
+
         agent.orchestrator = orchestrator
         return agent
 

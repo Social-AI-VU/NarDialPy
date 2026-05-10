@@ -1,10 +1,17 @@
+from unittest.mock import AsyncMock, MagicMock
+
+from nardial.dialog_runtime import (
+    DialogRuntime,
+    RunContext,
+    _run_llm_exchange,
+    extract_open_value,
+)
 from nardial.mini_dialogs import (
-    MiniDialog, RunContext, _run_llm_exchange,
     FunctionalDialog, FunctionalType,
+    MiniDialog,
     NarrativeDialog,
     ChitchatDialog,
     LLMDialog,
-    extract_open_value,
 )
 from nardial.moves import (
     MoveAskLLM,
@@ -30,16 +37,16 @@ def test_extract_open_value_quotes_and_tokens():
     assert extract_open_value('  12345  ') == '12345'
 
 
-def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
     # ask_llm returns None first (simulating transient LLM failure), then returns text
     agent = make_mock_agent(ask_llm_side_effect=[None, 'Hello LLM'], ask_open_side_effect=['hi'])
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    _run_llm_exchange(agent, context, prompt='p', max_turns=3)
+    await _run_llm_exchange(agent, context, prompt='p', max_turns=3)
 
     # ask_llm retried until a non-None response
     assert agent.ask_llm.call_count >= 2
-    # listen should be called at least once (the LLM may prompt multiple times up to max_turns)
+    # listen should be called at least once
     assert agent.orchestrator.listen.call_count >= 1
 
     # session history should have at least one ask_llm and one answer entry
@@ -48,14 +55,13 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
     assert MOVE_ANSWER_LLM in types
 
 
-def test_handle_move_ask_llm_sets_variable(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_handle_move_ask_llm_sets_variable(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(ask_llm_side_effect=['Q1'], ask_open_side_effect=["I like turtles"])
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskLLM(prompt='Tell me something', max_turns=1, set_variable='pet')
-    md.handle_move_ask_llm(move)
+    await runtime._handle_ask_llm(move, context)
 
     # The user's answer should be stored under the set variable using extractor heuristics
     assert 'pet' in user_model
@@ -67,18 +73,17 @@ def test_handle_move_ask_llm_sets_variable(session_history, user_model, topics_o
 # ---------------------------------------------------------------------------
 
 def _make_mock_agent(ask_options_return='dreaming', ask_yesno_return='yes', ask_open_return='something'):
-    from unittest.mock import Mock
-    agent = Mock()
-    agent.say = Mock()
-    agent.ask_options = Mock(return_value=ask_options_return)
-    agent.ask_yesno = Mock(return_value=ask_yesno_return)
-    agent.ask_open = Mock(return_value=ask_open_return)
-    agent.play_audio = Mock()
-    agent.play_motion_sequence = Mock()
-    agent.play_animation = Mock()
-    agent.personalize = Mock(return_value=None)
-    orchestrator = Mock()
-    orchestrator.listen = Mock(return_value=(ask_open_return, None))
+    agent = MagicMock()
+    agent.say = AsyncMock()
+    agent.ask_options = AsyncMock(return_value=ask_options_return)
+    agent.ask_yesno = AsyncMock(return_value=ask_yesno_return)
+    agent.ask_open = AsyncMock(return_value=ask_open_return)
+    agent.play_audio = MagicMock()
+    agent.play_motion_sequence = MagicMock()
+    agent.play_animation = MagicMock()
+    agent.personalize = MagicMock(return_value=None)
+    orchestrator = MagicMock()
+    orchestrator.listen = AsyncMock(return_value=MagicMock(transcript=ask_open_return or ""))
     agent.orchestrator = orchestrator
     return agent
 
@@ -100,10 +105,8 @@ def test_move_branch_model_validate():
 
 def test_resolve_outcome_with_outcomes_dict(session_history, user_model, topics_of_interest):
     """_resolve_outcome stores the matching outcome label from the outcomes dict."""
-    agent = _make_mock_agent()
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(MagicMock())
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOptions(
         text="q", options=["a", "b"],
@@ -111,19 +114,17 @@ def test_resolve_outcome_with_outcomes_dict(session_history, user_model, topics_
         default_outcome="branch_b",
     )
 
-    md._resolve_outcome(move, "a")
-    assert md.current_outcome == "branch_a"
+    runtime._resolve_outcome(move, "a", context)
+    assert context.current_outcome == "branch_a"
 
-    md._resolve_outcome(move, "b")
-    assert md.current_outcome == "branch_b"
+    runtime._resolve_outcome(move, "b", context)
+    assert context.current_outcome == "branch_b"
 
 
 def test_resolve_outcome_falls_back_to_default(session_history, user_model, topics_of_interest):
     """When the answer doesn't appear in outcomes, default_outcome is used."""
-    agent = _make_mock_agent()
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(MagicMock())
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOptions(
         text="q", options=["a"],
@@ -131,20 +132,19 @@ def test_resolve_outcome_falls_back_to_default(session_history, user_model, topi
         default_outcome="branch_default",
     )
 
-    md._resolve_outcome(move, None)
-    assert md.current_outcome == "branch_default"
+    runtime._resolve_outcome(move, None, context)
+    assert context.current_outcome == "branch_default"
 
-    md._resolve_outcome(move, "unknown_value")
-    assert md.current_outcome == "branch_default"
+    runtime._resolve_outcome(move, "unknown_value", context)
+    assert context.current_outcome == "branch_default"
 
 
-def test_handle_move_branch_executes_correct_case(session_history, user_model, topics_of_interest):
-    """handle_move_branch runs the sub-moves for the active current_outcome."""
+async def test_handle_move_branch_executes_correct_case(session_history, user_model, topics_of_interest):
+    """_handle_branch runs the sub-moves for the active current_outcome."""
     agent = _make_mock_agent()
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.current_outcome = "correct"
+    runtime = DialogRuntime(agent)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    context.current_outcome = "correct"
 
     move = MoveBranch(
         on="outcome",
@@ -153,29 +153,27 @@ def test_handle_move_branch_executes_correct_case(session_history, user_model, t
             "incorrect": [MoveSay(text="Wrong!")],
         },
     )
-    md.handle_move_branch(move)
+    await runtime._handle_branch(move, context)
 
-    # Only the "correct" sub-move should have been spoken
     agent.say.assert_called_once_with("Correct!")
 
 
-def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, topics_of_interest):
-    """handle_move_branch does nothing when current_outcome matches no case."""
+async def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, topics_of_interest):
+    """_handle_branch does nothing when current_outcome matches no case."""
     agent = _make_mock_agent()
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.current_outcome = "other"
+    runtime = DialogRuntime(agent)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    context.current_outcome = "other"
 
     move = MoveBranch(
         on="outcome",
         cases={"correct": [MoveSay(text="Correct!")]},
     )
-    md.handle_move_branch(move)
+    await runtime._handle_branch(move, context)
     agent.say.assert_not_called()
 
 
-def test_full_dialog_new_branching_ask_options(session_history, user_model, topics_of_interest):
+async def test_full_dialog_new_branching_ask_options(session_history, user_model, topics_of_interest):
     """End-to-end: ask_options with outcomes routes into the correct branch case."""
     agent = _make_mock_agent(ask_options_return='dreaming')
     moves = [
@@ -195,11 +193,11 @@ def test_full_dialog_new_branching_ask_options(session_history, user_model, topi
         ),
         MoveSay(text="Continuing the dialog."),
     ]
-    md = MiniDialog('test', moves=moves)
+    dialog = MiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.run(agent, context)
+    await DialogRuntime(agent).run(dialog, context)
 
-    assert md.current_outcome == "correct"
+    assert context.current_outcome == "correct"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Indeed, dreaming." in texts_spoken
     assert "This is called dreaming!" not in texts_spoken
@@ -207,7 +205,7 @@ def test_full_dialog_new_branching_ask_options(session_history, user_model, topi
     assert user_model.get("what_is_dreaming") == "dreaming"
 
 
-def test_full_dialog_new_branching_ask_options_default(session_history, user_model, topics_of_interest):
+async def test_full_dialog_new_branching_ask_options_default(session_history, user_model, topics_of_interest):
     """End-to-end: unknown answer falls through to default_outcome."""
     agent = _make_mock_agent(ask_options_return=None)
     moves = [
@@ -225,17 +223,17 @@ def test_full_dialog_new_branching_ask_options_default(session_history, user_mod
             },
         ),
     ]
-    md = MiniDialog('test', moves=moves)
+    dialog = MiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.run(agent, context)
+    await DialogRuntime(agent).run(dialog, context)
 
-    assert md.current_outcome == "incorrect"
+    assert context.current_outcome == "incorrect"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Wrong!" in texts_spoken
     assert "Correct!" not in texts_spoken
 
 
-def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics_of_interest):
+async def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics_of_interest):
     """End-to-end: ask_yesno with outcomes routes into the correct branch case."""
     agent = _make_mock_agent(ask_yesno_return='yes')
     moves = [
@@ -253,17 +251,17 @@ def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics
             },
         ),
     ]
-    md = MiniDialog('test', moves=moves)
+    dialog = MiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.run(agent, context)
+    await DialogRuntime(agent).run(dialog, context)
 
-    assert md.current_outcome == "mem_yes"
+    assert context.current_outcome == "mem_yes"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Tell me about it!" in texts_spoken
     assert "That's okay." not in texts_spoken
 
 
-def test_branch_on_user_model_variable(session_history, user_model, topics_of_interest):
+async def test_branch_on_user_model_variable(session_history, user_model, topics_of_interest):
     """branch move can read from a user_model variable instead of current_outcome."""
     agent = _make_mock_agent()
     user_model['mood'] = 'happy'
@@ -277,9 +275,9 @@ def test_branch_on_user_model_variable(session_history, user_model, topics_of_in
             },
         ),
     ]
-    md = MiniDialog('test', moves=moves)
+    dialog = MiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.run(agent, context)
+    await DialogRuntime(agent).run(dialog, context)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Great to hear!" in texts_spoken
@@ -288,10 +286,8 @@ def test_branch_on_user_model_variable(session_history, user_model, topics_of_in
 
 def test_resolve_outcome_wildcard_matches_any_answer(session_history, user_model, topics_of_interest):
     """The '*' wildcard in outcomes matches any non-empty answer."""
-    agent = _make_mock_agent()
-    md = MiniDialog('test', moves=[])
-    md._agent = agent
-    md._context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(MagicMock())
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
     move = MoveAskOpen(
         text="q",
@@ -299,17 +295,17 @@ def test_resolve_outcome_wildcard_matches_any_answer(session_history, user_model
         default_outcome="no_answer",
     )
 
-    md._resolve_outcome(move, "some free text")
-    assert md.current_outcome == "has_answer"
+    runtime._resolve_outcome(move, "some free text", context)
+    assert context.current_outcome == "has_answer"
 
-    md._resolve_outcome(move, None)
-    assert md.current_outcome == "no_answer"
+    runtime._resolve_outcome(move, None, context)
+    assert context.current_outcome == "no_answer"
 
-    md._resolve_outcome(move, "")
-    assert md.current_outcome == "no_answer"
+    runtime._resolve_outcome(move, "", context)
+    assert context.current_outcome == "no_answer"
 
 
-def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_interest):
+async def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_interest):
     """End-to-end: ask_open with '*' wildcard routes to the answered case."""
     agent = _make_mock_agent(ask_open_return='swimming')
     moves = [
@@ -327,9 +323,9 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
             },
         ),
     ]
-    md = MiniDialog('test', moves=moves)
+    dialog = MiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
-    md.run(agent, context)
+    await DialogRuntime(agent).run(dialog, context)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Cool answer!" in texts_spoken
@@ -357,12 +353,15 @@ class TestFunctionalDialog:
         d = FunctionalDialog("g", [], FunctionalType.GREETING)
         assert d.is_greeting_dialog()
 
-    def test_greeting_dialog_runs_moves(self, session_history, user_model, topics_of_interest):
+    async def test_greeting_dialog_runs_moves(self, session_history, user_model, topics_of_interest):
         agent = _make_mock_agent()
         d = FunctionalDialog("g", [MoveSay(text="Hi!")], "greeting")
-        d.run(agent, RunContext(session_history=session_history,
-                                topics_of_interest=topics_of_interest,
-                                user_model=user_model))
+        await DialogRuntime(agent).run(
+            d,
+            RunContext(session_history=session_history,
+                       topics_of_interest=topics_of_interest,
+                       user_model=user_model),
+        )
         agent.say.assert_called_once_with("Hi!")
 
 
@@ -373,12 +372,15 @@ class TestNarrativeDialog:
         assert d.position == 3
         assert d.dialog_id == "n1"
 
-    def test_runs_moves(self, session_history, user_model, topics_of_interest):
+    async def test_runs_moves(self, session_history, user_model, topics_of_interest):
         agent = _make_mock_agent()
         d = NarrativeDialog("n1", [MoveSay(text="Chapter 1.")], thread="main", position=1)
-        d.run(agent, RunContext(session_history=session_history,
-                                topics_of_interest=topics_of_interest,
-                                user_model=user_model))
+        await DialogRuntime(agent).run(
+            d,
+            RunContext(session_history=session_history,
+                       topics_of_interest=topics_of_interest,
+                       user_model=user_model),
+        )
         agent.say.assert_called_once_with("Chapter 1.")
 
 
@@ -411,21 +413,19 @@ class TestExtractOpenValueEdgeCases:
 
     def test_exact_outcome_beats_wildcard(self):
         """When a specific key and '*' both exist, the exact key wins."""
-        agent = _make_mock_agent()
-        md = MiniDialog("t", moves=[])
-        md._agent = agent
-        md._context = RunContext(session_history=[], topics_of_interest=[], user_model={})
+        runtime = DialogRuntime(MagicMock())
+        context = RunContext(session_history=[], topics_of_interest=[], user_model={})
         move = MoveAskYesNo(
             text="q",
             outcomes={"yes": "exact_yes", "*": "wildcard"},
             default_outcome="default",
         )
-        md._resolve_outcome(move, "yes")
-        assert md.current_outcome == "exact_yes"
+        runtime._resolve_outcome(move, "yes", context)
+        assert context.current_outcome == "exact_yes"
 
 
 class TestLLMDialogSpeakFirst:
-    def test_speak_first_false_listens_before_asking_llm(
+    async def test_speak_first_false_listens_before_asking_llm(
             self, session_history, user_model, topics_of_interest, make_mock_agent):
         """When speak_first=False the orchestrator listens for the opening user utterance
         before the first LLM call — the reverse of the default flow."""
@@ -442,7 +442,7 @@ class TestLLMDialogSpeakFirst:
             topics_of_interest=topics_of_interest,
             user_model=user_model,
         )
-        dialog.run(agent, context)
+        await DialogRuntime(agent).run(dialog, context)
 
         # orchestrator.listen must be called before ask_llm
         listen_order = agent.orchestrator.listen.call_count

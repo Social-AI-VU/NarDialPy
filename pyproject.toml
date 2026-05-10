@@ -31,7 +31,10 @@ elevenlabs = ["social-interaction-cloud[elevenlabs-tts]"]
 dialogflow = ["social-interaction-cloud[dialogflow]"]
 openai     = ["social-interaction-cloud[openai-gpt]"]
 all        = ["nardial[google-tts,elevenlabs,dialogflow,openai]"]
-dev        = ["pytest"]
+dev        = ["pytest", "pytest-asyncio"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

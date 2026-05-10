@@ -1,6 +1,7 @@
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock
 
-from nardial.mini_dialogs import MiniDialog, RunContext
+from nardial.dialog_runtime import DialogRuntime, RunContext
+from nardial.mini_dialogs import MiniDialog
 from nardial.moves import (
     MoveSay,
     MoveAskYesNo,
@@ -13,29 +14,29 @@ from nardial.moves import (
 
 
 def mock_agent():
-    # Build a minimal agent with the same interface used by MiniDialog but mocked behaviors
-    agent = Mock()
-    agent.say = Mock()
-    agent.ask_yesno = Mock(return_value='no')
-    agent.ask_open = Mock(return_value='answer')
-    agent.ask_options = Mock(return_value='dreaming')
-    agent.play_audio = Mock()
-    agent.play_motion_sequence = Mock()
-    agent.play_animation = Mock()
-    agent.personalize = Mock(return_value=None)
+    """Build a minimal async mock agent for DialogRuntime tests."""
+    agent = MagicMock()
+    agent.say = AsyncMock()
+    agent.ask_yesno = AsyncMock(return_value='no')
+    agent.ask_open = AsyncMock(return_value='answer')
+    agent.ask_options = AsyncMock(return_value='dreaming')
+    agent.play_audio = MagicMock()
+    agent.play_motion_sequence = MagicMock()
+    agent.play_animation = MagicMock()
+    agent.personalize = MagicMock(return_value=None)
     return agent
 
 
-def test_move_say():
+async def test_move_say():
     moves = [
         MoveSay(text="Testing Move Say..."),
         MoveSay(text="Testing Move Say Again..."),
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
-def test_move_ask_yesno():
+async def test_move_ask_yesno():
     set_variable = "likes_pineapple_pizza"
     moves = [
         MoveAskYesNo(
@@ -45,12 +46,13 @@ def test_move_ask_yesno():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    context = RunContext()
+    await DialogRuntime(mock_agent()).run(dialog, context)
 
-    assert set_variable in dialog.user_model
+    assert set_variable in context.user_model
 
 
-def test_move_ask_open():
+async def test_move_ask_open():
     set_variable = "favorite_sea_thing"
     moves = [
         MoveAskOpen(
@@ -60,12 +62,13 @@ def test_move_ask_open():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    context = RunContext()
+    await DialogRuntime(mock_agent()).run(dialog, context)
 
-    assert set_variable in dialog.user_model
+    assert set_variable in context.user_model
 
 
-def test_move_ask_options():
+async def test_move_ask_options():
     set_variable = "what_is_dreaming"
     moves = [
         MoveAskOptions(
@@ -75,47 +78,48 @@ def test_move_ask_options():
         )
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    context = RunContext()
+    await DialogRuntime(mock_agent()).run(dialog, context)
 
-    assert set_variable in dialog.user_model
+    assert set_variable in context.user_model
 
 
-def test_move_play_audio():
+async def test_move_play_audio():
     moves = [MovePlayAudio(audio="audio_test.wav")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
-def test_move_play_motion():
+async def test_move_play_motion():
     moves = [MoveMotionSequence(motion_sequence="motion_test")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
-def test_move_animation():
+async def test_move_animation():
     moves = [MoveAnimation(animation_name="animations/Stand/Gestures/No_1")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent(), context=RunContext())
+    await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
-def test_move_say_substitutes_user_model_variables():
+async def test_move_say_substitutes_user_model_variables():
     """%var% placeholders in say text should be replaced with user_model values."""
     moves = [MoveSay(text="Hello, %name%! You are %age% years old.")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
     agent = mock_agent()
     context = RunContext(user_model={"name": "Alice", "age": "30"})
-    dialog.run(agent=agent, context=context)
+    await DialogRuntime(agent).run(dialog, context)
     agent.say.assert_called_once_with("Hello, Alice! You are 30 years old.")
 
 
-def test_move_ask_yesno_interest_not_added_when_answer_is_no():
+async def test_move_ask_yesno_interest_not_added_when_answer_is_no():
     """add_interest should only be recorded when the user answers 'yes'."""
     context = RunContext()
     agent = mock_agent()
-    agent.ask_yesno = Mock(return_value="no")
+    agent.ask_yesno = AsyncMock(return_value="no")
 
     moves = [MoveAskYesNo(text="Do you like pizza?", add_interest="pizza")]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=agent, context=context)
+    await DialogRuntime(agent).run(dialog, context)
 
     assert "pizza" not in context.topics_of_interest

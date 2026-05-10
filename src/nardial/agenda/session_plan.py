@@ -7,6 +7,10 @@ on how many sessions the participant has already completed.  If the session
 number exceeds the highest defined index the last template is reused, making
 open-ended longitudinal designs easy to express.
 
+Optional ``event_handlers`` and ``event_sources`` fields let designers declare
+event routing and event producers directly in the plan file so that a single
+JSON document fully describes a session arc including its runtime behaviour.
+
 JSON format::
 
     {
@@ -19,15 +23,23 @@ JSON format::
                     {"type": "narrative_slot", "thread": "intro"},
                     "goodbye"
                 ]
-            },
+            }
+        ],
+        "event_sources": [
             {
-                "session_index": 2,
-                "agenda": [
-                    "greeting",
-                    {"type": "chitchat_slot"},
-                    {"type": "narrative_slot", "thread": "intro", "bounds": {"count_min": 2, "count_max": 2}},
-                    "goodbye"
-                ]
+                "type": "timer",
+                "event_type": "check_in",
+                "delay_seconds": 300,
+                "repeat": true,
+                "handler_dialog_id": "periodic_check_in"
+            }
+        ],
+        "event_handlers": [
+            {
+                "event_type": "check_in",
+                "handler_dialog_id": "periodic_check_in",
+                "interrupt_level": "BETWEEN_DIALOGS",
+                "resume_policy": "DISCARD"
             }
         ]
     }
@@ -38,9 +50,10 @@ from __future__ import annotations
 import json
 import logging
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from nardial.agenda.items import AgendaItem, coerce_agenda_item
+from nardial.events.specs import AnyEventSourceSpec, EventHandlerSpec
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +93,29 @@ class SessionPlan(BaseModel):
     returned as a fallback — useful for studies where later sessions all share
     the same structure.
 
+    The optional ``event_handlers`` and ``event_sources`` fields let designers
+    declare event routing and producers in the same JSON file as the agenda.
+    ``SessionManager._resolve_plan_agenda()`` registers these into the session
+    at load time so no Python code is required for common interrupt patterns.
+
     Attributes
     ----------
     plan_id : str
         Human-readable identifier for this plan (used in log messages).
     sessions : list[SessionTemplate]
         Session templates.  Need not be sorted by ``session_index``.
+    event_handlers : list[EventHandlerSpec]
+        Event-type → handler-dialog mappings applied for every session in this
+        plan.  Registered into ``SessionManager._event_handlers`` at load time.
+    event_sources : list[AnyEventSourceSpec]
+        Event producer configurations (e.g. timers, webhooks).  Instantiated
+        and registered into ``SessionManager._event_sources`` at load time.
     """
 
     plan_id: str
     sessions: list[SessionTemplate]
+    event_handlers: list[EventHandlerSpec] = Field(default_factory=list)
+    event_sources: list[AnyEventSourceSpec] = Field(default_factory=list)
 
     def get_template(self, session_number: int) -> SessionTemplate | None:
         """Return the template for the given 1-based session number.

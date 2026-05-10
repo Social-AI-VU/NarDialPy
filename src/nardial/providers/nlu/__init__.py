@@ -18,6 +18,14 @@ class NLUResult:
 @runtime_checkable
 class NLUProvider(Protocol):
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult: ...
+    def cancel(self) -> None:
+        """Interrupt an in-progress ``listen`` call.
+
+        Called when the dialog runtime needs to preempt listening (e.g. for a
+        preemptive interrupt).  Implementations backed by streaming gRPC
+        services (Dialogflow) should close the stream here.  The default stub
+        is a safe no-op.
+        """
 
 
 __all__ = [

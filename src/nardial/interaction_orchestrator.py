@@ -1,11 +1,12 @@
 import asyncio
+import functools
 import json
 import queue
 import wave
 from os.path import exists
 from pathlib import Path
 from threading import Thread
-from time import sleep, strftime
+from time import strftime
 
 from sic_framework.core import sic_logging
 from sic_framework.core.sic_application import SICApplication
@@ -18,9 +19,11 @@ from nardial.providers.vector_store import VectorStoreProvider
 
 
 class InteractionConfig:
-    """
-    Configuration class for managing behavioral parameters of the interaction orchestrator.
-    Service-specific configuration (TTS, NLU, LLM, vector store) is handled by the respective providers.
+    """Configuration class for behavioural parameters of the interaction orchestrator.
+
+    Service-specific configuration (TTS, NLU, LLM, vector store) is handled by
+    the respective providers; this class owns cross-cutting concerns: language,
+    post-speech delay, animation style, and audio chunking.
     """
 
     def __init__(self, language="en", post_speech_delay=None,
@@ -35,22 +38,36 @@ class InteractionConfig:
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
-        """
-        Decorator factory that injects default values from a configuration object
-        into function arguments when they are not explicitly provided.
+        """Decorator factory that injects config defaults into keyword arguments.
+
+        For each name in ``param_names``, if the caller did not supply a value
+        (i.e. the kwarg is ``None``), the corresponding attribute from the
+        config object at ``self.<config_attr>`` is substituted.  The wrapper
+        is ``async`` to match the async methods it decorates.
         """
         def decorator(func):
-            def wrapper(self, *args, **kwargs):
+            @functools.wraps(func)
+            async def wrapper(self, *args, **kwargs):
                 config = getattr(self, config_attr)
                 for name in param_names:
                     if kwargs.get(name) is None:
                         kwargs[name] = getattr(config, name)
-                return func(self, *args, **kwargs)
+                return await func(self, *args, **kwargs)
             return wrapper
         return decorator
 
 
 class InteractionOrchestrator:
+    """Low-level I/O orchestrator: wraps provider calls, manages speech delay,
+    keyboard input, and RAG augmentation.
+
+    All public I/O methods (``say``, ``listen``, ``request_from_llm``) are
+    ``async``.  Blocking provider calls are offloaded to a thread pool via
+    ``asyncio.to_thread()`` so the event loop is never stalled.  Cancellation
+    of a blocking call (e.g. for preemptive interrupt handling) calls the
+    provider's ``cancel()`` stub and then re-raises ``CancelledError``.
+    """
+
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
@@ -59,7 +76,7 @@ class InteractionOrchestrator:
         if int_config is None:
             int_config = InteractionConfig()
 
-        # Development Logging
+        # Development logging
         self.app = SICApplication()
         self.logger = self.app.get_app_logger()
         self.app.set_log_level(sic_logging.DEBUG)
@@ -73,12 +90,6 @@ class InteractionOrchestrator:
 
         # Interaction configuration
         self.interaction_conf = int_config
-
-        # Background loop
-        self.background_loop = asyncio.new_event_loop()
-        self.background_thread = Thread(target=self._start_loop, daemon=True)
-        self.background_thread.start()
-        self.logger.info('Complete')
 
         self.logger.info("SETTING UP LLM")
         self.llm_provider = llm_provider
@@ -100,6 +111,10 @@ class InteractionOrchestrator:
         self.logger.info("SETTING UP NLU")
         self.nlu_provider = nlu_provider
         self.logger.info("Complete and ready for interaction!")
+
+    # ------------------------------------------------------------------
+    # Logging helpers
+    # ------------------------------------------------------------------
 
     def start_logging(self, log_id, init_data: dict):
         folder = Path("logs")
@@ -124,7 +139,7 @@ class InteractionOrchestrator:
             while True:
                 item = self._log_queue.get()
                 if item is None:
-                    break  # Exit signal
+                    break
                 f.write(item + '\n')
                 f.flush()
 
@@ -138,55 +153,81 @@ class InteractionOrchestrator:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
 
-    @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
-    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+    # ------------------------------------------------------------------
+    # Async I/O methods
+    # ------------------------------------------------------------------
+
+    @InteractionConfig.apply_config_defaults(
+        'interaction_conf',
+        ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'],
+    )
+    async def say(self, text, post_speech_delay=None, animated=False,
+                  amplified=False, always_regenerate=False, chunk_audio=False) -> None:
+        """Speak ``text`` asynchronously.
+
+        Blocking TTS is offloaded to a thread via ``asyncio.to_thread``.  If
+        the coroutine is cancelled (e.g. by the preemptive watchdog),
+        ``tts_provider.cancel()`` is called before re-raising so the device
+        stops mid-sentence.
+        """
         if animated:
             self.device.play_speaking_animation(self.interaction_conf.animation_style)
-        self.tts_provider.speak(text, amplified=amplified, always_regenerate=always_regenerate, chunk_audio=chunk_audio)
+        try:
+            await asyncio.to_thread(
+                self.tts_provider.speak, text,
+                amplified=amplified,
+                always_regenerate=always_regenerate,
+                chunk_audio=chunk_audio,
+            )
+        except asyncio.CancelledError:
+            self.tts_provider.cancel()
+            raise
         self.log_utterance(speaker='robot', text=text)
         if post_speech_delay and post_speech_delay > 0:
-            sleep(post_speech_delay)
+            await asyncio.sleep(post_speech_delay)
 
-    def listen(self, context=None, timeout=10) -> NLUResult:
+    async def listen(self, context=None, timeout=10) -> NLUResult:
+        """Listen for a user utterance asynchronously.
+
+        Blocking NLU is offloaded to a thread via ``asyncio.to_thread``.  If
+        cancelled, ``nlu_provider.cancel()`` is called before re-raising.
+        """
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
-        result = self.nlu_provider.listen(context=context, timeout=timeout)
+        try:
+            result = await asyncio.to_thread(
+                self.nlu_provider.listen, context=context, timeout=timeout
+            )
+        except asyncio.CancelledError:
+            self.nlu_provider.cancel()
+            raise
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=False)
         if result.transcript:
             self.log_utterance(speaker='user', text=result.transcript)
         return result
 
-    def play_audio(self, audio_file, amplified=False, log=True):
-        if not exists(audio_file):
-            self.logger.error(f"Audio file not found: {audio_file}")
-            return
-        with wave.open(audio_file, 'rb') as wf:
-            sample_width = wf.getsampwidth()
-            framerate = wf.getframerate()
-            n_frames = wf.getnframes()
-            if sample_width != 2:
-                raise ValueError("WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width))
-            audio = wf.readframes(n_frames)
-            if amplified:
-                audio = _amplify_audio(audio)
-            self.device.play_audio_bytes(audio, framerate)
-            if log:
-                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+    async def request_from_llm(
+        self,
+        user_prompt=None,
+        context_messages=None,
+        system_prompt=None,
+        json_response=False,
+        rag_enabled: bool = False,
+        index_name: str | None = None,
+    ):
+        """Submit a prompt to the LLM provider asynchronously.
 
-    def play_animation(self, animation_name, run_async=False):
-        self.device.play_animation(animation_name, run_async=run_async)
-
-    def play_motion(self, motion_name):
-        self.device.play_motion_sequence(motion_name)
-
-    def request_from_llm(self, user_prompt=None, context_messages=None, system_prompt=None,
-                         json_response=False, rag_enabled: bool = False, index_name: str | None = None):
+        RAG augmentation (if enabled) retrieves context snippets from the
+        vector store before calling the LLM.  The blocking LLM call is
+        offloaded to a thread via ``asyncio.to_thread``.
+        """
         if self.llm_provider is None:
             self.logger.warning("No LLM provider configured")
             return None
 
-        if rag_enabled and self.vector_store is not None and user_prompt is not None and str(user_prompt).strip():
+        if (rag_enabled and self.vector_store is not None
+                and user_prompt is not None and str(user_prompt).strip()):
             snippets = self.vector_store.query(str(user_prompt).strip(), index_name=index_name)
             if snippets:
                 rag_prefix = (
@@ -207,7 +248,9 @@ class InteractionOrchestrator:
             messages.append(Message(role="user", content=str(user_prompt)))
 
         try:
-            text = self.llm_provider.complete(messages, system_prompt=system_prompt or "")
+            text = await asyncio.to_thread(
+                self.llm_provider.complete, messages, system_prompt=system_prompt or ""
+            )
             if json_response:
                 return json.loads(text)
             return text
@@ -215,18 +258,44 @@ class InteractionOrchestrator:
             self.logger.exception("LLM request failed: %s", e)
             return None
 
+    # ------------------------------------------------------------------
+    # Non-blocking helpers (synchronous — no I/O wait)
+    # ------------------------------------------------------------------
+
+    def play_audio(self, audio_file, amplified=False, log=True):
+        if not exists(audio_file):
+            self.logger.error(f"Audio file not found: {audio_file}")
+            return
+        with wave.open(audio_file, 'rb') as wf:
+            sample_width = wf.getsampwidth()
+            framerate = wf.getframerate()
+            n_frames = wf.getnframes()
+            if sample_width != 2:
+                raise ValueError(
+                    "WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width)
+                )
+            audio = wf.readframes(n_frames)
+            if amplified:
+                audio = _amplify_audio(audio)
+            self.device.play_audio_bytes(audio, framerate)
+            if log:
+                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+
+    def play_animation(self, animation_name, run_async=False):
+        self.device.play_animation(animation_name, run_async=run_async)
+
+    def play_motion(self, motion_name):
+        self.device.play_motion_sequence(motion_name)
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
     def disconnect(self):
         self.tts_provider.close()
         self.device.disconnect()
         if self.vector_store is not None:
             self.vector_store.close()
-        if self.background_loop.is_running():
-            self.background_loop.call_soon_threadsafe(self.background_loop.stop)
-        self.background_thread.join()
-
-    def _start_loop(self):
-        asyncio.set_event_loop(self.background_loop)
-        self.background_loop.run_forever()
 
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf

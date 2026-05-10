@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from nardial.events.source import EventSource
 
 
 class AnimationStyle(Enum):
@@ -19,3 +24,13 @@ class DeviceAdapter(Protocol):
     def set_leds(self, r: float = 0, g: float = 0, b: float = 0, name: str = "FaceLeds") -> None: ...
     def signal_listening(self, start: bool = True) -> None: ...
     def disconnect(self) -> None: ...
+
+    def get_event_sources(self) -> "list[EventSource]":
+        """Return device-specific :class:`~nardial.events.source.EventSource` instances.
+
+        ``SessionManager.run_async()`` calls this during startup to automatically
+        register sources for hardware inputs (buttons, sensors) exposed by the
+        device.  Override in concrete adapters to expose device-specific sources.
+        The default returns an empty list (no hardware sources).
+        """
+        return []

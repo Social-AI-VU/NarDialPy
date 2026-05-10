@@ -11,6 +11,9 @@ MOVE_PLAY_AUDIO = "play"
 MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
 MOVE_BRANCH = "branch"
+MOVE_WAIT_FOR_BUTTON = "wait_for_button"
+MOVE_TIMED_WAIT = "timed_wait"
+MOVE_WAIT_FOR_WEB_INPUT = "wait_for_web_input"
 
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
@@ -111,6 +114,74 @@ class MoveBranch(BaseModel):
     cases: Dict[str, List["AnyMove"]] = Field(default_factory=dict)
 
 
+class MoveWaitForButton(BaseModel):
+    """Suspend execution until one of the named buttons is pressed or the timeout elapses.
+
+    Requires an active :class:`~nardial.events.bus.EventBus` in the runtime.
+    When no bus is present the move resolves immediately to ``default_outcome``.
+
+    Parameters
+    ----------
+    buttons : list[str]
+        Accepted event source IDs (e.g. ``"chest_button"``).
+    timeout : float | None
+        Seconds to wait before giving up.  ``None`` means wait indefinitely.
+    outcomes : dict[str, str]
+        Maps source ID → outcome string when that button is pressed.
+    default_outcome : str
+        Outcome used on timeout or when no bus is available.
+    """
+
+    type: Literal[MOVE_WAIT_FOR_BUTTON] = MOVE_WAIT_FOR_BUTTON
+    buttons: List[str]
+    timeout: Optional[float] = None
+    outcomes: Dict[str, str] = Field(default_factory=dict)
+    default_outcome: str = "timeout"
+
+
+class MoveTimedWait(BaseModel):
+    """Pause dialog execution for a fixed duration.
+
+    Parameters
+    ----------
+    duration_seconds : float
+        How long to sleep before the next move runs.
+    """
+
+    type: Literal[MOVE_TIMED_WAIT] = MOVE_TIMED_WAIT
+    duration_seconds: float
+
+
+class MoveWaitForWebInput(BaseModel):
+    """Suspend execution until a web input event arrives or the timeout elapses.
+
+    The move listens on the event bus for ``web_input`` events whose
+    ``data["value"]`` is in ``options``.  Requires an active
+    :class:`~nardial.events.bus.EventBus`.  Resolves to ``default_outcome``
+    when no bus is available or on timeout.
+
+    Parameters
+    ----------
+    prompt : str
+        Hint text for the web UI (not spoken by the robot).
+    options : list[str]
+        Accepted ``value`` strings from the web input event.
+    timeout : float | None
+        Seconds to wait.  ``None`` means wait indefinitely.
+    outcomes : dict[str, str]
+        Maps option value → outcome string.
+    default_outcome : str
+        Outcome used on timeout or when no bus is available.
+    """
+
+    type: Literal[MOVE_WAIT_FOR_WEB_INPUT] = MOVE_WAIT_FOR_WEB_INPUT
+    prompt: str = ""
+    options: List[str] = Field(default_factory=list)
+    timeout: Optional[float] = None
+    outcomes: Dict[str, str] = Field(default_factory=dict)
+    default_outcome: str = "timeout"
+
+
 AnyMove = Annotated[
     Union[
         MoveSay,
@@ -122,6 +193,9 @@ AnyMove = Annotated[
         MoveMotionSequence,
         MoveAnimation,
         MoveBranch,
+        MoveWaitForButton,
+        MoveTimedWait,
+        MoveWaitForWebInput,
     ],
     Field(discriminator="type"),
 ]

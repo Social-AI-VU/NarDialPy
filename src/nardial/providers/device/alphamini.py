@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random as rand
 from typing import Any
 
@@ -6,7 +7,35 @@ from mini import MouthLampColor, MouthLampMode
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.devices.alphamini import Alphamini, SDKAnimationType
 
+from nardial.events.bus import EventBus
+from nardial.events.source import EventSource
 from nardial.providers.device import AnimationStyle
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Button source (stub — Alphamini has no native hardware buttons)
+# ---------------------------------------------------------------------------
+
+class AlphaMiniButtonSource(EventSource):
+    """Stub EventSource for Alphamini — no native button hardware is available.
+
+    Alphamini does not expose physical buttons or touch sensors through the SIC
+    framework.  This stub exists for API completeness and to document the
+    limitation clearly.  It exits immediately when started and never emits any
+    events.
+
+    For button-like input on Alphamini, use :class:`~nardial.events.sources.webhook.WebhookSource`
+    to receive HTTP POST events from an external UI or SIC web component.
+    """
+
+    @property
+    def source_id(self) -> str:
+        return "AlphaMiniButtonSource"
+
+    async def run(self, bus: EventBus) -> None:
+        """No-op: Alphamini has no native button hardware to monitor."""
+        logger.debug("AlphaMiniButtonSource: no native button hardware — exiting immediately")
 
 
 _SPEAKING_ACTS = [f"speakingAct{i}" for i in range(1, 18)]
@@ -56,3 +85,6 @@ class AlphaminiAdapter:
 
     def disconnect(self) -> None:
         self._device.stop_device()
+
+    def get_event_sources(self) -> list:
+        return []

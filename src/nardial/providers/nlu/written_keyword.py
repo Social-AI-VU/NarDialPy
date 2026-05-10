@@ -25,6 +25,9 @@ class WrittenKeywordNLUProvider(NLUProvider):
 
         return NLUResult(transcript=line, intent=self._match_intent(line.lower()))
 
+    def cancel(self) -> None:
+        pass
+
     @staticmethod
     def _match_intent(text: str) -> str | None:
         for phrase in _DONTKNOW:

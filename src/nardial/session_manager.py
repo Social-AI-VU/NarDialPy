@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -8,12 +9,19 @@ from nardial.agenda import AgendaContext, resolve_agenda
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState, Session
 from nardial.dialog_registry import DialogRegistry
-from nardial.mini_dialogs import RunContext
+from nardial.dialog_runtime import DialogRuntime, RunContext
 
 from nardial.authoring import load_dialogs
 
+from nardial.events.bus import EventBus
+from nardial.events.types import InterruptLevel, ResumePolicy
+
 if TYPE_CHECKING:
     from nardial.agenda.session_plan import SessionPlan
+    from nardial.events.checkpoint import AnyCheckpoint
+    from nardial.events.source import EventSource
+    from nardial.events.specs import EventHandlerSpec
+    from nardial.events.types import Event
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +81,18 @@ class SessionManager:
         # Dialog IDs that were already run in an incomplete session; pre-populated
         # by _apply_resume() so _build_agenda_context() treats them as completed.
         self._resume_completed_ids: set[str] = set()
+
+        # Event infrastructure — populated by add_event_source / add_event_handler
+        # and by _resolve_plan_agenda() when a session plan declares sources/handlers.
+        # Wired into the async run loop in Phase 8 (run_async / _dialog_loop).
+        self._event_sources: list["EventSource"] = []
+        self._event_handlers: dict[str, "EventHandlerSpec"] = {}
+        # Set by run_async(); None until the session is actually running.
+        self._bus: EventBus | None = None
+        # Set by _preemptive_watchdog when a PREEMPTIVE event cancels a dialog task;
+        # read and cleared by _dialog_loop to distinguish watchdog-triggered
+        # CancelledErrors from outer session cancellations.
+        self._last_preemptive_event: "Event | None" = None
 
         self.conversation_state = ConversationState(participant_id=participant_id)
 
@@ -228,7 +248,80 @@ class SessionManager:
             template.session_index,
             session_number,
         )
+
+        # Register any event handlers and sources declared in the plan.
+        self._register_plan_events(plan)
+
         return template.agenda
+
+    def _register_plan_events(self, plan: "SessionPlan") -> None:  # type: ignore[name-defined]
+        """Populate ``_event_handlers`` and ``_event_sources`` from the plan.
+
+        Called by :meth:`_resolve_plan_agenda` after a plan is successfully
+        loaded.  Sources are instantiated via :func:`~nardial.events.specs.instantiate_source`
+        so that ``SessionManager`` only stores ready-to-run ``EventSource``
+        objects, never raw spec dicts.
+
+        Parameters
+        ----------
+        plan : SessionPlan
+            The loaded plan whose ``event_handlers`` and ``event_sources``
+            fields should be registered.
+        """
+        from nardial.events.specs import instantiate_source
+
+        for spec in plan.event_handlers:
+            self._event_handlers[spec.event_type] = spec
+            logger.debug(
+                "Registered event handler: event_type=%r → dialog %r",
+                spec.event_type, spec.handler_dialog_id,
+            )
+
+        for source_spec in plan.event_sources:
+            source = instantiate_source(source_spec)
+            self._event_sources.append(source)
+            logger.debug("Registered event source: %r", source.source_id)
+
+    # ── Public event registration ─────────────────────────────────────────────
+
+    def add_event_source(self, source: "EventSource") -> "SessionManager":
+        """Register an additional :class:`~nardial.events.source.EventSource`.
+
+        Returns ``self`` so calls can be chained::
+
+            sm.add_event_source(TimerSource(...)).add_event_source(WebhookSource(...))
+
+        The source is started by ``run_async()`` (Phase 8) as an asyncio task.
+
+        Parameters
+        ----------
+        source : EventSource
+            A fully configured source instance.
+
+        Returns
+        -------
+        SessionManager
+        """
+        self._event_sources.append(source)
+        return self
+
+    def add_event_handler(self, spec: "EventHandlerSpec") -> "SessionManager":
+        """Register an event handler spec, keyed by ``spec.event_type``.
+
+        A later call with the same ``event_type`` overwrites the earlier one.
+        Returns ``self`` for chaining.
+
+        Parameters
+        ----------
+        spec : EventHandlerSpec
+            The handler mapping to register.
+
+        Returns
+        -------
+        SessionManager
+        """
+        self._event_handlers[spec.event_type] = spec
+        return self
 
     # ── Crash recovery ────────────────────────────────────────────────────────
 
@@ -290,59 +383,191 @@ class SessionManager:
 
     # ── Run ───────────────────────────────────────────────────────────────────
 
-    def run(self):
-        """Execute the session by resolving the agenda incrementally.
+    def run(self) -> None:
+        """Execute the session synchronously.
 
-        For each dialog yielded by ``resolve_agenda()``:
-
-        1. A final eligibility check via the dialog's ``DEFAULT_ELIGIBILITY``
-           policy guards against stale state (defense-in-depth).
-        2. The dialog runs via ``dialog.run(agent, run_context)``.
-        3. Completion is recorded in both the ``AgendaContext`` (so subsequent
-           eligibility decisions in this session see fresh state) and the
-           ``ConversationState`` (for cross-session persistence).
-
-        Session events and topics are persisted at the end of the session.
+        Delegates to :meth:`run_async` via ``asyncio.run()``, which creates an
+        ``EventBus``, starts registered event sources as asyncio tasks, and runs
+        the dialog loop.  Callers that already manage an event loop should call
+        ``run_async()`` directly and ``await`` it.
         """
+        asyncio.run(self.run_async())
+
+    async def run_async(self) -> None:
+        """Execute the session asynchronously.
+
+        Creates a fresh :class:`~nardial.events.bus.EventBus`, optionally adds
+        sources from the device adapter, and runs all source tasks concurrently
+        with the dialog loop.  When the dialog loop finishes the source tasks are
+        cancelled and the bus is shut down.
+
+        Call this directly (with ``await``) when you are already running inside
+        an asyncio event loop (e.g. in an integration test or a larger async
+        application).
+        """
+        self._bus = EventBus()
+        self._bus.set_loop(asyncio.get_running_loop())
+
+        # Add any sources provided by the device adapter.
+        try:
+            device = self.agent.orchestrator.device
+            for src in device.get_event_sources():
+                self._event_sources.append(src)
+        except (AttributeError, TypeError):
+            # agent does not expose orchestrator/device, or get_event_sources()
+            # returned a non-iterable (e.g. a stub or Mock in tests) — skip silently.
+            pass
+
+        source_tasks = [
+            asyncio.create_task(src.run(self._bus), name=src.source_id)
+            for src in self._event_sources
+        ]
+        try:
+            await self._dialog_loop()
+        finally:
+            for task in source_tasks:
+                task.cancel()
+            if source_tasks:
+                await asyncio.gather(*source_tasks, return_exceptions=True)
+            self._bus.shutdown()
+
+    async def _dialog_loop(self) -> None:
+        """Core session loop: resolve the agenda and run each dialog in turn.
+
+        For each dialog:
+
+        1. BETWEEN_DIALOGS events are drained from the bus and the highest-priority
+           handler dialog is run (if any).
+        2. A final eligibility gate is applied (defense-in-depth).
+        3. The dialog runs via :class:`~nardial.dialog_runtime.DialogRuntime`.
+        4. If a BETWEEN_MOVES interrupt returned a checkpoint, the handler dialog
+           (if any) is run, then the same dialog is queued for replay (``PAUSE``)
+           or abandoned (``DISCARD``).
+        5. On normal completion, both the in-session context and the persistent
+           conversation state are updated.
+
+        Session history and topics are persisted after the loop.
+        """
+        from nardial.dialog_runtime import _pick_dominant
+
+        # Yield once so that source tasks scheduled by run_async() get a chance
+        # to start before the dialog loop (potentially empty) returns.
+        await asyncio.sleep(0)
+
         run_context = RunContext(
             session_history=[],
             topics_of_interest=self.conversation_state.topics_of_interest,
             user_model=self.conversation_state.user_model,
         )
-
         context = self._build_agenda_context()
+        runtime = DialogRuntime(self.agent, event_bus=self._bus)
 
-        for dialog in resolve_agenda(self.session_agenda, context):
-            if not type(dialog).DEFAULT_ELIGIBILITY.is_eligible(dialog, context):
-                logger.debug("Skipped %s (final eligibility gate failed)", dialog.dialog_id)
+        checkpoint: "AnyCheckpoint | None" = None
+        # When non-None, the dialog loop replays this dialog (PAUSE resume)
+        # without advancing the agenda generator.
+        pending_dialog = None
+
+        gen = iter(resolve_agenda(self.session_agenda, context))
+
+        while True:
+            if pending_dialog is not None:
+                dialog = pending_dialog
+                pending_dialog = None
+            else:
+                dialog = next(gen, None)
+                if dialog is None:
+                    break
+
+                # Eligibility gate — only for freshly yielded dialogs; a dialog
+                # being replayed after PAUSE is inherently eligible.
+                if not type(dialog).DEFAULT_ELIGIBILITY.is_eligible(dialog, context):
+                    logger.debug("Skipped %s (final eligibility gate failed)", dialog.dialog_id)
+                    continue
+
+                # Record the dialog as started (only once, not on resume).
+                self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
+                run_context.session_history.append({
+                    "role": "system",
+                    "type": "dialog_start",
+                    "dialog_id": dialog.dialog_id,
+                })
+
+            # Drain BETWEEN_DIALOGS events before each dialog (including resumptions).
+            bd_events = await self._bus.drain_at_level(InterruptLevel.BETWEEN_DIALOGS)
+            if bd_events:
+                dominant = _pick_dominant(bd_events)
+                if dominant is not None:
+                    await self._run_handler_dialog(dominant, runtime, run_context, context)
+
+            # Run the dialog as a watched task so the preemptive watchdog can
+            # cancel it mid-execution when a PREEMPTIVE event arrives.
+            self._last_preemptive_event = None
+            dialog_task = asyncio.create_task(
+                runtime.run(dialog, run_context, resume_from=checkpoint),
+                name=f"dialog:{dialog.dialog_id}",
+            )
+            watchdog_task = asyncio.create_task(
+                self._preemptive_watchdog(dialog_task),
+                name="preemptive_watchdog",
+            )
+            try:
+                returned = await dialog_task
+            except asyncio.CancelledError:
+                if self._last_preemptive_event is None:
+                    # Outer session cancellation — propagate after cleaning up.
+                    watchdog_task.cancel()
+                    raise
+                # Watchdog-triggered preemptive interrupt.
+                ev = self._last_preemptive_event
+                self._last_preemptive_event = None
+                logger.info(
+                    "Dialog %r preemptively interrupted by event %r",
+                    dialog.dialog_id, ev.type,
+                )
+                await self._run_handler_dialog(ev, runtime, run_context, context)
+                if ev.resume_policy == ResumePolicy.PAUSE:
+                    from nardial.events.checkpoint import MiniDialogCheckpoint
+                    checkpoint = MiniDialogCheckpoint(
+                        dialog_id=dialog.dialog_id,
+                        move_index=runtime._current_move_index,
+                        current_outcome=run_context.current_outcome,
+                    )
+                    pending_dialog = dialog
+                else:
+                    checkpoint = None
+                continue
+            finally:
+                watchdog_task.cancel()
+                await asyncio.gather(watchdog_task, return_exceptions=True)
+
+            checkpoint = None
+
+            if returned is not None:
+                # A BETWEEN_MOVES event interrupted the dialog mid-run.
+                event: "Event | None" = runtime.last_interrupt_event
+                runtime.last_interrupt_event = None
+                if event is not None and event.handler_dialog_id:
+                    await self._run_handler_dialog(event, runtime, run_context, context)
+                if event is not None and event.resume_policy == ResumePolicy.PAUSE:
+                    # Re-run the same dialog starting from the saved move_index.
+                    checkpoint = returned
+                    pending_dialog = dialog
+                # Whether PAUSE or DISCARD, do not mark the dialog as completed.
                 continue
 
-            self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
-
-            run_context.session_history.append({
-                "role": "system",
-                "type": "dialog_start",
-                "dialog_id": dialog.dialog_id,
-            })
-
-            dialog.run(self.agent, run_context)
-
+            # Normal completion.
             run_context.session_history.append({
                 "role": "system",
                 "type": "dialog_end",
                 "dialog_id": dialog.dialog_id,
             })
-
-            # Record completion in both the in-session context (for incremental
-            # eligibility decisions) and the persistent conversation state.
             self.conversation_state.completed_dialogs.append(dialog.dialog_id)
             context.mark_completed(dialog.dialog_id)
 
         logger.debug("Session history:\n%s", json.dumps(run_context.session_history, indent=2))
         logger.debug("Topics of interest: %s", run_context.topics_of_interest)
 
-        # Condense topics_of_interest into single-word keywords
-        topics_of_interest = self.condense_topics(run_context.topics_of_interest)
+        topics_of_interest = await self.condense_topics(run_context.topics_of_interest)
 
         self.conversation_state.add_events(self.session_id, run_context.session_history)
         self.conversation_state.end_session(
@@ -353,7 +578,103 @@ class SessionManager:
         )
         self.conversation_state.save()
 
-    def condense_topics(self, topics_of_interest):
+    async def _preemptive_watchdog(self, dialog_task: asyncio.Task) -> None:
+        """Poll the bus every 50 ms for PREEMPTIVE events and cancel *dialog_task* on detection.
+
+        Runs as a sibling ``asyncio.Task`` alongside the dialog task in
+        :meth:`_dialog_loop`.  Exits when:
+
+        - *dialog_task* completes normally (loop exits cleanly), or
+        - a PREEMPTIVE event is detected (stores it on ``_last_preemptive_event``
+          and cancels *dialog_task* before returning).
+
+        The 50 ms poll interval is a deliberate balance between responsiveness
+        (< 100 ms is imperceptible) and CPU overhead.  At 50 ms the watchdog
+        adds at most ~20 context switches per second to the event loop.
+
+        Parameters
+        ----------
+        dialog_task : asyncio.Task
+            The running dialog task to watch.
+        """
+        while not dialog_task.done():
+            await asyncio.sleep(0.05)
+            if dialog_task.done():
+                break
+            ev = await self._bus.get_preemptive()
+            if ev is not None:
+                logger.debug(
+                    "Preemptive watchdog: PREEMPTIVE event %r detected — cancelling dialog task",
+                    ev.type,
+                )
+                self._last_preemptive_event = ev
+                dialog_task.cancel()
+                return
+
+    async def _run_handler_dialog(
+        self,
+        event: "Event",
+        runtime: "DialogRuntime",
+        run_context: RunContext,
+        context: "AgendaContext",
+    ) -> None:
+        """Run the handler dialog declared for *event*, if any.
+
+        The handler dialog ID is resolved by checking (in order):
+
+        1. The ``handler_dialog_id`` field on the event itself.
+        2. The ``_event_handlers`` registry keyed by ``event.type``.
+
+        If the dialog is not found in the registry, a warning is logged and the
+        method returns without error — a missing handler dialog is non-fatal.
+
+        Parameters
+        ----------
+        event : Event
+            The event that triggered this handler call.
+        runtime : DialogRuntime
+            The shared runtime instance to use for the handler dialog.
+        run_context : RunContext
+            The shared session context (history, user model, topics).
+        context : AgendaContext
+            The in-session eligibility context (updated after the handler runs).
+        """
+        # Prefer the event's explicit handler_dialog_id; fall back to the registry.
+        dialog_id = event.handler_dialog_id
+        if not dialog_id:
+            handler_spec = self._event_handlers.get(event.type)
+            if handler_spec:
+                dialog_id = handler_spec.handler_dialog_id
+
+        if not dialog_id:
+            logger.debug(
+                "Event %r has no handler dialog configured — skipping", event.type
+            )
+            return
+
+        dialog = self._registry.get_by_id(dialog_id)
+        if dialog is None:
+            logger.warning(
+                "Handler dialog %r for event %r not found in registry — skipping",
+                dialog_id, event.type,
+            )
+            return
+
+        logger.info("Running handler dialog %r for event %r", dialog_id, event.type)
+        run_context.session_history.append({
+            "role": "system",
+            "type": "handler_dialog_start",
+            "dialog_id": dialog_id,
+            "event_type": event.type,
+        })
+        await runtime.run(dialog, run_context)
+        run_context.session_history.append({
+            "role": "system",
+            "type": "handler_dialog_end",
+            "dialog_id": dialog_id,
+        })
+
+    async def condense_topics(self, topics_of_interest: list) -> list:
         """Reduce a list of topics of interest into concise keywords using GPT.
 
         Falls back to the original list if extraction fails.
@@ -369,8 +690,9 @@ class SessionManager:
             Condensed list of topic keywords.
         """
         try:
-            topics_of_interest = self.agent.extract_topics_with_llm(list(topics_of_interest))
-            logger.debug("Condensed topics: %s", topics_of_interest)
+            result = await self.agent.extract_topics_with_llm(list(topics_of_interest))
+            logger.debug("Condensed topics: %s", result)
+            return result
         except Exception as e:
             logger.warning("Topic condensation failed: %s", e)
-        return topics_of_interest
+            return topics_of_interest

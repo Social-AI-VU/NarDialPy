@@ -61,6 +61,9 @@ class ElevenLabsTTSProvider(TTSProvider):
     def close(self) -> None:
         self._tts.stop()
 
+    def cancel(self) -> None:
+        pass
+
     @staticmethod
     def _split_text(text: str, max_len: int = 80, min_tail: int = 20) -> list[str]:
         text = text.strip()

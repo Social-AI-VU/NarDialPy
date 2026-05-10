@@ -2,7 +2,7 @@
 
 **NarDialPy** is a Python package for building and running **narrative-driven, structured dialog systems** — designed for social robots and conversational agents.
 
-It lets you author complete conversations declaratively in JSON, then drive them from Python using voice, NLU, and LLM services. The package handles session flow, branching logic, topic tracking, and personalization so you can focus on what the robot says and how conversations unfold.
+It lets you author complete conversations declaratively in JSON, then drive them from Python using voice, NLU, and LLM services. The package handles session flow, branching logic, topic tracking, personalization, and real-time event interruptions so you can focus on what the robot says and how conversations unfold.
 
 ---
 
@@ -15,13 +15,19 @@ It lets you author complete conversations declaratively in JSON, then drive them
    - [Agenda items](#agenda-items)
    - [Slot bounds](#slot-bounds)
    - [Multi-session plans](#multi-session-plans)
-5. [Defining Dialogs in JSON](#defining-dialogs-in-json)
+5. [Event System](#event-system)
+   - [Interrupt levels](#interrupt-levels)
+   - [Resume policies](#resume-policies)
+   - [Built-in event sources](#built-in-event-sources)
+   - [Wiring up an event source](#wiring-up-an-event-source)
+   - [Declaring sources and handlers in a session plan](#declaring-sources-and-handlers-in-a-session-plan)
+6. [Defining Dialogs in JSON](#defining-dialogs-in-json)
    - [Dialog Structure](#dialog-structure)
    - [Dialog Types](#dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
-6. [Demos / Creating a Session](#demos--creating-a-session)
-7. [Development](#development)
+7. [Demos / Creating a Session](#demos--creating-a-session)
+8. [Development](#development)
 
 ---
 
@@ -35,6 +41,7 @@ The `nardial` package provides the building blocks for authoring and executing m
 | **Session Manager** | Loads your dialog JSON, resolves a session agenda, and runs dialogs in order — checking dependencies and tracking state. |
 | **ConversationAgent** | The runtime bridge to the hardware: it calls TTS, STT, LLM, and motion services on your chosen device. |
 | **Agenda system** | Controls which dialogs run, in what order, and how many times — using composable eligibility rules and typed agenda items that can be configured per session. |
+| **Event system** | Asyncio-native event bus with pluggable sources (timers, buttons, webhooks, background LLM) that can interrupt the dialog loop at configurable checkpoints. |
 
 Typical use case:
 
@@ -258,7 +265,7 @@ manager = SessionManager(
 manager.run()
 ```
 
-`SessionManager` also supports multi-session studies, crash recovery, and history resets — see [Authoring a Session Agenda](#authoring-a-session-agenda).
+`SessionManager` also supports multi-session studies, crash recovery, history resets, and an async API — see [Authoring a Session Agenda](#authoring-a-session-agenda) and [Event System](#event-system).
 
 ---
 
@@ -391,6 +398,8 @@ Run at least one chitchat, up to three, until five minutes have elapsed:
 
 For longitudinal studies where each session should follow a different agenda, define a `SessionPlan` in a separate JSON file and pass it to `SessionManager`. The manager automatically selects the right template based on how many sessions the participant has already completed.
 
+`SessionPlan` also supports declaring event sources and handlers directly in the plan file so they activate automatically for every session without extra Python code (see [Declaring sources and handlers in a session plan](#declaring-sources-and-handlers-in-a-session-plan)).
+
 **`study_plan.json`:**
 ```json
 {
@@ -484,6 +493,131 @@ manager = SessionManager(
     reset_history_from_session=2,   # discards sessions 2, 3, … and all dialogs run in them
 )
 ```
+
+---
+
+## Event System
+
+NarDialPy includes an asyncio-native event system that lets the robot react to external signals — hardware button presses, timers, web input — without blocking the ongoing conversation. Event sources run as concurrent asyncio tasks alongside the dialog loop, emitting `Event` objects onto a shared `EventBus`. The dialog loop checks the bus at configured checkpoints and either continues, runs a handler dialog, or retries from where it was paused.
+
+`SessionManager.run()` handles all asyncio orchestration internally. You do not need to call `asyncio.run()` yourself.
+
+---
+
+### Interrupt levels
+
+The interrupt level on an event controls at what point the dialog loop will act on it:
+
+| Level | When it fires | Typical use case |
+|---|---|---|
+| `BETWEEN_DIALOGS` | After the current dialog completes | Session time limit, topic injection between dialogs |
+| `BETWEEN_MOVES` | After the current move completes, before the next | Inject a handler mid-session without aborting the current dialog |
+| `PREEMPTIVE` | Immediately — cancels the active move | Emergency stop, high-priority user action |
+
+---
+
+### Resume policies
+
+When an event fires, the resume policy controls what happens to the interrupted dialog:
+
+| Policy | Effect |
+|---|---|
+| `DISCARD` | The interrupted dialog is abandoned. The handler dialog runs, then the session continues with the next agenda item. |
+| `PAUSE` | The interrupted dialog's position is checkpointed. The handler dialog runs, then the session retries the interrupted dialog from where it left off. |
+
+---
+
+### Built-in event sources
+
+| Source | Import path | Description |
+|---|---|---|
+| `TimerSource` | `nardial.events.sources.timer` | Fires once (or on repeat) after a configurable delay |
+| `WebhookSource` | `nardial.events.sources.webhook` | Lightweight HTTP server — receives events via HTTP POST from an external UI or web component |
+| `BackgroundLLMSource` | `nardial.events.sources.background_llm` | Runs an LLM query concurrently and injects the result as an event when it completes |
+| `PepperButtonSource` | `nardial.providers.device.pepper` | Pepper head tactile sensor and three bumper button presses |
+| `NaoButtonSource` | `nardial.providers.device.nao` | NAO chest button, head touch zones, and foot bumper presses |
+| `AlphaMiniButtonSource` | `nardial.providers.device.alphamini` | Stub — AlphaMini has no physical buttons (exits immediately, emits no events) |
+
+Device sources are registered automatically: each device adapter's `get_event_sources()` method returns its button source(s), and `SessionManager` starts them at session launch. For the desktop adapter, `get_event_sources()` returns an empty list — add sources explicitly via `add_event_source()`.
+
+---
+
+### Wiring up an event source
+
+Use `add_event_source()` and `add_event_handler()` to attach event sources and handler mappings to a session manager:
+
+```python
+from nardial.session_manager import SessionManager
+from nardial.events.sources.timer import TimerSource
+from nardial.events.specs import EventHandlerSpec
+from nardial.events.types import InterruptLevel, ResumePolicy
+
+# Fire a "time_limit_reached" event after 5 minutes, between dialogs.
+timer = TimerSource(
+    event_type="time_limit_reached",
+    delay_seconds=300,
+    interrupt_level=InterruptLevel.BETWEEN_DIALOGS,
+    resume_policy=ResumePolicy.DISCARD,
+    handler_dialog_id="timeout_farewell",
+    priority=50,
+)
+
+manager = SessionManager(
+    session_agenda=[
+        {"type": "functional_slot", "functional_type": "greeting"},
+        {"type": "narrative_slot", "thread": "main"},
+        {"type": "functional_slot", "functional_type": "farewell"},
+    ],
+    agent=agent,
+    dialog_json_path="dialogs/my_dialogs.json",
+    participant_id="user_42",
+)
+manager.add_event_source(timer)
+manager.run()
+```
+
+When `"time_limit_reached"` fires, `SessionManager` looks up `"timeout_farewell"` in the dialog registry and runs it immediately, then ends the session.
+
+Multiple sources can be chained:
+
+```python
+manager.add_event_source(timer).add_event_source(another_source)
+```
+
+---
+
+### Declaring sources and handlers in a session plan
+
+Event sources and handlers can also be declared directly in a `SessionPlan` JSON file so they activate automatically without extra Python code:
+
+```json
+{
+  "plan_id": "companion_study",
+  "sessions": [...],
+  "event_handlers": [
+    {
+      "event_type": "time_limit_reached",
+      "handler_dialog_id": "timeout_farewell",
+      "interrupt_level": "BETWEEN_DIALOGS",
+      "resume_policy": "DISCARD",
+      "priority": 50
+    }
+  ],
+  "event_sources": [
+    {
+      "type": "timer",
+      "event_type": "time_limit_reached",
+      "delay_seconds": 300,
+      "interrupt_level": "BETWEEN_DIALOGS",
+      "resume_policy": "DISCARD",
+      "handler_dialog_id": "timeout_farewell",
+      "priority": 50
+    }
+  ]
+}
+```
+
+Supported `type` values for `event_sources`: `"timer"`, `"webhook"`.
 
 ---
 
@@ -813,6 +947,91 @@ Branching on a stored variable (e.g. to react to an answer from an earlier dialo
 
 ---
 
+#### `wait_for_button`
+
+Pauses the dialog and waits for a button press event from one of the specified device sources. The source ID becomes the current outcome for a subsequent `branch` move. Pair this with `PepperButtonSource` or `NaoButtonSource`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"wait_for_button"` |
+| `buttons` | array of strings | ✅ | Accepted event source IDs (e.g. `"chest_button"`, `"head_tactile"`) |
+| `timeout` | number | | Seconds to wait before falling back to `default_outcome`. Omit for indefinite wait. |
+| `outcomes` | object | | Maps source ID to outcome label |
+| `default_outcome` | string | | Outcome used when the timeout fires or no accepted button is pressed |
+
+```json
+{
+  "type": "say",
+  "text": "Press a button to choose your path."
+},
+{
+  "type": "wait_for_button",
+  "buttons": ["chest_button", "head_tactile"],
+  "timeout": 30,
+  "outcomes": {
+    "chest_button": "path_a",
+    "head_tactile": "path_b"
+  },
+  "default_outcome": "timeout"
+},
+{
+  "type": "branch",
+  "on": "outcome",
+  "cases": {
+    "path_a": [{ "type": "say", "text": "Left path chosen." }],
+    "path_b": [{ "type": "say", "text": "Right path chosen." }],
+    "timeout": [{ "type": "say", "text": "No choice made — I'll decide for us!" }]
+  }
+}
+```
+
+---
+
+#### `timed_wait`
+
+Pauses dialog execution for a fixed duration. Useful for dramatic pauses or waiting for an animation to finish before the next move begins.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"timed_wait"` |
+| `duration_seconds` | number | ✅ | How long to wait |
+
+```json
+{ "type": "timed_wait", "duration_seconds": 2.5 }
+```
+
+---
+
+#### `wait_for_web_input`
+
+Pauses the dialog and waits for a selection from an external web interface (delivered via `WebhookSource`). The selected option becomes the current outcome for a subsequent `branch` move.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"wait_for_web_input"` |
+| `prompt` | string | | Prompt to display on the web interface |
+| `options` | array of strings | | Accepted input values |
+| `timeout` | number | | Seconds to wait before falling back to `default_outcome` |
+| `outcomes` | object | | Maps option value to outcome label |
+| `default_outcome` | string | | Outcome used on timeout or unrecognised input |
+
+```json
+{
+  "type": "wait_for_web_input",
+  "prompt": "Which topic would you like to explore?",
+  "options": ["space", "ocean", "dinosaurs"],
+  "timeout": 60,
+  "outcomes": {
+    "space":      "topic_space",
+    "ocean":      "topic_ocean",
+    "dinosaurs":  "topic_dinos"
+  },
+  "default_outcome": "topic_space"
+}
+```
+
+---
+
 #### `play`
 
 Plays an audio file through the device's speakers.
@@ -956,6 +1175,7 @@ python -m pytest tests/integration/test_user_model_redis.py --integration -v
 | `test_session_persistence.py` | Nothing (filesystem only) |
 | `test_full_session.py` | Nothing (filesystem only) |
 | `test_branch_session.py` | Nothing (filesystem only) |
+| `test_async_events.py` | Nothing (filesystem only) |
 | `test_user_model_redis.py` | Redis Stack on `127.0.0.1:6379` + `run-datastore-redis` |
 | `test_llm_echo.py` | SIC LLM service |
 | `test_nlu_written_keyword.py` | SIC NLU service |
@@ -972,28 +1192,23 @@ The sections below explain how to extend NarDialPy without breaking existing beh
 
 2. **`src/nardial/authoring/schemas.py`** — If the move needs its own authoring-schema representation, add it there; otherwise the same Pydantic class serves both layers. Ensure `AnyMove` in `schemas.py` includes the new type.
 
-3. **`src/nardial/mini_dialogs.py`** — Add a handler method `handle_move_your_type(self, move: MoveYourType) -> None` to `MiniDialog`. Register it in the `_MOVE_HANDLERS` class-level dict:
-   ```python
-   _MOVE_HANDLERS: Dict[str, str] = {
-       ...
-       MOVE_YOUR_TYPE: "handle_move_your_type",
-   }
-   ```
-   No other changes to `_dispatch_move` are needed.
+3. **`src/nardial/dialog_runtime.py`** — Add an async handler method `_handle_your_type(self, move: MoveYourType, context: RunContext) -> None` to `DialogRuntime`. The dispatcher routes calls by naming convention (`_handle_<type>`) — no registration step is needed.
 
 4. **`tests/test_moves.py`** — Add validation tests for the new Pydantic model.
 
-5. **`tests/test_mini_dialogs_extra.py`** (or a new file) — Add a handler test that creates a `MiniDialog`, sets `_agent` and `_context`, calls `handle_move_your_type()`, and asserts the expected side-effects.
+5. **`tests/test_dialog_runtime.py`** (or a new file) — Add a handler test that creates a `DialogRuntime`, passes an `AsyncMockAgent` and a `RunContext`, calls `runtime.run(dialog, context)`, and asserts the expected side-effects.
 
 #### Adding a new dialog type
 
-1. **`src/nardial/base_dialog.py`** — Subclass `BaseDialog` and implement `run(self, agent, context)`. The base class provides `dialog_id`, `dependencies`, and `variable_dependencies` for free.
+1. **`src/nardial/base_dialog.py`** — Subclass `BaseDialog`. Dialog classes are **pure data containers** — they declare `dialog_id`, `dependencies`, `variable_dependencies`, `INDEX_ATTRS`, and `DEFAULT_ELIGIBILITY`, but contain no runtime logic. The base class provides `dialog_id`, `dependencies`, and `variable_dependencies` for free.
 
-2. **`src/nardial/authoring/schemas.py`** — Add a new `*DialogSpec` Pydantic model and include it in the `AnyDialogSpec` discriminated union. Set a unique `type` literal that matches the JSON `"type"` field.
+2. **`src/nardial/dialog_runtime.py`** — Add an `isinstance` branch in `DialogRuntime.run()` that delegates to a new private `_run_your_type()` async method. This is where all execution logic lives.
 
-3. **`src/nardial/authoring/factory.py`** — Add an `isinstance` branch in `_spec_to_dialog()` (spec → runtime object) and in `_dialog_to_spec()` (runtime object → spec) for the new type.
+3. **`src/nardial/authoring/schemas.py`** — Add a new `*DialogSpec` Pydantic model and include it in the `AnyDialogSpec` discriminated union. Set a unique `type` literal that matches the JSON `"type"` field.
 
-4. **`tests/test_authoring.py`** — Add round-trip tests: construct the spec from a dict, assert the right runtime type is returned, call `to_json()` and verify the output matches the input.
+4. **`src/nardial/authoring/factory.py`** — Add an `isinstance` branch in `_spec_to_dialog()` (spec → runtime object) and in `_dialog_to_spec()` (runtime object → spec) for the new type.
+
+5. **`tests/test_authoring.py`** — Add round-trip tests: construct the spec from a dict, assert the right runtime type is returned, call `to_json()` and verify the output matches the input. Add execution tests that call `DialogRuntime(...).run(dialog, context)` with an `AsyncMockAgent`.
 
 #### Adding a new provider
 
@@ -1004,5 +1219,17 @@ The sections below explain how to extend NarDialPy without breaking existing beh
 3. Inject it into `InteractionOrchestrator` via the relevant constructor argument. No other wiring is needed — dialogs talk through `ConversationAgent`, which delegates to the orchestrator.
 
 4. Add a test in `tests/test_providers.py` that exercises the contract methods against your implementation (using mocked I/O where necessary).
+
+#### Adding a new event source
+
+1. Create a class in `src/nardial/events/sources/your_source.py` (or alongside its device adapter) that subclasses `EventSource` from `nardial.events.source`.
+
+2. Implement `async def run(self, bus: EventBus) -> None`. This method must not swallow `CancelledError` — re-raise it after any cleanup so `SessionManager` can shut down cleanly.
+
+3. Emit events via `await bus.emit(event)` for asyncio-safe callers, or `bus.emit_sync(event)` from non-async callbacks (e.g., SIC framework device callbacks running on a Redis thread).
+
+4. Register the source with `manager.add_event_source(your_source)` or declare it in a `SessionPlan`'s `event_sources` list (supported types: `"timer"`, `"webhook"`).
+
+5. Add tests in `tests/test_your_source.py` following the pattern in `tests/test_device_sources.py` — create an `EventBus`, run the source as an `asyncio.Task`, fire callbacks or wait for timers, then assert the emitted events.
 
 ---

@@ -15,7 +15,7 @@ Run with::
 """
 import json
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from nardial.session_manager import SessionManager
 
@@ -61,11 +61,11 @@ def dialogs_file(tmp_path):
 @pytest.fixture
 def mock_agent():
     agent = Mock()
-    agent.say = Mock()
-    agent.ask_yesno = Mock(return_value="yes")
-    agent.ask_open = Mock(return_value="My name is Alice")
-    agent.ask_options = Mock(return_value=None)
-    agent.extract_topics_with_llm = Mock(return_value=["outdoors"])
+    agent.say = AsyncMock()
+    agent.ask_yesno = AsyncMock(return_value="yes")
+    agent.ask_open = AsyncMock(return_value="My name is Alice")
+    agent.ask_options = AsyncMock(return_value=None)
+    agent.extract_topics_with_llm = AsyncMock(return_value=["outdoors"])
     return agent
 
 
@@ -99,7 +99,7 @@ class TestFullSessionRun:
 
     def test_set_variable_propagated_to_user_model(self, dialogs_file, mock_agent):
         """Variables set by ask_open moves should persist in the user model."""
-        mock_agent.ask_open = Mock(return_value="'Alice'")
+        mock_agent.ask_open = AsyncMock(return_value="'Alice'")
         sm = SessionManager(
             session_agenda=["greeting"],
             agent=mock_agent,
@@ -138,23 +138,33 @@ class TestFullSessionRun:
         assert "dialog_end" in event_types
 
     def test_ineligible_dialog_does_not_run(self, dialogs_file, mock_agent):
-        """A dialog that has already been completed should be skipped."""
+        """A NarrativeDialog already completed cross-session is skipped.
+
+        FunctionalDialogs (greeting, farewell) intentionally re-run every session
+        and carry no ExcludeIfSeenRule.  NarrativeDialogs do, so "activity" is
+        the right candidate to test cross-session exclusion.
+        """
         sm = SessionManager(
-            session_agenda=["greeting"],
+            session_agenda=["activity"],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
-        # Pre-mark greeting as completed
-        sm.conversation_state.completed_dialogs.append("greeting")
+        # Pre-mark activity as completed (cross-session)
+        sm.conversation_state.completed_dialogs.append("activity")
         sm.run()
         mock_agent.say.assert_not_called()
 
-    def test_empty_agenda_runs_all_dialogs(self, dialogs_file, mock_agent):
+    def test_empty_agenda_runs_no_dialogs(self, dialogs_file, mock_agent):
+        """An empty session_agenda means no dialogs are resolved or run.
+
+        The old build_dialog_session() auto-discovery was removed in issue #106.
+        An empty list is now a valid, intentionally empty agenda.
+        """
         sm = SessionManager(
             session_agenda=[],
             agent=mock_agent,
             dialog_json_path=dialogs_file,
         )
         sm.run()
-        # All three dialogs in the file should have completed
-        assert len(sm.conversation_state.completed_dialogs) == 3
+        assert sm.conversation_state.completed_dialogs == []
+        mock_agent.say.assert_not_called()

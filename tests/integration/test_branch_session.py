@@ -12,7 +12,7 @@ Run with::
 """
 import json
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from nardial.session_manager import SessionManager
 
@@ -134,11 +134,11 @@ def nested_dialogs_file(tmp_path):
 class TestBranchOnOutcome:
     def test_yes_answer_routes_to_yes_arm(self, sports_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="yes")
-        agent.ask_open = Mock(return_value=None)
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="yes")
+        agent.ask_open = AsyncMock(return_value=None)
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["sports_quiz"],
@@ -154,11 +154,11 @@ class TestBranchOnOutcome:
 
     def test_no_answer_routes_to_no_arm(self, sports_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="no")
-        agent.ask_open = Mock(return_value=None)
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="no")
+        agent.ask_open = AsyncMock(return_value=None)
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["sports_quiz"],
@@ -174,11 +174,11 @@ class TestBranchOnOutcome:
     def test_no_matching_arm_speaks_nothing_for_branch(self, sports_dialogs_file):
         """An answer that maps to a default_outcome not present in cases is silent."""
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="dontknow")  # → default "sports_no"
-        agent.ask_open = Mock(return_value=None)
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="dontknow")  # → default "sports_no"
+        agent.ask_open = AsyncMock(return_value=None)
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["sports_quiz"],
@@ -195,11 +195,11 @@ class TestBranchOnOutcome:
 class TestBranchOnUserModelVariable:
     def test_happy_mood_routes_to_happy_arm(self, mood_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="yes")
-        agent.ask_open = Mock(return_value="'happy'")  # extract_open_value → "happy"
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="yes")
+        agent.ask_open = AsyncMock(return_value="'happy'")  # extract_open_value → "happy"
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["mood_check"],
@@ -214,11 +214,11 @@ class TestBranchOnUserModelVariable:
 
     def test_sad_mood_routes_to_sad_arm(self, mood_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="yes")
-        agent.ask_open = Mock(return_value="'sad'")
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="yes")
+        agent.ask_open = AsyncMock(return_value="'sad'")
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["mood_check"],
@@ -234,11 +234,11 @@ class TestBranchOnUserModelVariable:
     def test_unknown_mood_is_silent(self, mood_dialogs_file):
         """A variable value with no matching case produces no extra speech."""
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="yes")
-        agent.ask_open = Mock(return_value="'indifferent'")
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="yes")
+        agent.ask_open = AsyncMock(return_value="'indifferent'")
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["mood_check"],
@@ -255,11 +255,11 @@ class TestBranchOnUserModelVariable:
 class TestNestedBranch:
     def test_both_yes_reaches_inner_yes_arm(self, nested_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="yes")  # both outer and inner answer "yes"
-        agent.ask_open = Mock(return_value=None)
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="yes")  # both outer and inner answer "yes"
+        agent.ask_open = AsyncMock(return_value=None)
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["nested"],
@@ -273,11 +273,11 @@ class TestNestedBranch:
 
     def test_outer_no_skips_inner_branch(self, nested_dialogs_file):
         agent = Mock()
-        agent.say = Mock()
-        agent.ask_yesno = Mock(return_value="no")
-        agent.ask_open = Mock(return_value=None)
+        agent.say = AsyncMock()
+        agent.ask_yesno = AsyncMock(return_value="no")
+        agent.ask_open = AsyncMock(return_value=None)
         agent.ask_options = Mock(return_value=None)
-        agent.extract_topics_with_llm = Mock(return_value=[])
+        agent.extract_topics_with_llm = AsyncMock(return_value=[])
 
         sm = SessionManager(
             session_agenda=["nested"],

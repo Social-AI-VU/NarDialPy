@@ -44,3 +44,6 @@ class DesktopAdapter:
 
     def disconnect(self) -> None:
         pass
+
+    def get_event_sources(self) -> list:
+        return []

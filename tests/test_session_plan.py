@@ -9,6 +9,8 @@ from nardial.agenda import (
     SessionTemplate,
     load_session_plan,
 )
+from nardial.events.specs import EventHandlerSpec, TimerSourceSpec
+from nardial.events.types import InterruptLevel, ResumePolicy
 
 
 class TestSessionTemplate:
@@ -96,3 +98,80 @@ class TestLoadSessionPlan:
         bad.write_text("not valid json {{{", encoding="utf-8")
         with pytest.raises(Exception):
             load_session_plan(str(bad))
+
+
+class TestSessionPlanEventFields:
+    """Phase 7: event_handlers and event_sources fields on SessionPlan."""
+
+    def test_defaults_to_empty_lists(self):
+        plan = SessionPlan(plan_id="p", sessions=[])
+        assert plan.event_handlers == []
+        assert plan.event_sources == []
+
+    def test_event_handlers_accepted(self):
+        spec = EventHandlerSpec(event_type="check_in", handler_dialog_id="check_in_dialog")
+        plan = SessionPlan(
+            plan_id="p",
+            sessions=[],
+            event_handlers=[spec],
+        )
+        assert len(plan.event_handlers) == 1
+        assert plan.event_handlers[0].event_type == "check_in"
+        assert plan.event_handlers[0].handler_dialog_id == "check_in_dialog"
+
+    def test_event_sources_accepted(self):
+        spec = TimerSourceSpec(event_type="tick", delay_seconds=60.0)
+        plan = SessionPlan(
+            plan_id="p",
+            sessions=[],
+            event_sources=[spec],
+        )
+        assert len(plan.event_sources) == 1
+        assert plan.event_sources[0].event_type == "tick"
+        assert plan.event_sources[0].delay_seconds == 60.0
+
+    def test_event_handler_defaults(self):
+        spec = EventHandlerSpec(event_type="alert", handler_dialog_id="alert_dialog")
+        assert spec.interrupt_level == InterruptLevel.BETWEEN_DIALOGS
+        assert spec.resume_policy == ResumePolicy.DISCARD
+        assert spec.priority == 50
+        assert spec.source_filter is None
+
+    def test_round_trips_json_with_event_fields(self, tmp_path):
+        data = {
+            "plan_id": "study",
+            "sessions": [{"session_index": 1, "agenda": ["greeting"]}],
+            "event_handlers": [
+                {
+                    "event_type": "check_in",
+                    "handler_dialog_id": "check_in_dialog",
+                    "interrupt_level": "BETWEEN_DIALOGS",
+                    "resume_policy": "DISCARD",
+                }
+            ],
+            "event_sources": [
+                {
+                    "type": "timer",
+                    "event_type": "check_in",
+                    "delay_seconds": 120.0,
+                    "repeat": True,
+                }
+            ],
+        }
+        plan_file = tmp_path / "plan.json"
+        plan_file.write_text(json.dumps(data), encoding="utf-8")
+
+        plan = load_session_plan(str(plan_file))
+        assert len(plan.event_handlers) == 1
+        assert plan.event_handlers[0].event_type == "check_in"
+        assert len(plan.event_sources) == 1
+        assert plan.event_sources[0].delay_seconds == 120.0
+
+    def test_unknown_fields_in_handler_raise_validation_error(self):
+        import pydantic
+        with pytest.raises(pydantic.ValidationError):
+            EventHandlerSpec(
+                event_type="x",
+                handler_dialog_id="y",
+                interrupt_level="INVALID_LEVEL",
+            )

@@ -1,12 +1,12 @@
 """Tests for ConversationAgent.ask_yesno and ask_open.
 
 ConversationAgent wraps InteractionOrchestrator, which has heavyweight __init__
-side-effects (SIC framework, background thread, device setup). Tests here patch
+side-effects (SIC framework, device setup). Tests here patch
 InteractionOrchestrator at the module level so ConversationAgent can be
-instantiated with a plain Mock orchestrator and no real services.
+instantiated with a plain AsyncMock orchestrator and no real services.
 """
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.providers.nlu import (
@@ -19,18 +19,20 @@ from nardial.providers.nlu import (
 
 @pytest.fixture
 def agent(monkeypatch):
-    """
-    A real ConversationAgent whose orchestrator is a Mock.
+    """A real ConversationAgent whose orchestrator is an AsyncMock.
 
-    InteractionOrchestrator is replaced by a factory that returns a fresh Mock,
-    so every test gets an isolated orchestrator with no live services.
+    InteractionOrchestrator is replaced by a factory that returns a fresh
+    AsyncMock so every test gets an isolated orchestrator with no live services.
     """
-    mock_orch = Mock()
+    mock_orch = MagicMock()
+    mock_orch.say = AsyncMock()
+    mock_orch.listen = AsyncMock(return_value=NLUResult(transcript="", intent=None))
+    mock_orch.request_from_llm = AsyncMock(return_value=None)
     monkeypatch.setattr(
         "nardial.conversation_agent.InteractionOrchestrator",
-        Mock(return_value=mock_orch),
+        MagicMock(return_value=mock_orch),
     )
-    return ConversationAgent(device=Mock(), tts_provider=Mock(), nlu_provider=Mock())
+    return ConversationAgent(device=MagicMock(), tts_provider=MagicMock(), nlu_provider=MagicMock())
 
 
 # ---------------------------------------------------------------------------
@@ -40,40 +42,39 @@ def agent(monkeypatch):
 class TestAskYesNo:
     """ask_yesno maps NLU intents to canonical string responses."""
 
-    def test_yes_intent_returns_yes(self, agent):
+    async def test_yes_intent_returns_yes(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="yes", intent=INTENT_YESNO_YES
         )
-        assert agent.ask_yesno("Do you like this?") == "yes"
+        assert await agent.ask_yesno("Do you like this?") == "yes"
 
-    def test_no_intent_returns_no(self, agent):
+    async def test_no_intent_returns_no(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="no", intent=INTENT_YESNO_NO
         )
-        assert agent.ask_yesno("Do you like this?") == "no"
+        assert await agent.ask_yesno("Do you like this?") == "no"
 
-    def test_dontknow_intent_returns_dontknow(self, agent):
+    async def test_dontknow_intent_returns_dontknow(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="not sure", intent=INTENT_YESNO_DONTKNOW
         )
-        assert agent.ask_yesno("Do you know?") == "dontknow"
+        assert await agent.ask_yesno("Do you know?") == "dontknow"
 
-    def test_unrecognised_intent_returns_none(self, agent):
-        # NLU returned a non-yesno intent; ask_yesno should fall through to None.
+    async def test_unrecognised_intent_returns_none(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="hello", intent="some_other_intent"
         )
-        assert agent.ask_yesno("Do you like this?") is None
+        assert await agent.ask_yesno("Do you like this?") is None
 
-    def test_no_intent_at_all_returns_none(self, agent):
+    async def test_no_intent_at_all_returns_none(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(transcript="", intent=None)
-        assert agent.ask_yesno("Do you like this?") is None
+        assert await agent.ask_yesno("Do you like this?") is None
 
-    def test_question_is_spoken_before_listening(self, agent):
+    async def test_question_is_spoken_before_listening(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="yes", intent=INTENT_YESNO_YES
         )
-        agent.ask_yesno("Are you ready?")
+        await agent.ask_yesno("Are you ready?")
         agent.orchestrator.say.assert_called_once_with("Are you ready?")
 
 
@@ -84,25 +85,22 @@ class TestAskYesNo:
 class TestAskOpen:
     """ask_open returns the user transcript or None when nothing is captured."""
 
-    def test_returns_transcript_on_first_attempt(self, agent):
+    async def test_returns_transcript_on_first_attempt(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(transcript="I like cats")
-        assert agent.ask_open("What do you like?") == "I like cats"
+        assert await agent.ask_open("What do you like?") == "I like cats"
 
-    def test_returns_none_after_all_attempts_empty(self, agent):
-        # Both retries return an empty transcript — should give up and return None.
+    async def test_returns_none_after_all_attempts_empty(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
-        assert agent.ask_open("What do you like?", max_attempts=2) is None
+        assert await agent.ask_open("What do you like?", max_attempts=2) is None
 
-    def test_retries_on_empty_then_succeeds(self, agent):
-        # First call: empty; second call: real answer.
+    async def test_retries_on_empty_then_succeeds(self, agent):
         agent.orchestrator.listen.side_effect = [
             NLUResult(transcript=""),
             NLUResult(transcript="I like dogs"),
         ]
-        assert agent.ask_open("What do you like?", max_attempts=2) == "I like dogs"
+        assert await agent.ask_open("What do you like?", max_attempts=2) == "I like dogs"
 
-    def test_question_is_spoken_each_attempt(self, agent):
-        # Two empty responses before giving up — question should be spoken twice.
+    async def test_question_is_spoken_each_attempt(self, agent):
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
-        agent.ask_open("What do you like?", max_attempts=2)
+        await agent.ask_open("What do you like?", max_attempts=2)
         assert agent.orchestrator.say.call_count == 2

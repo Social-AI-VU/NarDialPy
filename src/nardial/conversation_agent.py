@@ -13,30 +13,28 @@ from nardial.interaction_orchestrator import InteractionOrchestrator, Interactio
 
 
 class ConversationAgent:
-    """
-    High-level interface for running conversational interactions with a user.
+    """High-level async interface for running conversational interactions.
 
-    This class wraps the lower-level `InteractionOrchestrator` and provides
-    convenient methods for:
-    - Speaking (`say`)
-    - Playing audio and animations
-    - Asking different types of questions (yes/no, open, options)
-    - Calling LLMs (e.g., GPT) for reasoning or post-processing
+    Wraps :class:`~nardial.interaction_orchestrator.InteractionOrchestrator`
+    and exposes convenient ``async`` methods for speech, listening, and LLM
+    interaction.  All I/O methods are coroutines so the event loop is never
+    blocked; blocking work is delegated to ``asyncio.to_thread`` inside the
+    orchestrator.
 
     Parameters
     ----------
     device : DeviceAdapter
-        The device adapter (e.g., DesktopAdapter, PepperAdapter) that handles I/O.
+        Device adapter (Desktop, Pepper, Nao, AlphaMini) that handles I/O.
     tts_provider : TTSProvider
-        The TTS provider used to synthesize and play speech.
+        Text-to-speech provider.
     nlu_provider : NLUProvider
-        The NLU provider used to capture and interpret user input.
+        Natural-language understanding provider.
+    llm_provider : LLMProvider, optional
+        Large-language-model provider for generative responses.
+    vector_store : VectorStoreProvider, optional
+        Vector store for retrieval-augmented generation.
     int_config : InteractionConfig, optional
-        Configuration for behavioral parameters. If not provided, defaults are used.
-
-    Notes
-    -----
-    Ensure all required external services are running before using this class.
+        Behavioural configuration.  Defaults are used when omitted.
     """
 
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
@@ -52,20 +50,22 @@ class ConversationAgent:
             int_config=int_config,
         )
 
-    def say(self, text):
-        """
-        Speak a piece of text using the configured TTS provider.
+    # ------------------------------------------------------------------
+    # Speech and playback
+    # ------------------------------------------------------------------
+
+    async def say(self, text) -> None:
+        """Speak ``text`` using the configured TTS provider.
 
         Parameters
         ----------
         text : str
-            The text to be spoken aloud.
+            Text to be spoken aloud.
         """
-        self.orchestrator.say(text)
+        await self.orchestrator.say(text)
 
-    def play_audio(self, audio_file):
-        """
-        Play a pre-recorded audio file.
+    def play_audio(self, audio_file) -> None:
+        """Play a pre-recorded audio file.
 
         Parameters
         ----------
@@ -74,9 +74,8 @@ class ConversationAgent:
         """
         self.orchestrator.play_audio(audio_file)
 
-    def play_motion_sequence(self, motion_sequence_file):
-        """
-        Execute a predefined motion sequence (if supported by the device).
+    def play_motion_sequence(self, motion_sequence_file) -> None:
+        """Execute a predefined motion sequence (if supported by the device).
 
         Parameters
         ----------
@@ -85,40 +84,43 @@ class ConversationAgent:
         """
         self.orchestrator.play_motion(motion_sequence_file)
 
-    def play_animation(self, animation_name, run_async=False):
-        """
-        Trigger an animation on the current device. No-op on devices that do not
-        support animations (e.g., Desktop).
+    def play_animation(self, animation_name, run_async=False) -> None:
+        """Trigger an animation on the current device.
+
+        No-op on devices that do not support animations (e.g. Desktop).
 
         Parameters
         ----------
         animation_name : str
-            Name of the animation (device-specific key).
+            Device-specific animation key.
         run_async : bool, optional
-            Whether to run the animation without blocking execution.
+            If True, the animation runs without blocking execution.
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    def ask_yesno(self, question, max_attempts=1):
-        """
-        Ask a yes/no question and interpret the response via the NLU provider.
+    # ------------------------------------------------------------------
+    # Listening and questions
+    # ------------------------------------------------------------------
+
+    async def ask_yesno(self, question, max_attempts=1) -> str | None:
+        """Ask a yes/no question and interpret the NLU response.
 
         Parameters
         ----------
         question : str
             The question to ask the user.
         max_attempts : int, optional
-            Number of retries if no valid answer is detected.
+            Number of retries when no valid intent is detected.
 
         Returns
         -------
         str or None
-            One of: "yes", "no", "dontknow", or None if no valid response.
+            One of ``"yes"``, ``"no"``, ``"dontknow"``, or None.
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            result = self.orchestrator.listen()
+            await self.say(question)
+            result = await self.orchestrator.listen()
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -130,41 +132,41 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
-        """
-        Ask an open-ended question and return the user's spoken response.
+    async def ask_open(self, question, max_attempts=2) -> str | None:
+        """Ask an open-ended question and return the user's spoken response.
 
         Parameters
         ----------
         question : str
             The question to ask.
         max_attempts : int, optional
-            Number of retries if no response is captured.
+            Number of retries when no transcript is captured.
 
         Returns
         -------
         str or None
-            The recognized user response, or None if no input is captured.
+            The recognised user response, or None if no input is captured.
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            result = self.orchestrator.listen()
+            await self.say(question)
+            result = await self.orchestrator.listen()
             if result.transcript:
                 return result.transcript
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
-        """
-        Ask a question and match the response against a set of predefined options.
+    async def ask_options(self, question, options, max_attempts=2) -> str | None:
+        """Ask a question and match the response against a set of options.
+
+        Matching is case-insensitive substring presence.
 
         Parameters
         ----------
         question : str
             The question to ask.
         options : list of str
-            List of expected keywords/options to match against the response.
+            Expected keywords / option labels.
         max_attempts : int, optional
             Number of retries.
 
@@ -172,12 +174,8 @@ class ConversationAgent:
         -------
         str or None
             The matched option, or None if no match is found.
-
-        Notes
-        -----
-        Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts)
+        answer = await self.ask_open(question, max_attempts=max_attempts)
         if answer:
             answer_lower = answer.lower()
             for opt in options:
@@ -185,12 +183,46 @@ class ConversationAgent:
                     return opt
         return None
 
-    def extract_topics_with_llm(self, raw_topics):
-        """
-        Extract concise topic keywords from a list of raw user utterances.
+    # ------------------------------------------------------------------
+    # LLM integration
+    # ------------------------------------------------------------------
 
-        This method uses GPT to condense free-form text into 1–2 keyword(s)
-        per input item. If GPT fails, a local heuristic fallback is used.
+    async def ask_llm(self, user_prompt, context_messages, system_prompt,
+                      rag_enabled: bool = False,
+                      index_name: str | None = None):
+        """Send a request to the configured LLM and return the response.
+
+        Parameters
+        ----------
+        user_prompt : str
+            The user's input or query.
+        context_messages : list
+            Conversation history or additional context.
+        system_prompt : str
+            Instruction defining the assistant's behaviour.
+        rag_enabled : bool, optional
+            If True, augment the request with vector store context.
+        index_name : str, optional
+            Vector store index to query (overrides the provider default).
+
+        Returns
+        -------
+        str or None
+            The LLM response text, or None on failure.
+        """
+        return await self.orchestrator.request_from_llm(
+            user_prompt,
+            context_messages,
+            system_prompt,
+            rag_enabled=rag_enabled,
+            index_name=index_name,
+        )
+
+    async def extract_topics_with_llm(self, raw_topics) -> list[str]:
+        """Extract concise topic keywords from a list of raw user utterances.
+
+        Uses the LLM to condense free-form text into 1–2 keywords per input
+        item.  Falls back to a local heuristic if the LLM call fails.
 
         Parameters
         ----------
@@ -234,9 +266,9 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.orchestrator.request_from_llm(system_prompt=prompt)
+            data = await self.orchestrator.request_from_llm(system_prompt=prompt)
             if not isinstance(data, list):
-                raise ValueError("GPT did not return a JSON list")
+                raise ValueError("LLM did not return a JSON list")
             out, seen = [], set()
             for item in data:
                 if not isinstance(item, str):
@@ -248,34 +280,3 @@ class ConversationAgent:
             return out or _heuristic(raw_topics)
         except Exception:
             return _heuristic(raw_topics)
-
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
-                index_name: str | None = None):
-        """
-        Send a request to the configured LLM and return the response.
-
-        Parameters
-        ----------
-        user_prompt : str
-            The user's input or query.
-        context_messages : list
-            Conversation history or additional context.
-        system_prompt : str
-            Instruction defining the assistant's behavior.
-        rag_enabled : bool, optional
-            Whether to augment the request with context from the configured vector store.
-        index_name : str, optional
-            Vector store index to query. Overrides the provider's default when set.
-
-        Returns
-        -------
-        Any
-            The parsed response from the LLM.
-        """
-        return self.orchestrator.request_from_llm(
-            user_prompt,
-            context_messages,
-            system_prompt,
-            rag_enabled=rag_enabled,
-            index_name=index_name,
-        )

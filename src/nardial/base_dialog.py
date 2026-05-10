@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from nardial.conversation_agent import ConversationAgent
-    from nardial.mini_dialogs import RunContext
+from abc import ABC
+from typing import Any
 
 
 class BaseDialog(ABC):
     """Abstract base for all dialog types in NarDialPy.
 
-    Defines the minimal interface required by ``SessionManager``: dialog
-    identity, dependency declarations, and the ``run()`` execution hook.
+    Defines the minimal interface required by the system: dialog identity and
+    dependency declarations.  Execution is handled by
+    :class:`~nardial.dialog_runtime.DialogRuntime`, which accepts any
+    ``BaseDialog`` subclass and dispatches to the appropriate async handler.
 
     Concrete subclasses:
 
-    - ``MiniDialog`` — executes a declarative sequence of typed moves.
-    - ``LLMDialog`` — drives a free-form multi-turn LLM conversation without
-      a scripted move list.
+    - ``MiniDialog`` — holds a declarative sequence of typed moves.
+    - ``LLMDialog`` — holds configuration for a free-form multi-turn LLM
+      conversation without a scripted move list.
 
     Parameters
     ----------
@@ -36,15 +34,3 @@ class BaseDialog(ABC):
         self.dialog_id = dialog_id
         self.dependencies: list[str] = dependencies or []
         self.variable_dependencies: list[Any] = variable_dependencies or []
-
-    @abstractmethod
-    def run(self, agent: ConversationAgent, context: RunContext) -> None:
-        """Execute this dialog using the given agent and run context.
-
-        Parameters
-        ----------
-        agent : ConversationAgent
-            Capability provider for speech, listening, and LLM calls.
-        context : RunContext
-            Mutable conversational state accumulating during this session run.
-        """

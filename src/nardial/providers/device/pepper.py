@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import random as rand
 from typing import Any
 
@@ -9,7 +10,118 @@ from sic_framework.devices.common_naoqi.naoqi_motion import NaoqiAnimationReques
 from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotionRecording, PlayRecording
 from sic_framework.devices.common_naoqi.naoqi_text_to_speech import NaoqiTextToSpeechRequest
 
+from nardial.events.bus import EventBus
+from nardial.events.source import EventSource
+from nardial.events.types import Event, InterruptLevel, ResumePolicy
 from nardial.providers.device import AnimationStyle
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Button source
+# ---------------------------------------------------------------------------
+
+class PepperButtonSource(EventSource):
+    """Bridges Pepper's physical buttons and head tactile sensor to the NarDialPy event bus.
+
+    Registers SIC callbacks on four connectors:
+
+    ==================  ============================
+    Connector           Emitted ``source`` identifier
+    ==================  ============================
+    ``tactile_sensor``  ``"head_tactile"``
+    ``left_bumper``     ``"left_bumper"``
+    ``right_bumper``    ``"right_bumper"``
+    ``back_bumper``     ``"back_bumper"``
+    ==================  ============================
+
+    Each SIC callback runs in a Redis handler thread.  Events are enqueued onto
+    a thread-safe ``asyncio.Queue`` via ``loop.call_soon_threadsafe`` and
+    forwarded to the session bus inside :meth:`run`.
+
+    Only *press* events (``msg.value == 1``) produce a bus event; release events
+    (``msg.value == 0``) are silently discarded.
+
+    Parameters
+    ----------
+    device : Pepper
+        The SIC Pepper device instance.  Its button/sensor connectors are
+        accessed when :meth:`run` is called (after the session bus is live).
+    interrupt_level : InterruptLevel
+        Interrupt level for emitted events (default: ``BETWEEN_DIALOGS``).
+    priority : int
+        Bus priority for emitted events (default: 30, higher than timers at 50).
+    """
+
+    # Pepper device attribute → clean button identifier used in dialog JSON.
+    _CONNECTOR_MAP: dict[str, str] = {
+        "tactile_sensor": "head_tactile",
+        "left_bumper":    "left_bumper",
+        "right_bumper":   "right_bumper",
+        "back_bumper":    "back_bumper",
+    }
+
+    def __init__(
+        self,
+        device: Pepper,
+        *,
+        interrupt_level: InterruptLevel = InterruptLevel.BETWEEN_DIALOGS,
+        priority: int = 30,
+    ) -> None:
+        self._device = device
+        self._interrupt_level = interrupt_level
+        self._priority = priority
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._queue: asyncio.Queue[Event] | None = None
+
+    @property
+    def source_id(self) -> str:
+        return "PepperButtonSource"
+
+    def _make_callback(self, button_id: str):
+        """Return a SIC callback that enqueues a press event for *button_id*.
+
+        The returned function is safe to call from a non-asyncio thread.
+        """
+        def _on_event(msg) -> None:
+            # value == 1 → pressed; value == 0 → released (ignored)
+            if getattr(msg, "value", 0) == 1 and self._loop is not None:
+                event = Event(
+                    priority=self._priority,
+                    type="button_press",
+                    source=button_id,
+                    data={"button": button_id},
+                    interrupt_level=self._interrupt_level,
+                    resume_policy=ResumePolicy.DISCARD,
+                )
+                self._loop.call_soon_threadsafe(self._queue.put_nowait, event)
+        return _on_event
+
+    async def run(self, bus: EventBus) -> None:
+        """Receive Pepper button/touch events and forward them to *bus*.
+
+        Registers callbacks on each sensor connector, then loops indefinitely,
+        forwarding queued events to the session bus until cancelled.
+        """
+        self._loop = asyncio.get_running_loop()
+        self._queue = asyncio.Queue()
+
+        for attr, button_id in self._CONNECTOR_MAP.items():
+            connector = getattr(self._device, attr)
+            connector.register_callback(self._make_callback(button_id))
+            logger.debug("PepperButtonSource: registered callback for %r (%s)", attr, button_id)
+
+        try:
+            while True:
+                event = await self._queue.get()
+                await bus.emit(event)
+        except asyncio.CancelledError:
+            raise
+
+
+# ---------------------------------------------------------------------------
+# Animations
+# ---------------------------------------------------------------------------
 
 _EXPRESSIVE_ANIMATIONS = [
     "animations/Stand/Emotions/Positive/Happy_4",
@@ -115,3 +227,13 @@ class PepperAdapter:
 
     def disconnect(self) -> None:
         pass
+
+    def get_event_sources(self) -> list:
+        """Return a :class:`PepperButtonSource` for Pepper's physical buttons.
+
+        The source bridges Pepper's tactile sensor and three bumper buttons to
+        the NarDialPy event bus so dialog designers can use ``wait_for_button``
+        moves with ``"head_tactile"``, ``"left_bumper"``, ``"right_bumper"``,
+        or ``"back_bumper"`` as button identifiers.
+        """
+        return [PepperButtonSource(self._device)]

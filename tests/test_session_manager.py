@@ -1,7 +1,7 @@
 """Tests for SessionManager — dialog loading, registry building, and run behaviour."""
 import json
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from nardial.conversation_state import ConversationState
 from nardial.dialog_registry import DialogRegistry
@@ -49,11 +49,15 @@ def dialogs_file(tmp_path):
 @pytest.fixture
 def mock_agent():
     agent = Mock()
-    agent.say = Mock()
-    agent.ask_yesno = Mock(return_value="yes")
-    agent.ask_open = Mock(return_value="some answer")
-    agent.ask_options = Mock(return_value="option_a")
-    agent.extract_topics_with_llm = Mock(return_value=[])
+    agent.say = AsyncMock()
+    agent.ask_yesno = AsyncMock(return_value="yes")
+    agent.ask_open = AsyncMock(return_value="some answer")
+    agent.ask_options = AsyncMock(return_value="option_a")
+    agent.personalize = Mock(return_value=None)
+    agent.play_audio = Mock()
+    agent.play_motion_sequence = Mock()
+    agent.play_animation = Mock()
+    agent.extract_topics_with_llm = AsyncMock(return_value=[])
     return agent
 
 
@@ -411,3 +415,101 @@ class TestResume:
         sm.run()
         # chapter_1 is in _resume_completed_ids → ExcludeIfSeenRule blocks it
         mock_agent.say.assert_not_called()
+
+
+# ── Phase 7: event source / handler registration ──────────────────────────────
+
+class TestEventRegistration:
+    """SessionManager stores event sources and handlers; plan populates them."""
+
+    def test_initial_event_lists_are_empty(self, dialogs_file, mock_agent):
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+        )
+        assert sm._event_sources == []
+        assert sm._event_handlers == {}
+
+    def test_add_event_source_appends_and_returns_self(self, dialogs_file, mock_agent):
+        from unittest.mock import MagicMock
+        sm = SessionManager(session_agenda=[], agent=mock_agent, dialog_json_path=dialogs_file)
+        source = MagicMock()
+        result = sm.add_event_source(source)
+        assert result is sm
+        assert source in sm._event_sources
+
+    def test_add_event_handler_stores_by_event_type(self, dialogs_file, mock_agent):
+        from nardial.events.specs import EventHandlerSpec
+        sm = SessionManager(session_agenda=[], agent=mock_agent, dialog_json_path=dialogs_file)
+        spec = EventHandlerSpec(event_type="check_in", handler_dialog_id="check_in_dialog")
+        result = sm.add_event_handler(spec)
+        assert result is sm
+        assert sm._event_handlers["check_in"] is spec
+
+    def test_add_event_handler_overwrites_same_event_type(self, dialogs_file, mock_agent):
+        from nardial.events.specs import EventHandlerSpec
+        sm = SessionManager(session_agenda=[], agent=mock_agent, dialog_json_path=dialogs_file)
+        spec1 = EventHandlerSpec(event_type="alert", handler_dialog_id="dialog_a")
+        spec2 = EventHandlerSpec(event_type="alert", handler_dialog_id="dialog_b")
+        sm.add_event_handler(spec1)
+        sm.add_event_handler(spec2)
+        assert sm._event_handlers["alert"].handler_dialog_id == "dialog_b"
+
+    def test_plan_event_handler_registered_at_load(self, dialogs_file, mock_agent, tmp_path):
+        data = {
+            "plan_id": "p",
+            "sessions": [{"session_index": 1, "agenda": ["greeting"]}],
+            "event_handlers": [
+                {"event_type": "check_in", "handler_dialog_id": "check_in_dialog"}
+            ],
+        }
+        plan_path = tmp_path / "plan.json"
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
+
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=str(plan_path),
+        )
+        assert "check_in" in sm._event_handlers
+        assert sm._event_handlers["check_in"].handler_dialog_id == "check_in_dialog"
+
+    def test_plan_event_source_instantiated_and_registered(self, dialogs_file, mock_agent, tmp_path):
+        from nardial.events.sources.timer import TimerSource
+        data = {
+            "plan_id": "p",
+            "sessions": [{"session_index": 1, "agenda": ["greeting"]}],
+            "event_sources": [
+                {"type": "timer", "event_type": "tick", "delay_seconds": 30.0}
+            ],
+        }
+        plan_path = tmp_path / "plan.json"
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
+
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=str(plan_path),
+        )
+        assert len(sm._event_sources) == 1
+        assert isinstance(sm._event_sources[0], TimerSource)
+
+    def test_plan_without_event_fields_leaves_lists_empty(self, dialogs_file, mock_agent, tmp_path):
+        data = {
+            "plan_id": "p",
+            "sessions": [{"session_index": 1, "agenda": ["greeting"]}],
+        }
+        plan_path = tmp_path / "plan.json"
+        plan_path.write_text(json.dumps(data), encoding="utf-8")
+
+        sm = SessionManager(
+            session_agenda=[],
+            agent=mock_agent,
+            dialog_json_path=dialogs_file,
+            session_plan_path=str(plan_path),
+        )
+        assert sm._event_sources == []
+        assert sm._event_handlers == {}

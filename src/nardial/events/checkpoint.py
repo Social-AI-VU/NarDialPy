@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class MiniDialogCheckpoint:
-    """Resumption state for a scripted (MiniDialog) execution.
+class ScriptedMiniDialogCheckpoint:
+    """Resumption state for a scripted (ScriptedMiniDialog) execution.
 
     Attributes
     ----------
@@ -27,7 +27,7 @@ class MiniDialogCheckpoint:
 
 
 @dataclass
-class LLMDialogCheckpoint:
+class LLMMiniDialogCheckpoint:
     """Resumption state for a free-form LLM dialog execution.
 
     Attributes
@@ -53,4 +53,4 @@ class LLMDialogCheckpoint:
 
 
 #: Union type alias for any checkpoint variant.
-AnyCheckpoint = MiniDialogCheckpoint | LLMDialogCheckpoint
+AnyCheckpoint = ScriptedMiniDialogCheckpoint | LLMMiniDialogCheckpoint

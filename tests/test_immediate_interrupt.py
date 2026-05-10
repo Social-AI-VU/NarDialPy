@@ -1,11 +1,11 @@
-"""Phase 9 tests — preemptive watchdog + CancelledError propagation.
+"""Phase 9 tests — immediate watchdog + CancelledError propagation.
 
 Verifies:
-- A PREEMPTIVE event emitted while a dialog is running cancels the dialog task.
-- The handler dialog is run after preemptive cancellation.
+- An IMMEDIATE event emitted while a dialog is running cancels the dialog task.
+- The handler dialog is run after immediate cancellation.
 - DISCARD resume policy abandons the interrupted dialog.
 - PAUSE resume policy retries the dialog from the best-effort move_index.
-- The watchdog exits cleanly when the dialog finishes before any PREEMPTIVE event.
+- The watchdog exits cleanly when the dialog finishes before any IMMEDIATE event.
 - An outer CancelledError (not from the watchdog) propagates unmodified.
 """
 
@@ -81,12 +81,12 @@ def _make_agent():
     return agent
 
 
-def _preemptive_event(event_type: str = "stop_signal", **kwargs) -> Event:
+def _immediate_event(event_type: str = "stop_signal", **kwargs) -> Event:
     defaults = dict(
         priority=1,
         type=event_type,
         source="test",
-        interrupt_level=InterruptLevel.PREEMPTIVE,
+        interrupt_level=InterruptLevel.IMMEDIATE,
         resume_policy=ResumePolicy.DISCARD,
     )
     defaults.update(kwargs)
@@ -94,10 +94,10 @@ def _preemptive_event(event_type: str = "stop_signal", **kwargs) -> Event:
 
 
 # ---------------------------------------------------------------------------
-# Watchdog exits cleanly when dialog finishes before any PREEMPTIVE event
+# Watchdog exits cleanly when dialog finishes before any IMMEDIATE event
 # ---------------------------------------------------------------------------
 
-async def test_watchdog_exits_cleanly_when_no_preemptive_event(dialogs_file):
+async def test_watchdog_exits_cleanly_when_no_immediate_event(dialogs_file):
     """The session completes normally and the watchdog never fires."""
     agent = _make_agent()
     sm = SessionManager(
@@ -112,11 +112,11 @@ async def test_watchdog_exits_cleanly_when_no_preemptive_event(dialogs_file):
 
 
 # ---------------------------------------------------------------------------
-# PREEMPTIVE + DISCARD: interrupted dialog is abandoned
+# IMMEDIATE + DISCARD: interrupted dialog is abandoned
 # ---------------------------------------------------------------------------
 
-async def test_preemptive_discard_cancels_dialog(dialogs_file):
-    """A PREEMPTIVE/DISCARD event during Move A cancels the dialog; Move B never runs."""
+async def test_immediate_discard_cancels_dialog(dialogs_file):
+    """An IMMEDIATE/DISCARD event during Move A cancels the dialog; Move B never runs."""
     agent = _make_agent()
     sm = SessionManager(
         session_agenda=["slow_dialog", "next_dialog"],
@@ -130,9 +130,9 @@ async def test_preemptive_discard_cancels_dialog(dialogs_file):
         nonlocal first_call_done
         if not first_call_done:
             first_call_done = True
-            # Emit PREEMPTIVE while 'say' is in progress (simulating a blocking call).
+            # Emit IMMEDIATE while 'say' is in progress (simulating a blocking call).
             # The watchdog polls every 50ms; we sleep briefly to give it time to detect.
-            await sm._bus.emit(_preemptive_event())
+            await sm._bus.emit(_immediate_event())
             await asyncio.sleep(0.15)  # let the watchdog fire
 
     agent.say.side_effect = say_side_effect
@@ -147,10 +147,10 @@ async def test_preemptive_discard_cancels_dialog(dialogs_file):
 
 
 # ---------------------------------------------------------------------------
-# PREEMPTIVE + handler dialog
+# IMMEDIATE + handler dialog
 # ---------------------------------------------------------------------------
 
-async def test_preemptive_runs_handler_dialog(dialogs_file):
+async def test_immediate_runs_handler_dialog(dialogs_file):
     """Handler dialog runs between the cancelled dialog and the next agenda item."""
     agent = _make_agent()
     sm = SessionManager(
@@ -162,7 +162,7 @@ async def test_preemptive_runs_handler_dialog(dialogs_file):
         EventHandlerSpec(
             event_type="stop_signal",
             handler_dialog_id="handler_dialog",
-            interrupt_level=InterruptLevel.PREEMPTIVE,
+            interrupt_level=InterruptLevel.IMMEDIATE,
             resume_policy=ResumePolicy.DISCARD,
         )
     )
@@ -173,7 +173,7 @@ async def test_preemptive_runs_handler_dialog(dialogs_file):
         nonlocal first_call_done
         if not first_call_done:
             first_call_done = True
-            await sm._bus.emit(_preemptive_event())
+            await sm._bus.emit(_immediate_event())
             await asyncio.sleep(0.15)
 
     agent.say.side_effect = say_side_effect
@@ -187,10 +187,10 @@ async def test_preemptive_runs_handler_dialog(dialogs_file):
 
 
 # ---------------------------------------------------------------------------
-# PREEMPTIVE + PAUSE: dialog retried from best-effort checkpoint
+# IMMEDIATE + PAUSE: dialog retried from best-effort checkpoint
 # ---------------------------------------------------------------------------
 
-async def test_preemptive_pause_retries_dialog(dialogs_file):
+async def test_immediate_pause_retries_dialog(dialogs_file):
     """PAUSE resume policy causes the dialog to be retried from move_index 0 (best-effort)."""
     agent = _make_agent()
     sm = SessionManager(
@@ -208,7 +208,7 @@ async def test_preemptive_pause_retries_dialog(dialogs_file):
         if not first_interrupt_done and text == "Move A":
             first_interrupt_done = True
             await sm._bus.emit(
-                _preemptive_event(resume_policy=ResumePolicy.PAUSE)
+                _immediate_event(resume_policy=ResumePolicy.PAUSE)
             )
             await asyncio.sleep(0.15)
 
@@ -223,11 +223,11 @@ async def test_preemptive_pause_retries_dialog(dialogs_file):
 
 
 # ---------------------------------------------------------------------------
-# _last_preemptive_event is cleared after handling
+# _last_immediate_event is cleared after handling
 # ---------------------------------------------------------------------------
 
-async def test_last_preemptive_event_cleared_after_handling(dialogs_file):
-    """_last_preemptive_event is None after run_async() completes."""
+async def test_last_immediate_event_cleared_after_handling(dialogs_file):
+    """_last_immediate_event is None after run_async() completes."""
     agent = _make_agent()
     sm = SessionManager(
         session_agenda=["slow_dialog"],
@@ -241,21 +241,21 @@ async def test_last_preemptive_event_cleared_after_handling(dialogs_file):
         nonlocal first_call_done
         if not first_call_done:
             first_call_done = True
-            await sm._bus.emit(_preemptive_event())
+            await sm._bus.emit(_immediate_event())
             await asyncio.sleep(0.15)
 
     agent.say.side_effect = say_side_effect
     await sm.run_async()
 
-    assert sm._last_preemptive_event is None
+    assert sm._last_immediate_event is None
 
 
 # ---------------------------------------------------------------------------
-# No PREEMPTIVE events: _last_preemptive_event stays None throughout
+# No IMMEDIATE events: _last_immediate_event stays None throughout
 # ---------------------------------------------------------------------------
 
-async def test_last_preemptive_event_none_without_interrupt(dialogs_file):
-    """_last_preemptive_event remains None when no PREEMPTIVE event is emitted."""
+async def test_last_immediate_event_none_without_interrupt(dialogs_file):
+    """_last_immediate_event remains None when no IMMEDIATE event is emitted."""
     agent = _make_agent()
     sm = SessionManager(
         session_agenda=["slow_dialog"],
@@ -263,4 +263,4 @@ async def test_last_preemptive_event_none_without_interrupt(dialogs_file):
         dialog_json_path=dialogs_file,
     )
     await sm.run_async()
-    assert sm._last_preemptive_event is None
+    assert sm._last_immediate_event is None

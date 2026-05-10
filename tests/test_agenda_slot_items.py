@@ -14,14 +14,14 @@ from nardial.agenda import (
     LLMDialogRef,
     NarrativeSlot,
     SlotBounds,
-    coerce_agenda_item,
+    to_agenda_item,
 )
 from nardial.dialog_registry import DialogRegistry
 from nardial.eligibility import EligibilityPolicy, ExcludeIfSeenRule, DepsMetRule
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
-    LLMDialog,
+    LLMMiniDialog,
     NarrativeDialog,
 )
 
@@ -72,7 +72,7 @@ def make_functional(dialog_id, functional_type="greeting"):
 
 
 def make_llm(dialog_id, max_turns=None, duration=None):
-    return LLMDialog(dialog_id=dialog_id, prompt="Chat.", max_turns=max_turns, duration=duration)
+    return LLMMiniDialog(dialog_id=dialog_id, prompt="Chat.", max_turns=max_turns, duration=duration)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -390,7 +390,7 @@ class TestLLMDialogRefResolve:
         with caplog.at_level(logging.WARNING):
             result = LLMDialogRef(id="n1").resolve(ctx)
         assert result is None
-        assert "not an LLMDialog" in caplog.text
+        assert "not an LLMMiniDialog" in caplog.text
 
     def test_max_turns_override_produces_new_instance(self):
         llm = make_llm("chat", max_turns=10)
@@ -436,28 +436,28 @@ class TestAnyAgendaItemUnion:
         ({"type": "llm_dialog_ref", "id": "chat"}, "llm_dialog_ref"),
     ])
     def test_all_types_parse_via_coerce(self, data, expected_type):
-        item = coerce_agenda_item(data)
+        item = to_agenda_item(data)
         assert item.type == expected_type
 
     def test_unknown_type_raises(self):
         with pytest.raises(Exception):
-            coerce_agenda_item({"type": "unknown_slot"})
+            to_agenda_item({"type": "unknown_slot"})
 
     def test_narrative_slot_bounds_survives_coerce(self):
-        item = coerce_agenda_item(
+        item = to_agenda_item(
             {"type": "narrative_slot", "thread": "main", "bounds": {"count_min": 2, "count_max": 5}}
         )
         assert item.bounds.count_min == 2
         assert item.bounds.count_max == 5
 
     def test_chitchat_slot_topics_filter_survives_coerce(self):
-        item = coerce_agenda_item(
+        item = to_agenda_item(
             {"type": "chitchat_slot", "topics_filter": ["food", "travel"]}
         )
         assert item.topics_filter == ["food", "travel"]
 
     def test_llm_dialog_ref_overrides_survive_coerce(self):
-        item = coerce_agenda_item(
+        item = to_agenda_item(
             {"type": "llm_dialog_ref", "id": "chat", "max_turns": 3, "duration": 60.0}
         )
         assert item.max_turns == 3

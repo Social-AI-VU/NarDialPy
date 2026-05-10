@@ -4,10 +4,10 @@ Import from this package rather than reaching into submodules.
 
 Core types
 ----------
-Event, InterruptLevel, ResumePolicy      -- in ``types.py``
-EventBus                                  -- in ``bus.py``
-EventSource                               -- in ``source.py``
-MiniDialogCheckpoint, LLMDialogCheckpoint -- in ``checkpoint.py``
+Event, InterruptLevel, ResumePolicy                       -- in ``types.py``
+EventBus                                                   -- in ``bus.py``
+EventSource                                                -- in ``source.py``
+ScriptedMiniDialogCheckpoint, LLMMiniDialogCheckpoint      -- in ``checkpoint.py``
 
 Authoring models
 ----------------
@@ -23,7 +23,7 @@ BackgroundLLMSource -- in ``sources/background_llm.py``
 """
 
 from nardial.events.bus import EventBus
-from nardial.events.checkpoint import AnyCheckpoint, LLMDialogCheckpoint, MiniDialogCheckpoint
+from nardial.events.checkpoint import AnyCheckpoint, LLMMiniDialogCheckpoint, ScriptedMiniDialogCheckpoint
 from nardial.events.source import EventSource
 from nardial.events.sources.background_llm import BackgroundLLMSource
 from nardial.events.sources.timer import TimerSource
@@ -47,8 +47,8 @@ __all__ = [
     # Source ABC
     "EventSource",
     # Checkpoints
-    "MiniDialogCheckpoint",
-    "LLMDialogCheckpoint",
+    "ScriptedMiniDialogCheckpoint",
+    "LLMMiniDialogCheckpoint",
     "AnyCheckpoint",
     # Authoring models
     "EventHandlerSpec",

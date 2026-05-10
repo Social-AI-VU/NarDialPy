@@ -12,7 +12,7 @@ class TTSProvider(Protocol):
         """Attempt to interrupt an in-progress ``speak`` call.
 
         Called by :class:`~nardial.interaction_orchestrator.InteractionOrchestrator`
-        when a PREEMPTIVE interrupt cancels the running dialog task.
+        when an IMMEDIATE interrupt cancels the running dialog task.
 
         **Current limitation**: the SIC framework does not expose a mid-request
         cancel handle for any TTS service.  All concrete implementations are

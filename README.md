@@ -512,7 +512,7 @@ The interrupt level on an event controls at what point the dialog loop will act 
 |---|---|---|
 | `BETWEEN_DIALOGS` | After the current dialog completes | Session time limit, topic injection between dialogs |
 | `BETWEEN_MOVES` | After the current move completes, before the next | Inject a handler mid-session without aborting the current dialog |
-| `PREEMPTIVE` | Immediately — cancels the active move | Emergency stop, high-priority user action |
+| `IMMEDIATE` | Immediately — cancels the active move | Emergency stop, high-priority user action |
 
 ---
 
@@ -1032,17 +1032,17 @@ Pauses the dialog and waits for a selection from an external web interface (deli
 
 ---
 
-#### `play`
+#### `play_audio`
 
 Plays an audio file through the device's speakers.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `type` | string | ✅ | `"play"` |
+| `type` | string | ✅ | `"play_audio"` |
 | `audio` | string | ✅ | Path to the audio file (`.wav` or `.mp3`) |
 
 ```json
-{ "type": "play", "audio": "audio/chime.wav" }
+{ "type": "play_audio", "audio": "audio/chime.wav" }
 ```
 
 ---

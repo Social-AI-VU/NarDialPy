@@ -4,7 +4,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 from nardial.authoring.factory import from_json, to_json
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import MiniDialog  # base type — all dialogs are MiniDialog subclasses
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,9 @@
 """Pure data containers for all dialog types.
 
-After Phase 5 of the event-system migration, dialog classes carry no execution
-logic — they are pure data: fields, class-level index declarations, and default
-eligibility policies.  All execution is handled by
-:class:`~nardial.dialog_runtime.DialogRuntime`.
+All dialog classes (``ScriptedMiniDialog``, ``LLMMiniDialog``, and their
+concrete subclasses) carry no execution logic — they are pure data: fields,
+class-level index declarations, and default eligibility policies.  All
+execution is handled by :class:`~nardial.dialog_runtime.DialogRuntime`.
 
 Re-exports for backward compatibility with existing imports:
 - ``RunContext``, ``DialogType``, ``MAX_LLM_TURNS``, ``extract_open_value``,
@@ -13,10 +13,10 @@ Re-exports for backward compatibility with existing imports:
 
 from __future__ import annotations
 
+from abc import ABC
 from enum import Enum
 from typing import Any
 
-from nardial.base_dialog import BaseDialog
 from nardial.dialog_runtime import (
     MAX_LLM_TURNS,
     DialogType,
@@ -34,7 +34,39 @@ from nardial.eligibility import (
 from nardial.moves import AnyMove
 
 
-class MiniDialog(BaseDialog):
+class MiniDialog(ABC):
+    """Abstract base for all dialog types in NarDialPy.
+
+    Defines the minimal interface required by the system: dialog identity and
+    dependency declarations.  Execution is handled by
+    :class:`~nardial.dialog_runtime.DialogRuntime`, which accepts any
+    ``MiniDialog`` subclass and dispatches to the appropriate async handler.
+
+    Concrete subclasses:
+
+    - ``ScriptedMiniDialog`` — holds a declarative sequence of typed moves.
+    - ``LLMMiniDialog`` — holds configuration for a free-form multi-turn LLM
+      conversation without a scripted move list.
+
+    Parameters
+    ----------
+    dialog_id : str
+        Unique identifier for this dialog (e.g. ``"pineapple_on_pizza"``).
+    dependencies : list of str, optional
+        Dialog IDs that must be completed before this dialog can run.
+    variable_dependencies : list of dict, optional
+        User model variables that must be present before this dialog can run.
+        Each entry is ``{"variable": str, "required": bool}``.
+    """
+
+    def __init__(self, dialog_id: str, dependencies: list[str] | None = None,
+                 variable_dependencies: list[Any] | None = None) -> None:
+        self.dialog_id = dialog_id
+        self.dependencies: list[str] = dependencies or []
+        self.variable_dependencies: list[Any] = variable_dependencies or []
+
+
+class ScriptedMiniDialog(MiniDialog):
     """Pure-data scripted dialog: holds a fixed sequence of typed moves.
 
     Execution is delegated to :class:`~nardial.dialog_runtime.DialogRuntime`.
@@ -51,7 +83,7 @@ class MiniDialog(BaseDialog):
         User model variables required before this dialog can run.
     """
 
-    # Fallback policy for direct MiniDialog instantiation (e.g. in tests).
+    # Fallback policy for direct ScriptedMiniDialog instantiation (e.g. in tests).
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule()])
 
     def __init__(self, dialog_id: str, moves: list[AnyMove], dependencies=None,
@@ -72,12 +104,17 @@ class MiniDialog(BaseDialog):
             topics_of_interest.append(t)
 
 
-class FunctionalType(Enum):
+class FunctionalLabel(Enum):
+    """Label for functional dialogs that serve a specific social or structural role.
+
+    Values may be extended in the future to cover roles beyond greeting and farewell.
+    """
+
     GREETING = "greeting"
     FAREWELL = "farewell"
 
 
-class FunctionalDialog(MiniDialog):
+class FunctionalDialog(ScriptedMiniDialog):
     # Indexed by the string value of functional_type (e.g. "greeting", "farewell").
     INDEX_ATTRS: list[str] = ["functional_type"]
     # No ExcludeIfSeenRule — greetings and farewells re-run at the start of every session.
@@ -88,21 +125,21 @@ class FunctionalDialog(MiniDialog):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies)
         # Coerce string values to the enum so comparisons work regardless of the caller's source.
-        self.type = FunctionalType(functional_type) if isinstance(functional_type, str) else functional_type
+        self.type = FunctionalLabel(functional_type) if isinstance(functional_type, str) else functional_type
 
     @property
     def functional_type(self) -> str:
-        """String value of the functional type, used as the registry index key."""
+        """String value of the functional label, used as the registry index key."""
         return self.type.value
 
     def is_greeting_dialog(self):
-        return self.type == FunctionalType.GREETING
+        return self.type == FunctionalLabel.GREETING
 
     def is_farewell_dialog(self):
-        return self.type == FunctionalType.FAREWELL
+        return self.type == FunctionalLabel.FAREWELL
 
 
-class NarrativeDialog(MiniDialog):
+class NarrativeDialog(ScriptedMiniDialog):
     INDEX_ATTRS: list[str] = ["thread"]
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule(), NarrativeOrderingRule()])
     dialog_type: DialogType = DialogType.NARRATIVE
@@ -114,7 +151,7 @@ class NarrativeDialog(MiniDialog):
         self.position = position
 
 
-class ChitchatDialog(MiniDialog):
+class ChitchatDialog(ScriptedMiniDialog):
     # topics is a list — each element is indexed individually so get_by_attr("topics", "pizza")
     # returns all ChitchatDialogs whose topics list contains "pizza".
     INDEX_ATTRS: list[str] = ["topics"]
@@ -127,13 +164,13 @@ class ChitchatDialog(MiniDialog):
         self.topics = topics or []
 
 
-class LLMDialog(BaseDialog):
+class LLMMiniDialog(MiniDialog):
     """Pure-data dialog driven entirely by a free-form multi-turn LLM conversation.
 
-    Unlike ``MiniDialog``, ``LLMDialog`` carries no scripted move list — the
-    runtime delegates fully to ``_run_llm_exchange``.  The ``moves`` attribute
-    is kept (always ``[]``) for serialisation round-trip compatibility with the
-    authoring layer.
+    Unlike ``ScriptedMiniDialog``, ``LLMMiniDialog`` carries no scripted move
+    list — the runtime delegates fully to ``_run_llm_exchange``.  The ``moves``
+    attribute is kept (always ``[]``) for serialisation round-trip compatibility
+    with the authoring layer.
     """
 
     INDEX_ATTRS: list[str] = []

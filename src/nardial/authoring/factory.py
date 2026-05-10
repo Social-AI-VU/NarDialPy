@@ -9,11 +9,10 @@ from nardial.authoring.schemas import (
     LLMDialogSpec,
     NarrativeDialogSpec,
 )
-from nardial.base_dialog import BaseDialog
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
-    LLMDialog,
+    LLMMiniDialog,
     MiniDialog,
     NarrativeDialog,
 )
@@ -21,7 +20,7 @@ from nardial.mini_dialogs import (
 _dialog_adapter: TypeAdapter[AnyDialogSpec] = TypeAdapter(AnyDialogSpec)
 
 
-def from_json(doc: dict[str, Any]) -> BaseDialog:
+def from_json(doc: dict[str, Any]) -> MiniDialog:
     """Parse and validate a dialog document dict, returning a typed runtime dialog object.
 
     Raises ``pydantic.ValidationError`` with field-level details on invalid input.
@@ -30,12 +29,12 @@ def from_json(doc: dict[str, Any]) -> BaseDialog:
     return _spec_to_dialog(spec)
 
 
-def to_json(d: BaseDialog) -> dict[str, Any]:
+def to_json(d: MiniDialog) -> dict[str, Any]:
     """Serialize a runtime dialog object back to a JSON-ready dict."""
     return _dialog_to_spec(d).model_dump(exclude_none=True)
 
 
-def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
+def _spec_to_dialog(spec: AnyDialogSpec) -> MiniDialog:
     moves = list(spec.moves)
     deps = list(spec.dependencies)
     vdeps = [vd.model_dump() for vd in spec.variable_dependencies]
@@ -65,7 +64,7 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
             variable_dependencies=vdeps,
         )
     if isinstance(spec, LLMDialogSpec):
-        return LLMDialog(
+        return LLMMiniDialog(
             dialog_id=spec.id,
             moves=moves,
             prompt=spec.prompt,
@@ -82,7 +81,7 @@ def _spec_to_dialog(spec: AnyDialogSpec) -> BaseDialog:
     assert_never(spec)
 
 
-def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
+def _dialog_to_spec(d: MiniDialog) -> AnyDialogSpec:
     vdeps = list(getattr(d, "variable_dependencies", []) or [])
 
     if isinstance(d, FunctionalDialog):
@@ -109,7 +108,7 @@ def _dialog_to_spec(d: BaseDialog) -> AnyDialogSpec:
             variable_dependencies=vdeps,
             topics=list(d.topics),
         )
-    if isinstance(d, LLMDialog):
+    if isinstance(d, LLMMiniDialog):
         return LLMDialogSpec(
             id=d.dialog_id,
             moves=d.moves,

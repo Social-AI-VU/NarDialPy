@@ -24,18 +24,18 @@ import logging
 from time import monotonic
 from typing import TYPE_CHECKING, Generator
 
-from nardial.agenda.items import AgendaContext, AgendaItem, coerce_agenda_item
+from nardial.agenda.items import AgendaContext, AgendaItem, to_agenda_item
 from nardial.agenda.slot_bounds import SlotBounds
 
 if TYPE_CHECKING:
-    from nardial.base_dialog import BaseDialog
+    from nardial.mini_dialogs import MiniDialog
 
 logger = logging.getLogger(__name__)
 
 
 # ── Per-slot resolver state ───────────────────────────────────────────────────
 
-class _SlotState:
+class SlotState:
     """Tracks per-item resolution progress for multi-resolve slots.
 
     Not part of the public API — used only inside ``resolve_agenda``.
@@ -61,7 +61,7 @@ class _SlotState:
 
 # ── Bounds helpers ────────────────────────────────────────────────────────────
 
-def _elapsed(state: _SlotState) -> float:
+def _elapsed(state: SlotState) -> float:
     """Return seconds since the slot first resolved, or 0.0 if not yet started."""
     return 0.0 if state.started_at is None else (monotonic() - state.started_at)
 
@@ -106,7 +106,7 @@ def _should_requeue(bounds: SlotBounds, dialogs_run: int, elapsed: float) -> boo
 def resolve_agenda(
     items: "list[str | dict | AgendaItem]",
     context: AgendaContext,
-) -> "Generator[BaseDialog, None, None]":
+) -> "Generator[MiniDialog, None, None]":
     """Incrementally resolve an agenda, yielding one dialog at a time.
 
     Each yielded dialog should be run by the caller, followed by a call to
@@ -122,18 +122,18 @@ def resolve_agenda(
     Parameters
     ----------
     items : list[str | dict | AgendaItem]
-        Flat agenda.  Strings and dicts are coerced via ``coerce_agenda_item``.
+        Flat agenda.  Strings and dicts are coerced via ``to_agenda_item``.
     context : AgendaContext
         Mutable session state.  The caller updates it via ``mark_completed``
         after each dialog run.
 
     Yields
     ------
-    BaseDialog
+    MiniDialog
         The next dialog to run.
     """
-    queue: collections.deque[_SlotState] = collections.deque(
-        _SlotState(coerce_agenda_item(i)) for i in items
+    queue: collections.deque[SlotState] = collections.deque(
+        SlotState(to_agenda_item(i)) for i in items
     )
 
     while queue:

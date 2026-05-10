@@ -3,7 +3,7 @@ from pydantic import ValidationError
 from unittest.mock import AsyncMock, MagicMock
 
 from nardial.dialog_runtime import DialogRuntime, RunContext
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import ScriptedMiniDialog
 from nardial.moves import (
     MoveSay,
     MoveAskYesNo,
@@ -37,7 +37,7 @@ async def test_move_say():
         MoveSay(text="Testing Move Say..."),
         MoveSay(text="Testing Move Say Again..."),
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
@@ -50,7 +50,7 @@ async def test_move_ask_yesno():
             set_variable=set_variable,
         )
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     context = RunContext()
     await DialogRuntime(mock_agent()).run(dialog, context)
 
@@ -66,7 +66,7 @@ async def test_move_ask_open():
             add_interest_from_answer=True,
         )
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     context = RunContext()
     await DialogRuntime(mock_agent()).run(dialog, context)
 
@@ -82,7 +82,7 @@ async def test_move_ask_options():
             set_variable=set_variable,
         )
     ]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     context = RunContext()
     await DialogRuntime(mock_agent()).run(dialog, context)
 
@@ -91,26 +91,26 @@ async def test_move_ask_options():
 
 async def test_move_play_audio():
     moves = [MovePlayAudio(audio="audio_test.wav")]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
 async def test_move_play_motion():
     moves = [MoveMotionSequence(motion_sequence="motion_test")]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
 async def test_move_animation():
     moves = [MoveAnimation(animation_name="animations/Stand/Gestures/No_1")]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     await DialogRuntime(mock_agent()).run(dialog, RunContext())
 
 
 async def test_move_say_substitutes_user_model_variables():
     """%var% placeholders in say text should be replaced with user_model values."""
     moves = [MoveSay(text="Hello, %name%! You are %age% years old.")]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     agent = mock_agent()
     context = RunContext(user_model={"name": "Alice", "age": "30"})
     await DialogRuntime(agent).run(dialog, context)
@@ -124,7 +124,7 @@ async def test_move_ask_yesno_interest_not_added_when_answer_is_no():
     agent.ask_yesno = AsyncMock(return_value="no")
 
     moves = [MoveAskYesNo(text="Do you like pizza?", add_interest="pizza")]
-    dialog = MiniDialog(dialog_id="1", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="1", moves=moves)
     await DialogRuntime(agent).run(dialog, context)
 
     assert "pizza" not in context.topics_of_interest

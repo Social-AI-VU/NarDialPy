@@ -21,8 +21,8 @@ class NLUProvider(Protocol):
     def cancel(self) -> None:
         """Interrupt an in-progress ``listen`` call.
 
-        Called when the dialog runtime needs to preempt listening (e.g. for a
-        preemptive interrupt).  Implementations backed by streaming gRPC
+        Called when the dialog runtime needs to interrupt listening (e.g. for an
+        immediate interrupt).  Implementations backed by streaming gRPC
         services (Dialogflow) should close the stream here.  The default stub
         is a safe no-op.
         """

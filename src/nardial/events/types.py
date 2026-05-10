@@ -17,7 +17,7 @@ class InterruptLevel(str, Enum):
 
     BETWEEN_DIALOGS = "BETWEEN_DIALOGS"   # handled only between full dialog executions
     BETWEEN_MOVES   = "BETWEEN_MOVES"     # handled between individual moves within a dialog
-    PREEMPTIVE      = "PREEMPTIVE"        # cancels the running dialog task mid-execution
+    IMMEDIATE       = "IMMEDIATE"         # cancels the running dialog task mid-execution
 
 
 class ResumePolicy(str, Enum):

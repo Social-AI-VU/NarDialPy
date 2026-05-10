@@ -1,7 +1,7 @@
 """Agenda item types and the shared context passed to every resolve() call.
 
 Item types: ``DialogRef``, ``NarrativeSlot``, ``ChitchatSlot``,
-``FunctionalSlot``, ``LLMDialogRef``.  Use ``coerce_agenda_item`` to normalise
+``FunctionalSlot``, ``LLMDialogRef``.  Use ``to_agenda_item`` to normalise
 a raw string, dict, or AgendaItem to a typed instance.
 """
 
@@ -11,7 +11,6 @@ import copy
 import logging
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,12 +21,12 @@ from nardial.mini_dialogs import (
     ChitchatDialog,
     DialogType,
     FunctionalDialog,
-    LLMDialog,
+    LLMMiniDialog,
     NarrativeDialog,
 )
 
 if TYPE_CHECKING:
-    from nardial.base_dialog import BaseDialog
+    from nardial.mini_dialogs import MiniDialog
     from nardial.dialog_registry import DialogRegistry
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 # ── Context ───────────────────────────────────────────────────────────────────
 
-@dataclass
 class AgendaContext:
     """Shared context passed to every ``AgendaItem.resolve()`` call.
 
@@ -56,11 +54,19 @@ class AgendaContext:
         User interest keywords accumulated during the session.
     """
 
-    registry: "DialogRegistry"
-    completed_ids: set[str] = field(default_factory=set)
-    session_completed_ids: set[str] = field(default_factory=set)
-    user_model: Any = field(default_factory=dict)
-    topics_of_interest: list[str] = field(default_factory=list)
+    def __init__(
+        self,
+        registry: "DialogRegistry",
+        completed_ids: set[str] | None = None,
+        session_completed_ids: set[str] | None = None,
+        user_model: Any = None,
+        topics_of_interest: list[str] | None = None,
+    ) -> None:
+        self.registry = registry
+        self.completed_ids: set[str] = completed_ids if completed_ids is not None else set()
+        self.session_completed_ids: set[str] = session_completed_ids if session_completed_ids is not None else set()
+        self.user_model: Any = user_model if user_model is not None else {}
+        self.topics_of_interest: list[str] = topics_of_interest if topics_of_interest is not None else []
 
     def mark_completed(self, dialog_id: str) -> None:
         """Record a dialog as completed in both cumulative and in-session history.
@@ -90,7 +96,7 @@ class AgendaItem(ABC):
     """
 
     @abstractmethod
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
         """Select and return a dialog, or None if nothing can be resolved.
 
         Parameters
@@ -100,7 +106,7 @@ class AgendaItem(ABC):
 
         Returns
         -------
-        BaseDialog | None
+        MiniDialog | None
             The selected dialog, or None if the item cannot be resolved.
         """
 
@@ -110,7 +116,7 @@ class AgendaItem(ABC):
 class DialogRef(BaseModel, AgendaItem):
     """Direct reference to a dialog by exact ID.
 
-    Backward-compatible with plain string agenda entries — ``coerce_agenda_item``
+    Backward-compatible with plain string agenda entries — ``to_agenda_item``
     wraps any string in a ``DialogRef`` automatically.
 
     JSON forms (both produce the same result)::
@@ -122,7 +128,7 @@ class DialogRef(BaseModel, AgendaItem):
     type: Literal["dialog_ref"] = "dialog_ref"
     id: str
 
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
         """Look up the dialog by ID in the registry.
 
         Logs a warning and returns None if the ID is not found so the resolver
@@ -137,26 +143,26 @@ class DialogRef(BaseModel, AgendaItem):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _apply_overrides(
-    dialog: LLMDialog,
+    dialog: LLMMiniDialog,
     max_turns: int | None,
     duration: float | None,
-) -> LLMDialog:
+) -> LLMMiniDialog:
     """Return a shallow copy of *dialog* with optional field overrides applied.
 
     The registry entry is never mutated — callers always receive a fresh copy.
 
     Parameters
     ----------
-    dialog : LLMDialog
+    dialog : LLMMiniDialog
         Original dialog from the registry.
     max_turns : int | None
-        Override ``LLMDialog.max_turns`` when not None.
+        Override ``LLMMiniDialog.max_turns`` when not None.
     duration : float | None
-        Override ``LLMDialog.duration`` when not None.
+        Override ``LLMMiniDialog.duration`` when not None.
 
     Returns
     -------
-    LLMDialog
+    LLMMiniDialog
         New instance with the requested fields replaced.
     """
     new_dialog = copy.copy(dialog)
@@ -200,7 +206,7 @@ class NarrativeSlot(BaseModel, AgendaItem):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
         """Return the next eligible NarrativeDialog in the thread, or None.
 
         Parameters
@@ -210,7 +216,7 @@ class NarrativeSlot(BaseModel, AgendaItem):
 
         Returns
         -------
-        BaseDialog | None
+        MiniDialog | None
             Lowest-position eligible dialog, randomly chosen among ties.
             ``None`` (with a warning) if no eligible candidate exists.
         """
@@ -259,7 +265,7 @@ class ChitchatSlot(BaseModel, AgendaItem):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
         """Return the highest-interest-overlap eligible chitchat dialog, or None.
 
         Parameters
@@ -269,7 +275,7 @@ class ChitchatSlot(BaseModel, AgendaItem):
 
         Returns
         -------
-        BaseDialog | None
+        MiniDialog | None
             Top-ranked eligible dialog after interest scoring.
             ``None`` (with a warning) if no eligible candidate exists.
         """
@@ -302,7 +308,7 @@ class ChitchatSlot(BaseModel, AgendaItem):
 # ── FunctionalSlot ────────────────────────────────────────────────────────────
 
 class FunctionalSlot(BaseModel, AgendaItem):
-    """Select a functional dialog by its declared role (greeting, farewell, …).
+    """Select a functional dialog by its declared label (greeting, farewell, …).
 
     ``FunctionalDialog.DEFAULT_ELIGIBILITY`` has no ``ExcludeIfSeenRule``, so
     functional dialogs re-run every session by default.  When multiple eligible
@@ -311,7 +317,7 @@ class FunctionalSlot(BaseModel, AgendaItem):
     Attributes
     ----------
     functional_type : str
-        Role identifier; must match ``FunctionalDialog.functional_type``.
+        Label identifier; must match ``FunctionalDialog.functional_type``.
     bounds : SlotBounds
         Controls how many times the resolver re-queues this item.
         Default: exactly once.
@@ -327,8 +333,8 @@ class FunctionalSlot(BaseModel, AgendaItem):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
-        """Return a random eligible FunctionalDialog for the given role, or None.
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
+        """Return a random eligible FunctionalDialog for the given label, or None.
 
         Parameters
         ----------
@@ -337,7 +343,7 @@ class FunctionalSlot(BaseModel, AgendaItem):
 
         Returns
         -------
-        BaseDialog | None
+        MiniDialog | None
             Random eligible candidate, or ``None`` (with a warning) if none found.
         """
         candidates = context.registry.get_by_attr("functional_type", self.functional_type)
@@ -355,7 +361,7 @@ class FunctionalSlot(BaseModel, AgendaItem):
 # ── LLMDialogRef ──────────────────────────────────────────────────────────────
 
 class LLMDialogRef(BaseModel, AgendaItem):
-    """Direct reference to a pre-authored LLMDialog by ID.
+    """Direct reference to a pre-authored LLMMiniDialog by ID.
 
     Unlike the slot types, ``LLMDialogRef`` does *not* select from a pool — it
     pins to an exact dialog ID.  Optional ``max_turns`` and ``duration`` override
@@ -367,11 +373,11 @@ class LLMDialogRef(BaseModel, AgendaItem):
     Attributes
     ----------
     id : str
-        Registry ID of the target ``LLMDialog``.
+        Registry ID of the target ``LLMMiniDialog``.
     max_turns : int | None
-        Per-run override for ``LLMDialog.max_turns``.
+        Per-run override for ``LLMMiniDialog.max_turns``.
     duration : float | None
-        Per-run override for ``LLMDialog.duration`` (seconds).
+        Per-run override for ``LLMMiniDialog.duration`` (seconds).
     """
 
     type: Literal["llm_dialog_ref"] = "llm_dialog_ref"
@@ -379,8 +385,8 @@ class LLMDialogRef(BaseModel, AgendaItem):
     max_turns: int | None = None
     duration: float | None = None
 
-    def resolve(self, context: AgendaContext) -> "BaseDialog | None":
-        """Look up the LLMDialog by ID and apply any overrides.
+    def resolve(self, context: AgendaContext) -> "MiniDialog | None":
+        """Look up the LLMMiniDialog by ID and apply any overrides.
 
         Parameters
         ----------
@@ -389,9 +395,9 @@ class LLMDialogRef(BaseModel, AgendaItem):
 
         Returns
         -------
-        BaseDialog | None
-            The (optionally overridden) LLMDialog, or ``None`` if the ID is not
-            found or does not point to an LLMDialog.
+        MiniDialog | None
+            The (optionally overridden) LLMMiniDialog, or ``None`` if the ID is not
+            found or does not point to an LLMMiniDialog.
         """
         dialog = context.registry.get_by_id(self.id)
         if dialog is None:
@@ -400,9 +406,9 @@ class LLMDialogRef(BaseModel, AgendaItem):
                 self.id,
             )
             return None
-        if not isinstance(dialog, LLMDialog):
+        if not isinstance(dialog, LLMMiniDialog):
             logger.warning(
-                "LLMDialogRef: dialog '%s' is not an LLMDialog (got %s) — skipping",
+                "LLMDialogRef: dialog '%s' is not an LLMMiniDialog (got %s) — skipping",
                 self.id,
                 type(dialog).__name__,
             )
@@ -426,7 +432,7 @@ _agenda_item_adapter: _TypeAdapter[AnyAgendaItem] = _TypeAdapter(AnyAgendaItem)
 
 # ── Coercion helper ───────────────────────────────────────────────────────────
 
-def coerce_agenda_item(item: "str | dict | AgendaItem") -> AgendaItem:
+def to_agenda_item(item: "str | dict | AgendaItem") -> AgendaItem:
     """Normalise an agenda entry to a typed ``AgendaItem``.
 
     Accepts three forms:

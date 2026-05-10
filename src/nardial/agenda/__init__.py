@@ -3,7 +3,7 @@
 Import from here for the public API:
 
     from nardial.agenda import (
-        AgendaItem, AgendaContext, AnyAgendaItem, coerce_agenda_item,
+        AgendaItem, AgendaContext, AnyAgendaItem, to_agenda_item,
         DialogRef, NarrativeSlot, ChitchatSlot, FunctionalSlot, LLMDialogRef,
         SlotBounds,
         resolve_agenda,
@@ -21,7 +21,7 @@ from nardial.agenda.items import (
     FunctionalSlot,
     LLMDialogRef,
     NarrativeSlot,
-    coerce_agenda_item,
+    to_agenda_item,
 )
 from nardial.agenda.resolver import resolve_agenda
 from nardial.agenda.session_plan import SessionPlan, SessionTemplate, load_session_plan
@@ -39,7 +39,7 @@ __all__ = [
     "AgendaContext",
     "AgendaItem",
     "AnyAgendaItem",
-    "coerce_agenda_item",
+    "to_agenda_item",
     "DialogRef",
     "NarrativeSlot",
     "ChitchatSlot",

@@ -37,21 +37,21 @@ class ConversationAgent:
         Large-language-model provider for generative responses.
     vector_store : VectorStoreProvider, optional
         Vector store for retrieval-augmented generation.
-    int_config : InteractionConfig, optional
+    interaction_config : InteractionConfig, optional
         Behavioural configuration.  Defaults are used when omitted.
     """
 
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
-                 int_config: InteractionConfig = None):
+                 interaction_config: InteractionConfig = None):
         self.orchestrator = InteractionOrchestrator(
             device=device,
             tts_provider=tts_provider,
             nlu_provider=nlu_provider,
             llm_provider=llm_provider,
             vector_store=vector_store,
-            int_config=int_config,
+            interaction_config=interaction_config,
         )
 
     # ------------------------------------------------------------------

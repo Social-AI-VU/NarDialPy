@@ -4,17 +4,17 @@ Public API surface.  Import from this package rather than reaching into
 submodules, which may be reorganised without notice.
 """
 
-from nardial.base_dialog import BaseDialog
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
-    FunctionalType,
-    LLMDialog,
+    FunctionalLabel,
+    LLMMiniDialog,
     MiniDialog,
     NarrativeDialog,
     RunContext,
+    ScriptedMiniDialog,
 )
 from nardial.session_manager import SessionManager
 from nardial.user_model import UserModel
@@ -25,13 +25,13 @@ __all__ = [
     "ConversationAgent",
     "ConversationState",
     # Dialog types
-    "BaseDialog",
     "MiniDialog",
+    "ScriptedMiniDialog",
     "NarrativeDialog",
     "ChitchatDialog",
     "FunctionalDialog",
-    "FunctionalType",
-    "LLMDialog",
+    "FunctionalLabel",
+    "LLMMiniDialog",
     # Runtime context
     "RunContext",
     # State

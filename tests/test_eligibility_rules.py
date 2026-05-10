@@ -15,8 +15,8 @@ from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
-    LLMDialog,
-    MiniDialog,
+    LLMMiniDialog,
+    ScriptedMiniDialog,
     NarrativeDialog,
 )
 from nardial.moves import MoveSay
@@ -57,7 +57,7 @@ def make_functional(dialog_id, functional_type="greeting"):
 
 
 def make_llm(dialog_id):
-    return LLMDialog(dialog_id=dialog_id, prompt="Chat.")
+    return LLMMiniDialog(dialog_id=dialog_id, prompt="Chat.")
 
 
 # ── EligibilityRule is abstract ───────────────────────────────────────────────
@@ -253,7 +253,7 @@ class TestDefaultEligibilityAttachment:
         assert FunctionalDialog.DEFAULT_ELIGIBILITY is not None
 
     def test_llm_default_eligibility_is_set(self):
-        assert LLMDialog.DEFAULT_ELIGIBILITY is not None
+        assert LLMMiniDialog.DEFAULT_ELIGIBILITY is not None
 
     def test_functional_has_no_exclude_if_seen_rule(self):
         # FunctionalDialog (greetings) must re-run every session.

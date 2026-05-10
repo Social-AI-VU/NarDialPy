@@ -1,8 +1,8 @@
 """Dialog execution runtime — shared types, helpers, and the async execution engine.
 
 This module is the single home of everything that belongs to *running* a dialog
-rather than *defining* one.  Dialog classes (MiniDialog, LLMDialog, …) import
-types from here; this module has no reverse dependency on mini_dialogs.
+rather than *defining* one.  Dialog classes (ScriptedMiniDialog, LLMMiniDialog, …)
+import types from here; this module has no reverse dependency on mini_dialogs.
 
 Public API
 ----------
@@ -262,15 +262,15 @@ class DialogRuntime:
 
     Owns move dispatch, variable substitution, session-history recording, and
     (from Phase 8 onwards) event-bus checkpointing.  After Phase 5, dialogs
-    (``MiniDialog``, ``LLMDialog``) are pure data containers — they carry no
-    handler methods.  All execution logic lives here.
+    (``ScriptedMiniDialog``, ``LLMMiniDialog``) are pure data containers — they
+    carry no handler methods.  All execution logic lives here.
 
     Parameters
     ----------
     agent : ConversationAgent
         Async capability provider for speech, listening, and LLM calls.
     event_bus : EventBus, optional
-        Shared event bus for between-moves / preemptive interrupt handling.
+        Shared event bus for between-moves / immediate interrupt handling.
         ``None`` until Phase 8; the runtime runs without event support.
     """
 
@@ -280,7 +280,7 @@ class DialogRuntime:
         # Set by _run_mini when a BETWEEN_MOVES event interrupts a dialog;
         # read by SessionManager._dialog_loop() to decide PAUSE vs DISCARD.
         self.last_interrupt_event: Any = None
-        # Updated by _run_mini before each move dispatch; used by the preemptive
+        # Updated by _run_mini before each move dispatch; used by the immediate
         # watchdog to build a best-effort checkpoint when the dialog task is cancelled.
         self._current_move_index: int = 0
 
@@ -299,8 +299,8 @@ class DialogRuntime:
 
         Parameters
         ----------
-        dialog : BaseDialog
-            The dialog to execute (``MiniDialog`` or ``LLMDialog`` instance).
+        dialog : MiniDialog
+            The dialog to execute (``ScriptedMiniDialog`` or ``LLMMiniDialog`` instance).
         context : RunContext
             Mutable conversational state for this execution.
         resume_from : AnyCheckpoint, optional
@@ -317,16 +317,16 @@ class DialogRuntime:
             If ``dialog`` is not a recognised dialog type.
         """
         # Import here to avoid circular imports at module load time.
-        from nardial.mini_dialogs import LLMDialog, MiniDialog
+        from nardial.mini_dialogs import LLMMiniDialog, ScriptedMiniDialog
 
-        if isinstance(dialog, LLMDialog):
+        if isinstance(dialog, LLMMiniDialog):
             return await self._run_llm(dialog, context, resume_from)
-        if isinstance(dialog, MiniDialog):
+        if isinstance(dialog, ScriptedMiniDialog):
             return await self._run_mini(dialog, context, resume_from)
         raise TypeError(f"No runtime handler for {type(dialog).__name__}")
 
     # ------------------------------------------------------------------
-    # MiniDialog execution
+    # ScriptedMiniDialog execution
     # ------------------------------------------------------------------
 
     async def _run_mini(
@@ -338,15 +338,15 @@ class DialogRuntime:
         If one is found the dominant event is stored in :attr:`last_interrupt_event`
         and the method returns:
 
-        - A :class:`~nardial.events.checkpoint.MiniDialogCheckpoint` (``PAUSE``
-          resume policy) so ``SessionManager`` can replay the dialog from the
-          interrupted move after running the handler dialog.
+        - A :class:`~nardial.events.checkpoint.ScriptedMiniDialogCheckpoint`
+          (``PAUSE`` resume policy) so ``SessionManager`` can replay the dialog
+          from the interrupted move after running the handler dialog.
         - ``None`` (``DISCARD`` resume policy) to abandon the dialog silently.
         """
-        from nardial.events.checkpoint import MiniDialogCheckpoint
+        from nardial.events.checkpoint import ScriptedMiniDialogCheckpoint
         from nardial.events.types import InterruptLevel, ResumePolicy
 
-        start_index = resume_from.move_index if isinstance(resume_from, MiniDialogCheckpoint) else 0
+        start_index = resume_from.move_index if isinstance(resume_from, ScriptedMiniDialogCheckpoint) else 0
         if resume_from:
             context.current_outcome = resume_from.current_outcome
 
@@ -361,14 +361,14 @@ class DialogRuntime:
                 if dominant is not None:
                     self.last_interrupt_event = dominant
                     if dominant.resume_policy == ResumePolicy.PAUSE:
-                        return MiniDialogCheckpoint(
+                        return ScriptedMiniDialogCheckpoint(
                             dialog_id=dialog.dialog_id,
                             move_index=i,
                             current_outcome=context.current_outcome,
                         )
                     return None  # DISCARD: abandon dialog, no checkpoint
 
-            # Record the move index before dispatching so the preemptive watchdog
+            # Record the move index before dispatching so the immediate watchdog
             # can read it as a best-effort resume point if the task is cancelled.
             self._current_move_index = i
             await self._dispatch_move(move, context)
@@ -386,7 +386,7 @@ class DialogRuntime:
             await handler(move, context)
 
     # ------------------------------------------------------------------
-    # LLMDialog execution
+    # LLMMiniDialog execution
     # ------------------------------------------------------------------
 
     async def _run_llm(
@@ -394,17 +394,17 @@ class DialogRuntime:
     ) -> "AnyCheckpoint | None":
         """Execute a free-form LLM dialog, optionally resuming from a checkpoint.
 
-        When *resume_from* is an :class:`~nardial.events.checkpoint.LLMDialogCheckpoint`,
+        When *resume_from* is an :class:`~nardial.events.checkpoint.LLMMiniDialogCheckpoint`,
         the accumulated conversation history, turn counter, last user input, and
         elapsed time are restored so the exchange continues where it left off.
         """
-        from nardial.events.checkpoint import LLMDialogCheckpoint
+        from nardial.events.checkpoint import LLMMiniDialogCheckpoint
 
         resume_history: list[str] = []
         resume_turn_index = 0
         resume_user_input = ""
         resume_elapsed = 0.0
-        if isinstance(resume_from, LLMDialogCheckpoint):
+        if isinstance(resume_from, LLMMiniDialogCheckpoint):
             resume_elapsed = resume_from.elapsed_seconds
             resume_history = list(resume_from.dialog_history)
             resume_turn_index = resume_from.turn_index
@@ -458,13 +458,13 @@ class DialogRuntime:
 
     def _store_interests(self, move: Any, answer: str, context: RunContext) -> None:
         """Append interest topics derived from the answer or a user model variable."""
-        from nardial.mini_dialogs import MiniDialog
+        from nardial.mini_dialogs import ScriptedMiniDialog
         if answer and getattr(move, "add_interest_from_answer", False):
-            MiniDialog.add_interest(context.topics_of_interest, answer)
+            ScriptedMiniDialog.add_interest(context.topics_of_interest, answer)
         if getattr(move, "add_interest_from_variable", None):
             val = context.user_model.get(move.add_interest_from_variable)
             if val:
-                MiniDialog.add_interest(context.topics_of_interest, val)
+                ScriptedMiniDialog.add_interest(context.topics_of_interest, val)
 
     async def _generate_llm_followup(
         self, context: RunContext, user_answer: str, system_prompt: str
@@ -513,13 +513,13 @@ class DialogRuntime:
 
     async def _handle_ask_yesno(self, move: Any, context: RunContext) -> None:
         """Ask a yes/no question, record the exchange, handle side-effects, and resolve the outcome."""
-        from nardial.mini_dialogs import MiniDialog
+        from nardial.mini_dialogs import ScriptedMiniDialog
         text = _substitute_variables(move.text, context.user_model)
         answer = await self._agent.ask_yesno(text)
         context.session_history.append({"role": "robot", "type": MOVE_ASK_YESNO, "text": text})
         context.session_history.append({"role": "user", "type": MOVE_ANSWER_YESNO, "text": answer})
         if answer == "yes" and move.add_interest:
-            MiniDialog.add_interest(context.topics_of_interest, move.add_interest)
+            ScriptedMiniDialog.add_interest(context.topics_of_interest, move.add_interest)
         await self._finalize_ask(move, answer, context)
 
     async def _handle_ask_open(self, move: Any, context: RunContext) -> None:

@@ -4,7 +4,7 @@ Two consumption modes
 ---------------------
 Session-level (priority queue):
     Sources call ``emit()`` / ``emit_sync()``; the ``SessionManager`` drains
-    events at checkpoints using ``drain_at_level()`` or ``get_preemptive()``.
+    events at checkpoints using ``drain_at_level()`` or ``get_immediate()``.
 
 Move-level (subscriptions):
     ``DialogRuntime`` calls ``subscribe()`` before a wait-move and
@@ -108,12 +108,12 @@ class EventBus:
         self._pending_counts[level] = 0
         return matched
 
-    async def get_preemptive(self) -> Event | None:
-        """Return the highest-priority PREEMPTIVE event, or None if none queued.
+    async def get_immediate(self) -> Event | None:
+        """Return the highest-priority IMMEDIATE event, or None if none queued.
 
-        Any other PREEMPTIVE events are re-enqueued and their pending counts restored.
+        Any other IMMEDIATE events are re-enqueued and their pending counts restored.
         """
-        events = await self.drain_at_level(InterruptLevel.PREEMPTIVE)
+        events = await self.drain_at_level(InterruptLevel.IMMEDIATE)
         if not events:
             return None
         best = min(events, key=lambda e: (e.priority, e.seq))

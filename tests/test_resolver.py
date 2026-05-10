@@ -19,7 +19,7 @@ from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import (
     ChitchatDialog,
     FunctionalDialog,
-    LLMDialog,
+    LLMMiniDialog,
     NarrativeDialog,
 )
 
@@ -54,7 +54,7 @@ def make_functional(dialog_id, functional_type="greeting"):
 
 
 def make_llm(dialog_id):
-    return LLMDialog(dialog_id=dialog_id, prompt="Chat.")
+    return LLMMiniDialog(dialog_id=dialog_id, prompt="Chat.")
 
 
 def collect_with_context(items, context):

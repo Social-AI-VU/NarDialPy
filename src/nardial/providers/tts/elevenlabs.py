@@ -65,7 +65,7 @@ class ElevenLabsTTSProvider(TTSProvider):
         """No-op: the SIC ElevenLabs service does not expose a mid-request cancel handle.
 
         True mid-speech interruption is not possible without SIC framework support.
-        The PREEMPTIVE interrupt will still cancel the asyncio task (stopping future
+        The IMMEDIATE interrupt will still cancel the asyncio task (stopping future
         moves and chunks), but the currently-playing audio chunk will finish on the device.
         """
 

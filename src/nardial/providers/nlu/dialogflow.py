@@ -33,7 +33,7 @@ class DialogflowNLUProvider:
         """No-op: the SIC Dialogflow service does not expose a mid-request cancel handle.
 
         True mid-listen interruption is not possible without SIC framework support.
-        The PREEMPTIVE interrupt will cancel the asyncio task so no subsequent moves
+        The IMMEDIATE interrupt will cancel the asyncio task so no subsequent moves
         run, but the underlying gRPC stream will time out naturally.
         """
 

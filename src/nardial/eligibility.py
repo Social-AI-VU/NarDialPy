@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from nardial.base_dialog import BaseDialog
+    from nardial.mini_dialogs import MiniDialog
     from nardial.agenda.items import AgendaContext
 
 
@@ -31,7 +31,7 @@ class EligibilityRule(ABC):
     """
 
     @abstractmethod
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return True if the dialog passes this rule, False if it is blocked.
 
         Parameters
@@ -65,7 +65,7 @@ class ExcludeIfSeenRule(EligibilityRule):
     def __init__(self, scope: Literal["participant", "session"] = "participant") -> None:
         self.scope = scope
 
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return False if the dialog has already been seen within the configured scope."""
         if self.scope == "session":
             return dialog.dialog_id not in context.session_completed_ids
@@ -80,7 +80,7 @@ class DepsMetRule(EligibilityRule):
     completions) for the dialog to be eligible.
     """
 
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return False if any declared dependency is absent from completed_ids."""
         return all(dep in context.completed_ids for dep in dialog.dependencies)
 
@@ -96,7 +96,7 @@ class VariableDepsMetRule(EligibilityRule):
     that always passed ``user_model={}`` and silently skipped variable checks.
     """
 
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return False if any required variable is missing or falsy in user_model."""
         user_model = context.user_model or {}
         for var_dep in dialog.variable_dependencies:
@@ -124,7 +124,7 @@ class NarrativeOrderingRule(EligibilityRule):
     at module level without creating a circular dependency.
     """
 
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return False if an earlier step in the same thread is incomplete."""
         thread = getattr(dialog, "thread", None)
         position = getattr(dialog, "position", None)
@@ -159,7 +159,7 @@ class EligibilityPolicy:
     def __init__(self, rules: list[EligibilityRule]) -> None:
         self.rules = rules
 
-    def is_eligible(self, dialog: "BaseDialog", context: "AgendaContext") -> bool:
+    def is_eligible(self, dialog: "MiniDialog", context: "AgendaContext") -> bool:
         """Return True if the dialog passes every rule in the policy.
 
         Parameters

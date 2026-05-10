@@ -7,11 +7,11 @@ from nardial.dialog_runtime import (
     extract_open_value,
 )
 from nardial.mini_dialogs import (
-    FunctionalDialog, FunctionalType,
-    MiniDialog,
+    FunctionalDialog, FunctionalLabel,
+    ScriptedMiniDialog,
     NarrativeDialog,
     ChitchatDialog,
-    LLMDialog,
+    LLMMiniDialog,
 )
 from nardial.moves import (
     MoveAskLLM,
@@ -193,7 +193,7 @@ async def test_full_dialog_new_branching_ask_options(session_history, user_model
         ),
         MoveSay(text="Continuing the dialog."),
     ]
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -223,7 +223,7 @@ async def test_full_dialog_new_branching_ask_options_default(session_history, us
             },
         ),
     ]
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -251,7 +251,7 @@ async def test_full_dialog_new_branching_ask_yesno(session_history, user_model, 
             },
         ),
     ]
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -275,7 +275,7 @@ async def test_branch_on_user_model_variable(session_history, user_model, topics
             },
         ),
     ]
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -323,7 +323,7 @@ async def test_full_dialog_wildcard_ask_open(session_history, user_model, topics
             },
         ),
     ]
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -333,24 +333,24 @@ async def test_full_dialog_wildcard_ask_open(session_history, user_model, topics
 
 
 # ---------------------------------------------------------------------------
-# FunctionalDialog, NarrativeDialog, ChitchatDialog, LLMDialog
+# FunctionalDialog, NarrativeDialog, ChitchatDialog, LLMMiniDialog
 # ---------------------------------------------------------------------------
 
 class TestFunctionalDialog:
     def test_string_type_coerced_to_enum_greeting(self):
         d = FunctionalDialog("g", [], "greeting")
-        assert d.type is FunctionalType.GREETING
+        assert d.type is FunctionalLabel.GREETING
         assert d.is_greeting_dialog()
         assert not d.is_farewell_dialog()
 
     def test_string_type_coerced_to_enum_farewell(self):
         d = FunctionalDialog("f", [], "farewell")
-        assert d.type is FunctionalType.FAREWELL
+        assert d.type is FunctionalLabel.FAREWELL
         assert d.is_farewell_dialog()
         assert not d.is_greeting_dialog()
 
     def test_enum_type_accepted_directly(self):
-        d = FunctionalDialog("g", [], FunctionalType.GREETING)
+        d = FunctionalDialog("g", [], FunctionalLabel.GREETING)
         assert d.is_greeting_dialog()
 
     async def test_greeting_dialog_runs_moves(self, session_history, user_model, topics_of_interest):
@@ -424,7 +424,7 @@ class TestExtractOpenValueEdgeCases:
         assert context.current_outcome == "exact_yes"
 
 
-class TestLLMDialogSpeakFirst:
+class TestLLMMiniDialogSpeakFirst:
     async def test_speak_first_false_listens_before_asking_llm(
             self, session_history, user_model, topics_of_interest, make_mock_agent):
         """When speak_first=False the orchestrator listens for the opening user utterance
@@ -434,7 +434,7 @@ class TestLLMDialogSpeakFirst:
             ask_open_side_effect=["user opened first"],
         )
 
-        dialog = LLMDialog(
+        dialog = LLMMiniDialog(
             "llm1", moves=[], prompt="respond", max_turns=1, speak_first=False
         )
         context = RunContext(

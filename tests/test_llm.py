@@ -1,4 +1,4 @@
-from nardial.mini_dialogs import MiniDialog, LLMDialog
+from nardial.mini_dialogs import ScriptedMiniDialog, LLMMiniDialog
 from nardial.dialog_runtime import RunContext, DialogRuntime, _run_llm_exchange
 from nardial.moves import (
     MoveAskLLM,
@@ -87,7 +87,7 @@ async def test_llm_dialog_run_respects_max_turns(session_history, user_model, to
         ask_open_side_effect=["a1", "a2", "a3", "a4", "a5"]
     )
 
-    dialog = LLMDialog('d1', moves=[], prompt='p', max_turns=3)
+    dialog = LLMMiniDialog('d1', moves=[], prompt='p', max_turns=3)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 
@@ -234,7 +234,7 @@ async def test_dispatcher_runs_llm_followup_within_ask_open(
         )
     ]
 
-    dialog = MiniDialog('test', moves=moves)
+    dialog = ScriptedMiniDialog('test', moves=moves)
     context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
     await DialogRuntime(agent).run(dialog, context)
 

@@ -15,7 +15,7 @@ import pytest
 from nardial.dialog_runtime import DialogRuntime, RunContext
 from nardial.events.bus import EventBus
 from nardial.events.types import Event, InterruptLevel
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import ScriptedMiniDialog
 from nardial.moves import (
     MoveWaitForButton,
     MoveTimedWait,
@@ -363,7 +363,7 @@ async def test_wait_for_button_in_full_dialog_with_branch():
             timeout=1.0,
         ),
     ]
-    dialog = MiniDialog(dialog_id="btn_test", moves=moves)
+    dialog = ScriptedMiniDialog(dialog_id="btn_test", moves=moves)
     context = RunContext()
 
     async def _emit_later():

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_WATCHDOG_POLL_INTERVAL = 0.05  # seconds between preemptive-event polls
+_WATCHDOG_POLL_INTERVAL = 0.05  # seconds between immediate-interrupt polls
 
 
 class SessionManager:
@@ -91,10 +91,10 @@ class SessionManager:
         self._event_handlers: dict[str, "EventHandlerSpec"] = {}
         # Set by run_async(); None until the session is actually running.
         self._bus: EventBus | None = None
-        # Set by _preemptive_watchdog when a PREEMPTIVE event cancels a dialog task;
+        # Set by _immediate_watchdog when an IMMEDIATE event cancels a dialog task;
         # read and cleared by _dialog_loop to distinguish watchdog-triggered
         # CancelledErrors from outer session cancellations.
-        self._last_preemptive_event: "Event | None" = None
+        self._last_immediate_event: "Event | None" = None
 
         self.conversation_state = ConversationState(participant_id=participant_id)
 
@@ -508,33 +508,33 @@ class SessionManager:
                 if dominant is not None:
                     await self._run_handler_dialog(dominant, runtime, run_context, context)
 
-            # Run the dialog as a watched task so the preemptive watchdog can
-            # cancel it mid-execution when a PREEMPTIVE event arrives.
-            self._last_preemptive_event = None
+            # Run the dialog as a watched task so the immediate-interrupt watchdog
+            # can cancel it mid-execution when an IMMEDIATE event arrives.
+            self._last_immediate_event = None
             dialog_task = asyncio.create_task(
                 runtime.run(dialog, run_context, resume_from=checkpoint),
                 name=f"dialog:{dialog.dialog_id}",
             )
             watchdog_task = asyncio.create_task(
-                self._preemptive_watchdog(dialog_task),
-                name="preemptive_watchdog",
+                self._immediate_watchdog(dialog_task),
+                name="immediate_watchdog",
             )
             try:
                 returned = await dialog_task
             except asyncio.CancelledError:
                 # Determine whether the watchdog or an outer cancellation fired.
-                # The watchdog sets _last_preemptive_event and returns (so its task
+                # The watchdog sets _last_immediate_event and returns (so its task
                 # is done) BEFORE the CancelledError reaches this except block,
                 # making watchdog_task.done() a reliable discriminator.
-                if self._last_preemptive_event is None or not watchdog_task.done():
+                if self._last_immediate_event is None or not watchdog_task.done():
                     # Outer session cancellation — propagate after cleaning up.
                     watchdog_task.cancel()
                     raise
-                # Watchdog-triggered preemptive interrupt.
-                ev = self._last_preemptive_event
-                self._last_preemptive_event = None
+                # Watchdog-triggered immediate interrupt.
+                ev = self._last_immediate_event
+                self._last_immediate_event = None
                 logger.info(
-                    "Dialog %r preemptively interrupted by event %r",
+                    "Dialog %r immediately interrupted by event %r",
                     dialog.dialog_id, ev.type,
                 )
                 run_context.session_history.append({
@@ -547,8 +547,8 @@ class SessionManager:
                 })
                 await self._run_handler_dialog(ev, runtime, run_context, context)
                 if ev.resume_policy == ResumePolicy.PAUSE:
-                    from nardial.events.checkpoint import MiniDialogCheckpoint
-                    checkpoint = MiniDialogCheckpoint(
+                    from nardial.events.checkpoint import ScriptedMiniDialogCheckpoint
+                    checkpoint = ScriptedMiniDialogCheckpoint(
                         dialog_id=dialog.dialog_id,
                         move_index=runtime._current_move_index,
                         current_outcome=run_context.current_outcome,
@@ -599,14 +599,14 @@ class SessionManager:
         )
         self.conversation_state.save()
 
-    async def _preemptive_watchdog(self, dialog_task: asyncio.Task) -> None:
-        """Poll the bus every 50 ms for PREEMPTIVE events and cancel *dialog_task* on detection.
+    async def _immediate_watchdog(self, dialog_task: asyncio.Task) -> None:
+        """Poll the bus every 50 ms for IMMEDIATE events and cancel *dialog_task* on detection.
 
         Runs as a sibling ``asyncio.Task`` alongside the dialog task in
         :meth:`_dialog_loop`.  Exits when:
 
         - *dialog_task* completes normally (loop exits cleanly), or
-        - a PREEMPTIVE event is detected (stores it on ``_last_preemptive_event``
+        - an IMMEDIATE event is detected (stores it on ``_last_immediate_event``
           and cancels *dialog_task* before returning).
 
         The 50 ms poll interval is a deliberate balance between responsiveness
@@ -623,7 +623,7 @@ class SessionManager:
             if dialog_task.done():
                 break
             try:
-                ev = await self._bus.get_preemptive()
+                ev = await self._bus.get_immediate()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -634,10 +634,10 @@ class SessionManager:
                 return
             if ev is not None:
                 logger.debug(
-                    "Preemptive watchdog: PREEMPTIVE event %r detected — cancelling dialog task",
+                    "Immediate watchdog: IMMEDIATE event %r detected — cancelling dialog task",
                     ev.type,
                 )
-                self._last_preemptive_event = ev
+                self._last_immediate_event = ev
                 dialog_task.cancel()
                 return
 

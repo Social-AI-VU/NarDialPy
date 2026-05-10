@@ -120,7 +120,7 @@
         }
       },
       {
-        "type": "play",
+        "type": "play_audio",
         "audio": "audio/planning_chime.wav"
       },
       {

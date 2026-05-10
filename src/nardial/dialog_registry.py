@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 
-from nardial.base_dialog import BaseDialog
+from nardial.mini_dialogs import MiniDialog
 from nardial.mini_dialogs import DialogType
 
 logger = logging.getLogger(__name__)
@@ -22,20 +22,20 @@ class DialogRegistry:
 
     Attributes
     ----------
-    by_id : dict[str, BaseDialog]
+    by_id : dict[str, MiniDialog]
         Fast lookup by ``dialog_id``.
-    by_type : dict[DialogType, list[BaseDialog]]
+    by_type : dict[DialogType, list[MiniDialog]]
         All dialogs of a given type.
-    indexes : dict[str, dict[str, list[BaseDialog]]]
+    indexes : dict[str, dict[str, list[MiniDialog]]]
         Attribute-value indexes declared via ``INDEX_ATTRS`` on each class.
         Outer key: attribute name.  Inner key: attribute value (str).
     """
 
     def __init__(
         self,
-        by_id: dict[str, BaseDialog],
-        by_type: dict[DialogType, list[BaseDialog]],
-        indexes: dict[str, dict[str, list[BaseDialog]]],
+        by_id: dict[str, MiniDialog],
+        by_type: dict[DialogType, list[MiniDialog]],
+        indexes: dict[str, dict[str, list[MiniDialog]]],
     ) -> None:
         self.by_id = by_id
         self.by_type = by_type
@@ -44,7 +44,7 @@ class DialogRegistry:
     # ── factory ──────────────────────────────────────────────────────────────
 
     @classmethod
-    def build(cls, dialogs: list[BaseDialog]) -> "DialogRegistry":
+    def build(cls, dialogs: list[MiniDialog]) -> "DialogRegistry":
         """Build the registry from a flat list of dialog objects.
 
         Reads ``INDEX_ATTRS`` from each dialog's class generically.  List-valued
@@ -52,7 +52,7 @@ class DialogRegistry:
 
         Parameters
         ----------
-        dialogs : list[BaseDialog]
+        dialogs : list[MiniDialog]
             All loaded dialog objects.
 
         Returns
@@ -60,9 +60,9 @@ class DialogRegistry:
         DialogRegistry
             Fully populated registry.
         """
-        by_id: dict[str, BaseDialog] = {}
-        by_type: dict[DialogType, list[BaseDialog]] = defaultdict(list)
-        indexes: dict[str, dict[str, list[BaseDialog]]] = defaultdict(lambda: defaultdict(list))
+        by_id: dict[str, MiniDialog] = {}
+        by_type: dict[DialogType, list[MiniDialog]] = defaultdict(list)
+        indexes: dict[str, dict[str, list[MiniDialog]]] = defaultdict(lambda: defaultdict(list))
 
         for dialog in dialogs:
             # Index by ID — warn and skip on collision.
@@ -97,15 +97,15 @@ class DialogRegistry:
 
     # ── queries ───────────────────────────────────────────────────────────────
 
-    def get_by_id(self, dialog_id: str) -> BaseDialog | None:
+    def get_by_id(self, dialog_id: str) -> MiniDialog | None:
         """Return the dialog with the given ID, or None if not found."""
         return self.by_id.get(dialog_id)
 
-    def get_by_type(self, dialog_type: DialogType) -> list[BaseDialog]:
+    def get_by_type(self, dialog_type: DialogType) -> list[MiniDialog]:
         """Return all dialogs of the given type (empty list if none)."""
         return list(self.by_type.get(dialog_type, []))
 
-    def get_by_attr(self, attr: str, value: Any) -> list[BaseDialog]:
+    def get_by_attr(self, attr: str, value: Any) -> list[MiniDialog]:
         """Return dialogs indexed under the given attribute/value pair.
 
         Parameters
@@ -117,7 +117,7 @@ class DialogRegistry:
 
         Returns
         -------
-        list[BaseDialog]
+        list[MiniDialog]
             Matching dialogs, or an empty list if none.
         """
         return list(self.indexes.get(attr, {}).get(str(value), []))

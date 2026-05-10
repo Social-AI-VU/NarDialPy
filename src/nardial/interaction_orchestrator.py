@@ -64,17 +64,17 @@ class InteractionOrchestrator:
     All public I/O methods (``say``, ``listen``, ``request_from_llm``) are
     ``async``.  Blocking provider calls are offloaded to a thread pool via
     ``asyncio.to_thread()`` so the event loop is never stalled.  Cancellation
-    of a blocking call (e.g. for preemptive interrupt handling) calls the
+    of a blocking call (e.g. for immediate interrupt handling) calls the
     provider's ``cancel()`` stub and then re-raises ``CancelledError``.
     """
 
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
-                 int_config: InteractionConfig = None):
+                 interaction_config: InteractionConfig = None):
 
-        if int_config is None:
-            int_config = InteractionConfig()
+        if interaction_config is None:
+            interaction_config = InteractionConfig()
 
         # Development logging
         self.app = SICApplication()
@@ -89,7 +89,7 @@ class InteractionOrchestrator:
         self._log_thread = None
 
         # Interaction configuration
-        self.interaction_conf = int_config
+        self.interaction_conf = interaction_config
 
         self.logger.info("SETTING UP LLM")
         self.llm_provider = llm_provider
@@ -169,7 +169,7 @@ class InteractionOrchestrator:
         """Speak ``text`` asynchronously.
 
         Blocking TTS is offloaded to a thread via ``asyncio.to_thread``.  If
-        the coroutine is cancelled (e.g. by the preemptive watchdog),
+        the coroutine is cancelled (e.g. by the immediate watchdog),
         ``tts_provider.cancel()`` is called before re-raising so the device
         stops mid-sentence.
         """

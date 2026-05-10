@@ -52,7 +52,7 @@ import logging
 
 from pydantic import BaseModel, Field
 
-from nardial.agenda.items import AgendaItem, coerce_agenda_item
+from nardial.agenda.items import AgendaItem, to_agenda_item
 from nardial.events.specs import AnyEventSourceSpec, EventHandlerSpec
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class SessionTemplate(BaseModel):
         list[AgendaItem]
             Typed items ready to pass directly to :func:`resolve_agenda`.
         """
-        return [coerce_agenda_item(item) for item in self.agenda]
+        return [to_agenda_item(item) for item in self.agenda]
 
 
 class SessionPlan(BaseModel):

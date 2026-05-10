@@ -9,7 +9,7 @@ from nardial.mini_dialogs import (
     ChitchatDialog,
     DialogType,
     FunctionalDialog,
-    LLMDialog,
+    LLMMiniDialog,
     NarrativeDialog,
 )
 from nardial.moves import MoveSay
@@ -31,7 +31,7 @@ def make_functional(dialog_id, functional_type="greeting"):
 
 
 def make_llm(dialog_id):
-    return LLMDialog(dialog_id=dialog_id, prompt="Chat with the user.")
+    return LLMMiniDialog(dialog_id=dialog_id, prompt="Chat with the user.")
 
 
 # ── DialogRegistry.build ──────────────────────────────────────────────────────

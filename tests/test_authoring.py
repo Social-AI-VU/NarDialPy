@@ -12,7 +12,7 @@ from nardial.authoring.schemas import (
 )
 from nardial.authoring.factory import from_json, to_json
 from nardial.authoring.loader import load_dialogs, save_dialogs, save_dialogs_to_dir
-from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog, ChitchatDialog, LLMDialog
+from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog, ChitchatDialog, LLMMiniDialog
 
 
 # ── Canonical dialog documents used across multiple tests ─────────────────────
@@ -74,7 +74,7 @@ class TestMoveParsing:
         assert m.max_turns == 3
 
     def test_move_play_audio(self):
-        m = MovePlayAudio.model_validate({"type": "play", "audio": "sound.wav"})
+        m = MovePlayAudio.model_validate({"type": "play_audio", "audio": "sound.wav"})
         assert m.audio == "sound.wav"
 
     def test_move_motion_sequence(self):
@@ -181,7 +181,7 @@ class TestDialogSpecParsing:
     (FUNCTIONAL_DOC, FunctionalDialog),
     (NARRATIVE_DOC, NarrativeDialog),
     (CHITCHAT_DOC, ChitchatDialog),
-    (LLM_DOC, LLMDialog),
+    (LLM_DOC, LLMMiniDialog),
 ])
 def test_from_json_returns_correct_runtime_type(doc, expected_cls):
     dialog = from_json(doc)

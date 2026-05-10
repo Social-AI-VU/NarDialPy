@@ -62,7 +62,7 @@ async def test_drain_at_level_returns_matching_events():
 
 async def test_drain_at_level_empty_returns_empty_list():
     bus = EventBus()
-    result = await bus.drain_at_level(InterruptLevel.PREEMPTIVE)
+    result = await bus.drain_at_level(InterruptLevel.IMMEDIATE)
     assert result == []
 
 
@@ -71,26 +71,26 @@ async def test_has_pending_false_when_queue_empty():
     assert not bus.has_pending(InterruptLevel.BETWEEN_DIALOGS)
 
 
-async def test_get_preemptive_returns_highest_priority():
+async def test_get_immediate_returns_highest_priority():
     bus = EventBus()
     ev_low = _make_event(event_type="low", priority=90,
-                          interrupt_level=InterruptLevel.PREEMPTIVE)
+                          interrupt_level=InterruptLevel.IMMEDIATE)
     ev_high = _make_event(event_type="high", priority=10,
-                           interrupt_level=InterruptLevel.PREEMPTIVE)
+                           interrupt_level=InterruptLevel.IMMEDIATE)
     await bus.emit(ev_low)
     await bus.emit(ev_high)
 
-    best = await bus.get_preemptive()
+    best = await bus.get_immediate()
     assert best is not None
     assert best.type == "high"
 
     # The lower-priority event should still be in the queue
-    assert bus.has_pending(InterruptLevel.PREEMPTIVE)
+    assert bus.has_pending(InterruptLevel.IMMEDIATE)
 
 
-async def test_get_preemptive_none_when_empty():
+async def test_get_immediate_none_when_empty():
     bus = EventBus()
-    assert await bus.get_preemptive() is None
+    assert await bus.get_immediate() is None
 
 
 async def test_shutdown_silences_further_emits():

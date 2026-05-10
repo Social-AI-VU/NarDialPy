@@ -1,4 +1,4 @@
-"""Tests for AgendaItem, DialogRef, AgendaContext, and coerce_agenda_item."""
+"""Tests for AgendaItem, DialogRef, AgendaContext, and to_agenda_item."""
 
 import pytest
 from pydantic import ValidationError
@@ -7,7 +7,7 @@ from nardial.agenda.items import (
     AgendaContext,
     AgendaItem,
     DialogRef,
-    coerce_agenda_item,
+    to_agenda_item,
 )
 from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog
@@ -128,34 +128,34 @@ class TestAgendaContext:
         assert "food" in ctx.topics_of_interest
 
 
-# ── coerce_agenda_item ────────────────────────────────────────────────────────
+# ── to_agenda_item ────────────────────────────────────────────────────────
 
 class TestCoerceAgendaItem:
     def test_string_becomes_dialog_ref(self):
-        item = coerce_agenda_item("greeting")
+        item = to_agenda_item("greeting")
         assert isinstance(item, DialogRef)
         assert item.id == "greeting"
 
     def test_dict_with_dialog_ref_type_parsed(self):
-        item = coerce_agenda_item({"type": "dialog_ref", "id": "greeting"})
+        item = to_agenda_item({"type": "dialog_ref", "id": "greeting"})
         assert isinstance(item, DialogRef)
         assert item.id == "greeting"
 
     def test_string_and_dict_produce_equivalent_refs(self):
-        by_str = coerce_agenda_item("greeting")
-        by_dict = coerce_agenda_item({"type": "dialog_ref", "id": "greeting"})
+        by_str = to_agenda_item("greeting")
+        by_dict = to_agenda_item({"type": "dialog_ref", "id": "greeting"})
         assert by_str.id == by_dict.id
         assert type(by_str) is type(by_dict)
 
     def test_agenda_item_passthrough(self):
         ref = DialogRef(id="existing")
-        result = coerce_agenda_item(ref)
+        result = to_agenda_item(ref)
         assert result is ref
 
     def test_unknown_type_raises_validation_error(self):
         with pytest.raises((ValidationError, Exception)):
-            coerce_agenda_item({"type": "unknown_future_type", "id": "x"})
+            to_agenda_item({"type": "unknown_future_type", "id": "x"})
 
     def test_invalid_type_raises_type_error(self):
         with pytest.raises(TypeError):
-            coerce_agenda_item(42)  # type: ignore[arg-type]
+            to_agenda_item(42)  # type: ignore[arg-type]

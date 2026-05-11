@@ -417,6 +417,18 @@ class SessionManager:
         # calls from callback threads (e.g. robot SDK) have a valid loop reference.
         self._bus.set_loop(asyncio.get_running_loop())
 
+        # Wire the EventBus into the screen provider if it supports it.
+        # SICScreenAdapter has set_event_bus(); NullScreenProvider does not —
+        # hasattr guards the call so only adapters that opt in are wired.
+        try:
+            sp = self.agent.orchestrator.screen_provider
+            if sp is not None and hasattr(sp, "set_event_bus"):
+                sp.set_event_bus(self._bus)
+                logger.debug("Wired EventBus to screen provider %r", type(sp).__name__)
+        except AttributeError:
+            # agent.orchestrator not present (e.g. partial mocks in tests) — skip silently.
+            pass
+
         # Add any sources provided by the device adapter.
         try:
             device = self.agent.orchestrator.device

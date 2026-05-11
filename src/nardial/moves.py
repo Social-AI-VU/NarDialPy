@@ -24,6 +24,12 @@ MOVE_TIMED_WAIT = "timed_wait"
 MOVE_WAIT_FOR_WEB_INPUT = "wait_for_web_input"
 MOVE_LLM_SAY = "llm_say"
 
+MOVE_SHOW_IMAGE   = "show_image"
+MOVE_SHOW_VIDEO   = "show_video"
+MOVE_SHOW_IFRAME  = "show_iframe"
+MOVE_SHOW_HTML    = "show_html"
+MOVE_BLACK_SCREEN = "black_screen"
+
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
@@ -223,6 +229,71 @@ class MoveWaitForWebInput(BaseModel):
     default_outcome: str = "timeout"
 
 
+class MoveShowImage(BaseModel):
+    """Display an image on the connected screen.
+
+    Parameters
+    ----------
+    src : str
+        Local file path (relative to the static directory) or a full URL.
+    caption : str
+        Optional caption text shown below the image.
+    """
+
+    type: Literal[MOVE_SHOW_IMAGE] = MOVE_SHOW_IMAGE
+    src: str
+    caption: str = ""
+
+
+class MoveShowVideo(BaseModel):
+    """Display a video on the connected screen.
+
+    Parameters
+    ----------
+    src : str
+        Local file path or an embeddable URL (e.g. a YouTube embed URL).
+    """
+
+    type: Literal[MOVE_SHOW_VIDEO] = MOVE_SHOW_VIDEO
+    src: str
+
+
+class MoveShowIframe(BaseModel):
+    """Embed an external URL in an iframe on the screen.
+
+    Parameters
+    ----------
+    url : str
+        The URL to embed.
+    """
+
+    type: Literal[MOVE_SHOW_IFRAME] = MOVE_SHOW_IFRAME
+    url: str
+
+
+class MoveShowHtml(BaseModel):
+    """Render a raw HTML snippet in the display area.
+
+    Parameters
+    ----------
+    html : str
+        The HTML to inject.  Dialog authors are responsible for keeping this
+        trusted; the frontend renders it verbatim via ``innerHTML``.
+    """
+
+    type: Literal[MOVE_SHOW_HTML] = MOVE_SHOW_HTML
+    html: str
+
+
+class MoveBlackScreen(BaseModel):
+    """Set the display to black/blank — no content shown.
+
+    No parameters.  The next display move will restore content.
+    """
+
+    type: Literal[MOVE_BLACK_SCREEN] = MOVE_BLACK_SCREEN
+
+
 AnyMove = Annotated[
     Union[
         MoveSay,
@@ -238,6 +309,11 @@ AnyMove = Annotated[
         MoveWaitForButton,
         MoveTimedWait,
         MoveWaitForWebInput,
+        MoveShowImage,
+        MoveShowVideo,
+        MoveShowIframe,
+        MoveShowHtml,
+        MoveBlackScreen,
     ],
     Field(discriminator="type"),
 ]

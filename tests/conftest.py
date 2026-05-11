@@ -69,7 +69,8 @@ def make_mock_agent():
         return _fn
 
     def _make(ask_llm_side_effect=None, ask_open_side_effect=None,
-              ask_yes_no_side_effect=None, ask_options_side_effect=None):
+              ask_yes_no_side_effect=None, ask_options_side_effect=None,
+              with_screen_provider=True):
         agent = MagicMock()
 
         open_effect = _wrap_async_side_effect(ask_open_side_effect)
@@ -111,6 +112,23 @@ def make_mock_agent():
             orchestrator.listen = AsyncMock(side_effect=_listen)
         else:
             orchestrator.listen = AsyncMock(return_value=NLUResult(transcript="", intent=None))
+
+        if with_screen_provider:
+            screen_provider = MagicMock()
+            screen_provider.show_transcript       = AsyncMock()
+            screen_provider.show_user_transcript  = AsyncMock()
+            screen_provider.show_image            = AsyncMock()
+            screen_provider.show_video            = AsyncMock()
+            screen_provider.show_iframe           = AsyncMock()
+            screen_provider.show_html             = AsyncMock()
+            screen_provider.show_buttons          = AsyncMock()
+            screen_provider.show_text_input       = AsyncMock()
+            screen_provider.hide_input            = AsyncMock()
+            screen_provider.black                 = AsyncMock()
+            screen_provider.close                 = AsyncMock()
+            orchestrator.screen_provider = screen_provider
+        else:
+            orchestrator.screen_provider = None
 
         agent.orchestrator = orchestrator
         return agent

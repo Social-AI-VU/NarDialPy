@@ -38,6 +38,9 @@ def _make_agent():
     agent.play_motion_sequence = MagicMock()
     agent.play_animation = MagicMock()
     agent.personalize = MagicMock(return_value=None)
+    # screen_provider must be None so the runtime skips screen-specific logic;
+    # these tests exercise the wait semantics only, not the screen provider.
+    agent.orchestrator.screen_provider = None
     return agent
 
 

@@ -92,6 +92,7 @@ pip install nardial
 | `elevenlabs` | ElevenLabs Text-to-Speech | `pip install "nardial[elevenlabs]"` |
 | `dialogflow` | Google Dialogflow NLU | `pip install "nardial[dialogflow]"` |
 | `openai` | OpenAI GPT | `pip install "nardial[openai]"` |
+| `webserver` | Browser screen display (Flask + Flask-SocketIO) | `pip install "nardial[webserver]"` |
 | `all` | All of the above | `pip install "nardial[all]"` |
 | `dev` | Development tools (pytest) | `pip install "nardial[dev]"` |
 
@@ -132,6 +133,14 @@ run-google-tts
 run-gpt
 ```
 
+The screen provider additionally requires the SIC webserver (started once per session, alongside the other services):
+
+```bash
+run-webserver
+```
+
+Then open `http://localhost:5000` in a browser.
+
 ---
 
 ## Providers & Initialization
@@ -156,6 +165,8 @@ NarDialPy is built around a set of provider protocols. Each protocol defines a r
 | | `EchoLLMProvider` | `nardial.providers.llm.echo` | base (echoes user input) |
 | **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
 | | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
+| **Screen** | `SICScreenAdapter` | `nardial.providers.screen.sic_adapter` | `nardial[webserver]` + `run-webserver` |
+| | `NullScreenProvider` | `nardial.providers.screen.null` | base (logs display commands, no browser needed) |
 
 ---
 
@@ -246,6 +257,48 @@ tts = NaoqiTTSProvider(device=device, language="en")
 ```
 
 Then pass `device` and `tts` to `ConversationAgent` as above.
+
+---
+
+### Screen provider
+
+The optional screen provider drives a browser-based display — transcript log, images, videos, iframes, HTML snippets, and interactive buttons. Both sides of the conversation (robot and user) appear automatically in the transcript pane without any extra moves.
+
+`ConversationAgent` accepts `screen_provider` as an optional keyword argument. Sessions without it are completely unaffected.
+
+```python
+from pathlib import Path
+from sic_framework.services.webserver.webserver_service import Webserver, WebserverConf
+from nardial.providers.screen.sic_adapter import SICScreenAdapter
+import nardial.providers.screen as _screen_pkg
+
+# NarDialPy's built-in screen frontend (HTML / CSS / JS)
+_WEB_DIR = Path(_screen_pkg.__file__).parent / "web"
+
+# The SIC webserver (run-webserver) must be running before this line.
+webserver = Webserver(
+    conf=WebserverConf(
+        templates_dir=str(_WEB_DIR / "templates"),
+        static_dir=str(_WEB_DIR / "static"),
+        port=5000,
+    )
+)
+screen = SICScreenAdapter(webserver=webserver)
+
+agent = ConversationAgent(
+    device=device,
+    tts_provider=tts,
+    nlu_provider=nlu,
+    screen_provider=screen,   # optional — omit entirely for robot-only sessions
+)
+```
+
+Use `NullScreenProvider` during development when no browser is available — it logs display commands to DEBUG and satisfies the provider protocol:
+
+```python
+from nardial.providers.screen.null import NullScreenProvider
+agent = ConversationAgent(..., screen_provider=NullScreenProvider())
+```
 
 ---
 
@@ -1004,7 +1057,7 @@ Pauses dialog execution for a fixed duration. Useful for dramatic pauses or wait
 
 #### `wait_for_web_input`
 
-Pauses the dialog and waits for a selection from an external web interface (delivered via `WebhookSource`). The selected option becomes the current outcome for a subsequent `branch` move.
+Pauses the dialog and waits for a button click from the browser screen. When a `ScreenProvider` is configured, buttons are displayed automatically before the wait and hidden once a selection arrives (or the timeout fires). The selected option becomes the current outcome for a subsequent `branch` move.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -1077,6 +1130,90 @@ Triggers a named animation behavior on the robot.
 
 ---
 
+#### `show_image`
+
+Displays an image in the browser's display area. Requires a `ScreenProvider`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"show_image"` |
+| `src` | string | ✅ | Local file path (relative to the static dir) or a full URL |
+| `caption` | string | | Optional caption text shown below the image |
+
+```json
+{ "type": "show_image", "src": "https://example.com/photo.jpg", "caption": "A sample image" }
+```
+
+---
+
+#### `show_video`
+
+Displays a video in the browser's display area. Requires a `ScreenProvider`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"show_video"` |
+| `src` | string | ✅ | Local file path or embeddable URL (e.g. a YouTube embed link) |
+
+```json
+{ "type": "show_video", "src": "https://www.youtube.com/embed/dQw4w9WgXcQ" }
+```
+
+---
+
+#### `show_iframe`
+
+Embeds an external URL in an iframe that fills the display area. Requires a `ScreenProvider`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"show_iframe"` |
+| `url` | string | ✅ | URL to embed |
+
+```json
+{ "type": "show_iframe", "url": "https://www.openstreetmap.org/export/embed.html?..." }
+```
+
+---
+
+#### `show_html`
+
+Renders a raw HTML snippet in the display area. Dialog authors are responsible for the content. Requires a `ScreenProvider`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"show_html"` |
+| `html` | string | ✅ | HTML to inject via `innerHTML` |
+
+```json
+{
+  "type": "show_html",
+  "html": "<div style='color:white;text-align:center;font-size:3em;margin-top:30vh'>Ready?</div>"
+}
+```
+
+---
+
+#### `black_screen`
+
+Sets the display to black/blank. Useful before or after media moves to avoid distracting content. Requires a `ScreenProvider`.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"black_screen"` |
+
+```json
+{ "type": "black_screen" }
+```
+
+> **Note:** All five screen display moves (`show_image`, `show_video`, `show_iframe`, `show_html`, `black_screen`) are **silently skipped** with a `WARNING` log when no `ScreenProvider` is configured on the agent. Sessions without a screen provider run identically.
+
+> **Transcript display** is automatic: `say()` always pushes robot text and `listen()` always pushes user speech to the screen transcript pane. No explicit transcript move is needed.
+
+> **Button display** is automatic for `wait_for_web_input`: buttons are shown on screen before waiting and hidden once a selection is made or the timeout fires.
+
+---
+
 ### Key JSON Attributes
 
 | Attribute | Where used | Description |
@@ -1106,9 +1243,10 @@ Triggers a named animation behavior on the robot.
 
 All you need is a minimal Python script that wires up the device, loads the dialog JSON, and runs the session. You can follow the included demos to get started quickly.
 
-Two ready-to-run demos are included in the `examples/` directory:
+Three ready-to-run demos are included in the `examples/` directory:
 * Demo 1 — General Conversation (`demo_general_conversation.py`): A simple four-step conversation using a mix of narrative and functional dialogs
 * Demo 2 — Structured Conversation (`demo_structured_conversation.py`): A more complete example that demonstrates all dialog types and move types, including `ask_llm`, `play`, `motion_sequence`, and `animation`
+* Demo 3 — Screen Provider (`demo_screen_provider.py`): Demonstrates the browser-based screen provider — transcript display, images, iframes, HTML, and interactive buttons. Requires only Redis and `run-webserver`; no cloud TTS or NLU services needed.
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 

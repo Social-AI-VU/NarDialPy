@@ -37,11 +37,16 @@ from nardial.moves import (
     MOVE_ASK_OPEN,
     MOVE_ASK_OPTIONS,
     MOVE_ASK_YESNO,
+    MOVE_BLACK_SCREEN,
     MOVE_LLM_FOLLOWUP,
     MOVE_LLM_SAY,
     MOVE_MOTION_SEQUENCE,
     MOVE_PLAY_AUDIO,
     MOVE_SAY,
+    MOVE_SHOW_HTML,
+    MOVE_SHOW_IFRAME,
+    MOVE_SHOW_IMAGE,
+    MOVE_SHOW_VIDEO,
     MOVE_TIMED_WAIT,
     MOVE_WAIT_FOR_BUTTON,
     MOVE_WAIT_FOR_WEB_INPUT,
@@ -663,14 +668,24 @@ class DialogRuntime:
     async def _handle_wait_for_web_input(self, move: Any, context: RunContext) -> None:
         """Wait for a web-input event whose value is in ``move.options``, or until timeout.
 
+        If a screen provider is configured and ``move.options`` is non-empty, buttons
+        are shown before waiting and hidden after resolution (match or timeout).
         If no event bus is wired up, resolves immediately to ``move.default_outcome``.
         """
+        sp = self._agent.orchestrator.screen_provider
+
+        # Show buttons on screen before waiting (only when options are declared).
+        if sp is not None and move.options:
+            await sp.show_buttons(move.options)
+
         if self._bus is None:
             logger.warning(
                 "wait_for_web_input move encountered but no EventBus is attached — "
                 "resolving to default_outcome=%r", move.default_outcome
             )
             context.current_outcome = move.default_outcome
+            if sp is not None:
+                await sp.hide_input()
             return
 
         def _predicate(ev: Any) -> bool:
@@ -705,3 +720,107 @@ class DialogRuntime:
             })
         finally:
             self._bus.unsubscribe(sub)
+            # Hide input after resolution regardless of outcome (match or timeout).
+            if sp is not None:
+                await sp.hide_input()
+
+    async def _handle_show_image(self, move: Any, context: RunContext) -> None:
+        """Display an image on the screen.
+
+        Skipped with a warning if no screen provider is configured on the agent.
+        """
+        sp = self._agent.orchestrator.screen_provider
+        if sp is None:
+            logger.warning(
+                "show_image move encountered but no screen provider is configured — skipped"
+            )
+            context.session_history.append({
+                "role": "system", "type": MOVE_SHOW_IMAGE,
+                "src": move.src, "caption": move.caption, "skipped": True,
+            })
+            return
+        await sp.show_image(move.src, caption=move.caption)
+        context.session_history.append({
+            "role": "system", "type": MOVE_SHOW_IMAGE,
+            "src": move.src, "caption": move.caption,
+        })
+
+    async def _handle_show_video(self, move: Any, context: RunContext) -> None:
+        """Display a video on the screen.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        sp = self._agent.orchestrator.screen_provider
+        if sp is None:
+            logger.warning(
+                "show_video move encountered but no screen provider is configured — skipped"
+            )
+            context.session_history.append({
+                "role": "system", "type": MOVE_SHOW_VIDEO,
+                "src": move.src, "skipped": True,
+            })
+            return
+        await sp.show_video(move.src)
+        context.session_history.append({
+            "role": "system", "type": MOVE_SHOW_VIDEO, "src": move.src,
+        })
+
+    async def _handle_show_iframe(self, move: Any, context: RunContext) -> None:
+        """Embed an external URL in an iframe on the screen.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        sp = self._agent.orchestrator.screen_provider
+        if sp is None:
+            logger.warning(
+                "show_iframe move encountered but no screen provider is configured — skipped"
+            )
+            context.session_history.append({
+                "role": "system", "type": MOVE_SHOW_IFRAME,
+                "url": move.url, "skipped": True,
+            })
+            return
+        await sp.show_iframe(move.url)
+        context.session_history.append({
+            "role": "system", "type": MOVE_SHOW_IFRAME, "url": move.url,
+        })
+
+    async def _handle_show_html(self, move: Any, context: RunContext) -> None:
+        """Render a raw HTML snippet on the screen.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        sp = self._agent.orchestrator.screen_provider
+        if sp is None:
+            logger.warning(
+                "show_html move encountered but no screen provider is configured — skipped"
+            )
+            context.session_history.append({
+                "role": "system", "type": MOVE_SHOW_HTML,
+                "html_length": len(move.html), "skipped": True,
+            })
+            return
+        await sp.show_html(move.html)
+        context.session_history.append({
+            "role": "system", "type": MOVE_SHOW_HTML,
+            "html_length": len(move.html),
+        })
+
+    async def _handle_black_screen(self, move: Any, context: RunContext) -> None:
+        """Set the screen to black/blank.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        sp = self._agent.orchestrator.screen_provider
+        if sp is None:
+            logger.warning(
+                "black_screen move encountered but no screen provider is configured — skipped"
+            )
+            context.session_history.append({
+                "role": "system", "type": MOVE_BLACK_SCREEN, "skipped": True,
+            })
+            return
+        await sp.black()
+        context.session_history.append({
+            "role": "system", "type": MOVE_BLACK_SCREEN,
+        })

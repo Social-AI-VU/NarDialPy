@@ -3,6 +3,7 @@ from nardial.providers.tts import TTSProvider
 from nardial.providers.nlu import NLUProvider, NLUResult
 from nardial.providers.llm import LLMProvider, Message
 from nardial.providers.vector_store import VectorStoreProvider
+from nardial.providers.screen import ScreenProvider
 
 __all__ = [
     "DeviceAdapter", "AnimationStyle",
@@ -10,4 +11,5 @@ __all__ = [
     "NLUProvider", "NLUResult",
     "LLMProvider", "Message",
     "VectorStoreProvider",
+    "ScreenProvider",
 ]

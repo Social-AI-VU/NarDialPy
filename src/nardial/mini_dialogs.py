@@ -115,6 +115,19 @@ class FunctionalLabel(Enum):
 
 
 class FunctionalDialog(ScriptedMiniDialog):
+    """A scripted dialog that serves a fixed structural role in the session.
+
+    Functional dialogs are social bookends (greeting, farewell) that run at the
+    start or end of a session.  They intentionally carry no
+    ``ExcludeIfSeenRule`` so they re-run at the beginning of every session.
+
+    Parameters
+    ----------
+    functional_type : str or FunctionalLabel
+        Role label — ``"greeting"`` or ``"farewell"``.  String values are
+        coerced to the enum so comparisons always work.
+    """
+
     # Indexed by the string value of functional_type (e.g. "greeting", "farewell").
     INDEX_ATTRS: list[str] = ["functional_type"]
     # No ExcludeIfSeenRule — greetings and farewells re-run at the start of every session.
@@ -140,6 +153,20 @@ class FunctionalDialog(ScriptedMiniDialog):
 
 
 class NarrativeDialog(ScriptedMiniDialog):
+    """A scripted dialog that belongs to an ordered narrative thread.
+
+    Narrative dialogs are story steps.  The ``NarrativeOrderingRule`` ensures
+    that a dialog at ``position N`` only runs after all lower-positioned siblings
+    in the same ``thread`` have been completed.
+
+    Parameters
+    ----------
+    thread : str
+        Narrative thread name (e.g. ``"main_story"``).
+    position : int
+        1-based index within the thread.
+    """
+
     INDEX_ATTRS: list[str] = ["thread"]
     DEFAULT_ELIGIBILITY = EligibilityPolicy([ExcludeIfSeenRule(), DepsMetRule(), VariableDepsMetRule(), NarrativeOrderingRule()])
     dialog_type: DialogType = DialogType.NARRATIVE
@@ -152,6 +179,19 @@ class NarrativeDialog(ScriptedMiniDialog):
 
 
 class ChitchatDialog(ScriptedMiniDialog):
+    """A scripted dialog for short, topical small talk.
+
+    Topics are matched against the user's accumulated topics of interest so
+    the agenda system can select contextually relevant chitchat.  Each topic
+    string is indexed individually, so ``get_by_attr("topics", "pizza")``
+    returns every ``ChitchatDialog`` whose ``topics`` list contains ``"pizza"``.
+
+    Parameters
+    ----------
+    topics : list[str]
+        Keywords used to match this dialog against the user's interests.
+    """
+
     # topics is a list — each element is indexed individually so get_by_attr("topics", "pizza")
     # returns all ChitchatDialogs whose topics list contains "pizza".
     INDEX_ATTRS: list[str] = ["topics"]

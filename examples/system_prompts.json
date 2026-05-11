@@ -1,0 +1,3 @@
+{
+  "personalize_followup": "The user was asked: \"{question}\". They responded: \"{answer}\". Generate a brief, warm follow-up utterance (1–2 sentences) acknowledging what they said. Do not ask a follow-up question."
+}

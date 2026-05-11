@@ -122,7 +122,8 @@ class SessionPlan(BaseModel):
 
         Tries an exact match on ``session_index`` first.  If the session number
         exceeds the highest defined index, the template with the highest index
-        is returned.  Returns ``None`` only when ``sessions`` is empty.
+        is returned.  Returns ``None`` when ``sessions`` is empty or when
+        ``session_number`` is below the minimum defined ``session_index``.
 
         Parameters
         ----------

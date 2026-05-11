@@ -1,3 +1,9 @@
+"""Thin adapter converting between Pydantic authoring specs and runtime dialog objects.
+
+``from_json`` parses a raw dict (as loaded from JSON) into a typed ``MiniDialog`` instance.
+``to_json`` serialises a ``MiniDialog`` back to a JSON-ready dict for round-trip fidelity.
+"""
+
 from typing import Any, assert_never
 
 from pydantic import TypeAdapter
@@ -89,6 +95,7 @@ def _dialog_to_spec(d: MiniDialog) -> AnyDialogSpec:
             id=d.dialog_id,
             moves=d.moves,
             dependencies=list(d.dependencies),
+            variable_dependencies=vdeps,
             functional_type=d.type.value,
         )
     if isinstance(d, NarrativeDialog):

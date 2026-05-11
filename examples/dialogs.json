@@ -437,6 +437,7 @@
     "type": "chitchat",
     "topics": ["test", "personalization", "nature"],
     "dependencies": ["greeting"],
+    "_doc": "Demonstrates personalize_followup. Requires an LLM provider — the agent will generate a warm follow-up based on what the user says. The followup_prompt field overrides the default from system_prompts.json; omit it to use the file default.",
     "moves": [
       { "type": "say", "text": "Let's try a small personalized follow-up." },
       {
@@ -444,7 +445,8 @@
         "text": "What's something fun you did today?",
         "set_variable": "today_fun",
         "add_interest_from_answer": true,
-        "personalize_followup": true
+        "personalize_followup": true,
+        "followup_prompt": "The user was asked: \"{question}\". They said: \"{answer}\". React with one warm, specific sentence that shows you listened. Do not ask another question."
       },
       { "type": "say", "text": "Thanks for telling me!" }
     ]

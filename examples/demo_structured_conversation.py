@@ -125,7 +125,7 @@ if __name__ == '__main__':
         tts_provider=tts,
         nlu_provider=nlu,
         llm_provider=llm,
-        int_config=interaction_config,
+        interaction_config=interaction_config,
     )
 
     # To enable RAG, pass a vector store:

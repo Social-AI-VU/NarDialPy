@@ -36,7 +36,7 @@ class EligibilityRule(ABC):
 
         Parameters
         ----------
-        dialog : BaseDialog
+        dialog : MiniDialog
             The candidate dialog being evaluated.
         context : AgendaContext
             Current session state, including registry, completion history, and
@@ -164,7 +164,7 @@ class EligibilityPolicy:
 
         Parameters
         ----------
-        dialog : BaseDialog
+        dialog : MiniDialog
             Candidate dialog to evaluate.
         context : AgendaContext
             Current session state.

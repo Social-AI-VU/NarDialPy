@@ -11,8 +11,7 @@ import logging
 from collections import defaultdict
 from typing import Any
 
-from nardial.mini_dialogs import MiniDialog
-from nardial.mini_dialogs import DialogType
+from nardial.mini_dialogs import MiniDialog, DialogType
 
 logger = logging.getLogger(__name__)
 

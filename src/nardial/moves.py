@@ -1,4 +1,12 @@
-from typing import Annotated, Dict, List, Literal, Optional, Union
+"""Pure Pydantic data models for every move type.
+
+Each class represents one step in a scripted dialog: what the robot says or
+asks, what input to collect, and how to route based on outcomes.  These are
+schema, validation, and serialisation only — all execution logic lives in
+:class:`~nardial.dialog_runtime.DialogRuntime`.
+"""
+
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -37,11 +45,11 @@ class MoveAskYesNo(BaseModel):
 
     type: Literal[MOVE_ASK_YESNO] = MOVE_ASK_YESNO
     text: str
-    set_variable: Optional[str] = None
-    add_interest: Optional[str] = None
-    llm_followup: Optional[str] = None
-    outcomes: Dict[str, str] = Field(default_factory=dict)
-    default_outcome: Optional[str] = None
+    set_variable: str | None = None
+    add_interest: str | None = None
+    llm_followup: str | None = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
+    default_outcome: str | None = None
 
 
 class MoveAskOpen(BaseModel):
@@ -49,13 +57,14 @@ class MoveAskOpen(BaseModel):
 
     type: Literal[MOVE_ASK_OPEN] = MOVE_ASK_OPEN
     text: str
-    set_variable: Optional[str] = None
-    add_interest_from_answer: Optional[bool] = None
-    add_interest_from_variable: Optional[str] = None
-    personalize_followup: Optional[bool] = None
-    llm_followup: Optional[str] = None
-    outcomes: Dict[str, str] = Field(default_factory=dict)
-    default_outcome: Optional[str] = None
+    set_variable: str | None = None
+    add_interest_from_answer: bool | None = None
+    add_interest_from_variable: str | None = None
+    personalize_followup: bool | None = None
+    followup_prompt: str | None = None
+    llm_followup: str | None = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
+    default_outcome: str | None = None
 
 
 class MoveAskOptions(BaseModel):
@@ -63,12 +72,12 @@ class MoveAskOptions(BaseModel):
 
     type: Literal[MOVE_ASK_OPTIONS] = MOVE_ASK_OPTIONS
     text: str
-    options: List[str] = Field(min_length=1)
-    set_variable: Optional[str] = None
-    add_interest_from_variable: Optional[str] = None
-    llm_followup: Optional[str] = None
-    outcomes: Dict[str, str] = Field(default_factory=dict)
-    default_outcome: Optional[str] = None
+    options: list[str] = Field(min_length=1)
+    set_variable: str | None = None
+    add_interest_from_variable: str | None = None
+    llm_followup: str | None = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
+    default_outcome: str | None = None
 
 
 class MoveAskLLM(BaseModel):
@@ -76,12 +85,12 @@ class MoveAskLLM(BaseModel):
 
     type: Literal[MOVE_ASK_LLM] = MOVE_ASK_LLM
     prompt: str
-    set_variable: Optional[str] = None
-    max_turns: Optional[int] = None
-    quit_phrases: List[str] = Field(default_factory=list)
+    set_variable: str | None = None
+    max_turns: int | None = None
+    quit_phrases: list[str] = Field(default_factory=list)
     quit_signal: str = LLM_QUIT_SIGNAL
-    outcomes: Dict[str, str] = Field(default_factory=dict)
-    default_outcome: Optional[str] = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
+    default_outcome: str | None = None
 
 
 class MovePlayAudio(BaseModel):
@@ -111,7 +120,7 @@ class MoveBranch(BaseModel):
 
     type: Literal[MOVE_BRANCH] = MOVE_BRANCH
     on: str = "outcome"
-    cases: Dict[str, List["AnyMove"]] = Field(default_factory=dict)
+    cases: dict[str, list["AnyMove"]] = Field(default_factory=dict)
 
 
 class MoveWaitForButton(BaseModel):
@@ -133,9 +142,9 @@ class MoveWaitForButton(BaseModel):
     """
 
     type: Literal[MOVE_WAIT_FOR_BUTTON] = MOVE_WAIT_FOR_BUTTON
-    buttons: List[str]
-    timeout: Optional[float] = None
-    outcomes: Dict[str, str] = Field(default_factory=dict)
+    buttons: list[str]
+    timeout: float | None = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
     default_outcome: str = "timeout"
 
 
@@ -176,9 +185,9 @@ class MoveWaitForWebInput(BaseModel):
 
     type: Literal[MOVE_WAIT_FOR_WEB_INPUT] = MOVE_WAIT_FOR_WEB_INPUT
     prompt: str = ""
-    options: List[str] = Field(default_factory=list)
-    timeout: Optional[float] = None
-    outcomes: Dict[str, str] = Field(default_factory=dict)
+    options: list[str] = Field(default_factory=list)
+    timeout: float | None = None
+    outcomes: dict[str, str] = Field(default_factory=dict)
     default_outcome: str = "timeout"
 
 

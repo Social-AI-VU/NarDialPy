@@ -64,7 +64,9 @@ class UserModel(MutableMapping):
         # Connection parameters are read from environment variables so that
         # deployments can override them without touching source code.
         # Matching the variable names already documented in the project .env file.
-        if _HAS_REDIS_DS and RedisDatastoreConf and RedisDatastore:
+        # Guard: skip entirely when no participant is set — avoids an unnecessary
+        # network attempt that would be immediately thrown away.
+        if participant_id is not None and _HAS_REDIS_DS and RedisDatastoreConf and RedisDatastore:
             try:
                 conf = RedisDatastoreConf(
                     host=os.environ.get("DB_IP", "127.0.0.1"),
@@ -205,14 +207,14 @@ class UserModel(MutableMapping):
         return dict(self._cache)
 
     def __delitem__(self, key: str) -> None:
+        self._ensure_loaded()
         if self._datastore and self._pid and DeleteUsermodelValuesRequest:
             try:
                 self._datastore.request(DeleteUsermodelValuesRequest(user_id=self._pid, keys=[key]))
-                self._cache.pop(key, None)
             except Exception:
-                self._cache.pop(key, None)
-        else:
-            self._cache.pop(key, None)
+                pass
+        # Raises KeyError for missing keys, as MutableMapping requires.
+        del self._cache[key]
 
     def clear_remote(self) -> None:
         # Delete the entire user from datastore if available

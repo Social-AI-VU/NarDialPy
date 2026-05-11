@@ -71,7 +71,7 @@ class InteractionOrchestrator:
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
-                 interaction_config: InteractionConfig = None):
+                 interaction_config: InteractionConfig | None = None):
 
         if interaction_config is None:
             interaction_config = InteractionConfig()
@@ -116,7 +116,16 @@ class InteractionOrchestrator:
     # Logging helpers
     # ------------------------------------------------------------------
 
-    def start_logging(self, log_id, init_data: dict):
+    def start_logging(self, log_id: str, init_data: dict) -> None:
+        """Open a background log file and start the writer thread.
+
+        Parameters
+        ----------
+        log_id : str
+            Base name for the log file (written under ``logs/<log_id>.log``).
+        init_data : dict
+            Key/value pairs written as the first line of the log (e.g. participant ID, run ID).
+        """
         folder = Path("logs")
         folder.mkdir(parents=True, exist_ok=True)
         log_path = folder / f"{log_id}.log"
@@ -128,7 +137,8 @@ class InteractionOrchestrator:
         self._log_queue.put(f'[{timestamp}] ### START NEW LOG ###')
         self._log_queue.put(', '.join(f"{k}: {v}" for k, v in init_data.items()))
 
-    def stop_logging(self):
+    def stop_logging(self) -> None:
+        """Send the sentinel to the writer thread and wait for it to finish."""
         if self._log_queue:
             self._log_queue.put(None)
         if self._log_thread:
@@ -146,12 +156,29 @@ class InteractionOrchestrator:
                 except Exception:
                     self.logger.exception("log_writer: unexpected error — log thread continuing")
 
-    def log_utterance(self, speaker, text):
+    def log_utterance(self, speaker: str, text: str) -> None:
+        """Append a timestamped speaker/text line to the session log.
+
+        Parameters
+        ----------
+        speaker : str
+            Label for the speaker (e.g. ``"robot"`` or ``"user"``).
+        text : str
+            The spoken or recognised text.
+        """
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] {speaker}: {text}")
 
-    def log_recognition_result(self, recognition_result):
+    def log_recognition_result(self, recognition_result) -> None:
+        """Append the full NLU recognition result to the session log.
+
+        Parameters
+        ----------
+        recognition_result : NLUResult
+            The complete result object returned by the NLU provider (intent,
+            transcript, confidence, etc.).
+        """
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
@@ -210,6 +237,7 @@ class InteractionOrchestrator:
             self.device.signal_listening(start=False)
         if result.transcript:
             self.log_utterance(speaker='user', text=result.transcript)
+        self.log_recognition_result(result)
         return result
 
     async def request_from_llm(

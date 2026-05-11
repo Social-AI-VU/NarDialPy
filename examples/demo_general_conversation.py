@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     # Create conversational agent
     interaction_config = InteractionConfig(post_speech_delay=0, signal_listening_behavior=False)
-    agent = ConversationAgent(device=device, tts_provider=tts, nlu_provider=nlu, int_config=interaction_config)
+    agent = ConversationAgent(device=device, tts_provider=tts, nlu_provider=nlu, interaction_config=interaction_config)
 
     # all dialogs for now
     session_agenda = ["greeting", "hero_can_dream_1", "dream12", "goodbye"]

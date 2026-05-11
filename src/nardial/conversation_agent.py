@@ -44,7 +44,7 @@ class ConversationAgent:
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
-                 interaction_config: InteractionConfig = None):
+                 interaction_config: InteractionConfig | None = None):
         self.orchestrator = InteractionOrchestrator(
             device=device,
             tts_provider=tts_provider,
@@ -183,7 +183,7 @@ class ConversationAgent:
         if answer:
             answer_lower = answer.lower()
             for opt in options:
-                if opt in answer_lower:
+                if opt.lower() in answer_lower:
                     return opt
         return None
 

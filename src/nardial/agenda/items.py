@@ -13,7 +13,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter as _TypeAdapter
 
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.eligibility import EligibilityPolicy
@@ -426,7 +426,6 @@ AnyAgendaItem = Annotated[
 ]
 
 # Module-level singleton — TypeAdapter construction is expensive; build once.
-from pydantic import TypeAdapter as _TypeAdapter
 _agenda_item_adapter: _TypeAdapter[AnyAgendaItem] = _TypeAdapter(AnyAgendaItem)
 
 

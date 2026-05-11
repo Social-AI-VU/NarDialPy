@@ -130,7 +130,6 @@ class ConversationState:
         self.sessions: List[Session] = []
 
         # participants folder inside caller's project
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
@@ -143,6 +142,11 @@ class ConversationState:
             self.restore_participant_state()
 
     def restore_participant_state(self) -> None:
+        """Load continuity data (completed dialogs, topics) for the current participant.
+
+        Reads from Redis (default) or the shared JSON file (when ``use_json_file=True``).
+        Called automatically from ``__init__`` when a ``participant_id`` is provided.
+        """
         logger.info("Using participant_id=%s", self.participant_id)
         self.user_model.set_participant(self.participant_id)
 
@@ -174,6 +178,11 @@ class ConversationState:
             return set(), []
 
     def load_state_from_json(self) -> None:
+        """Load shared continuity state from the JSON file at ``self.path``.
+
+        Only called when ``use_json_file=True``.  Falls back to an empty state
+        when the file does not exist or is corrupt.
+        """
         if not self.path.exists():
             self._initialize_empty_state()
             return
@@ -191,6 +200,7 @@ class ConversationState:
         self.sessions = [Session.model_validate(s) for s in data.get("sessions", [])]
 
     def _initialize_empty_state(self) -> None:
+        """Reset in-memory state to empty and, when ``use_json_file=True``, write a blank file."""
         self.completed_dialogs = []
         self.topics_of_interest = []
         self.sessions = []
@@ -199,6 +209,10 @@ class ConversationState:
             self.save_state_to_json()  # create file immediately
 
     def save_state_to_json(self) -> None:
+        """Write shared continuity state to ``self.path``.
+
+        No-op when ``use_json_file=False``.
+        """
         if not self.use_json_file:
             return
         data = {
@@ -306,12 +320,14 @@ class ConversationState:
         elif isinstance(user_model, UserModel):
             try:
                 user_model_snapshot = dict(user_model.as_dict())
-            except Exception:
+            except Exception as exc:
+                logger.warning("end_session: failed to snapshot UserModel: %s", exc)
                 user_model_snapshot = {}
         elif user_model is not None:
             try:
                 user_model_snapshot = dict(user_model)
-            except Exception:
+            except Exception as exc:
+                logger.warning("end_session: failed to convert user_model to dict: %s", exc)
                 user_model_snapshot = {}
 
         sess.summary = {
@@ -320,7 +336,7 @@ class ConversationState:
             **(extra_summary or {})
         }
 
-        if not completed_ids and not sess.dialog_ids:
+        if completed_ids is None and not sess.dialog_ids:
             self._derive_dialog_ids_from_events(sess)
 
         if completed_ids:

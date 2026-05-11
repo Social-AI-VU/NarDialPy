@@ -125,9 +125,7 @@ class InteractionConfig:
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
-                 log_level: Optional[Union[str, int]] = None,
-                 wait_for_playback: bool = True,
-                 playback_tail_margin_sec: float = 0.05):
+                 log_level: Optional[Union[str, int]] = None):
         """
         Initialize interaction configuration.
 
@@ -141,9 +139,6 @@ class InteractionConfig:
             signal_listening_behavior (bool): Whether to show listening indicators.
             log_level (str | int | None): SIC / app log level name (e.g. ``\"INFO\"``) or numeric level.
                 ``None`` defaults to DEBUG (matches prior hard-coded behavior).
-            wait_for_playback (bool): After PCM is sent to speakers, sleep for estimated playback duration
-                (helps Desktop/PyAudio where audio may still be in the output buffer).
-            playback_tail_margin_sec (float): Extra seconds after estimated PCM duration (buffering/OS latency).
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -183,8 +178,6 @@ class InteractionConfig:
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
         self.log_level = log_level
-        self.wait_for_playback = bool(wait_for_playback)
-        self.playback_tail_margin_sec = float(playback_tail_margin_sec)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -483,29 +476,6 @@ class InteractionOrchestrator:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
-    def _wait_after_pcm_playback(
-            self, audio_bytes: bytes, sample_rate: int, channels: int = 1, sample_width: int = 2) -> None:
-        """
-        Block until PCM should have finished playing on the speaker device.
-
-        PyAudio often returns from ``stream.write`` while data is still in the output buffer.
-        """
-        if not self.interaction_conf.wait_for_playback:
-            return
-        if not audio_bytes or sample_rate <= 0:
-            return
-        bpf = channels * sample_width
-        if bpf <= 0:
-            return
-        n_frames = len(audio_bytes) // bpf
-        if n_frames <= 0:
-            return
-        duration = n_frames / float(sample_rate)
-        margin = max(0.0, self.interaction_conf.playback_tail_margin_sec)
-        delay = duration + margin
-        if delay > 0:
-            sleep(delay)
-
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         if animated:
@@ -555,7 +525,6 @@ class InteractionOrchestrator:
 
             # Play audio
             self.speaker.request(AudioRequest(audio_bytes, sample_rate))
-            self._wait_after_pcm_playback(audio_bytes, sample_rate)
             self.log_utterance(speaker='robot', text=text)
 
             # Save to cache file
@@ -589,9 +558,7 @@ class InteractionOrchestrator:
                 continue
 
             # Play audio
-            sr = self.sample_rate or 22050
-            self.speaker.request(AudioRequest(audio_bytes, sr))
-            self._wait_after_pcm_playback(audio_bytes, sr)
+            self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
@@ -668,9 +635,7 @@ class InteractionOrchestrator:
             if amplified:
                 audio = self._amplify_audio(audio)
 
-            channels = wf.getnchannels()
             self.speaker.request(AudioRequest(audio, framerate))
-            self._wait_after_pcm_playback(audio, framerate, channels=channels)
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 

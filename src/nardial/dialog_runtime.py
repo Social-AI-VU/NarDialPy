@@ -20,12 +20,10 @@ _run_llm_exchange    Async multi-turn LLM conversation driver (exposed for direc
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +38,7 @@ from nardial.moves import (
     MOVE_ASK_OPTIONS,
     MOVE_ASK_YESNO,
     MOVE_LLM_FOLLOWUP,
+    MOVE_LLM_SAY,
     MOVE_MOTION_SEQUENCE,
     MOVE_PLAY_AUDIO,
     MOVE_SAY,
@@ -53,53 +52,6 @@ if TYPE_CHECKING:
     from nardial.events.checkpoint import AnyCheckpoint
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# System prompts
-# ---------------------------------------------------------------------------
-
-# Code-level fallback prompts used when no system_prompts.json file is provided.
-# The preferred way to customise these is to pass system_prompts_path to SessionManager
-# and edit that JSON file — changing this dict requires a code change.
-_BUILTIN_PROMPTS: dict[str, str] = {
-    "personalize_followup": (
-        'The user was asked: "{question}". '
-        'They responded: "{answer}". '
-        "Generate a brief, warm follow-up utterance (1–2 sentences) "
-        "acknowledging what they said. Do not ask a follow-up question."
-    ),
-}
-
-
-def _load_system_prompts(path: str | None) -> dict[str, str]:
-    """Load a system prompts JSON file, returning an empty dict on failure.
-
-    The file must be a JSON object mapping prompt keys to template strings.
-    Template strings may use ``{question}`` and ``{answer}`` as placeholders.
-
-    Parameters
-    ----------
-    path : str or None
-        Filesystem path to the prompts JSON file.  Returns ``{}`` when ``None``.
-
-    Returns
-    -------
-    dict[str, str]
-        Loaded prompts, or an empty dict if the file is absent or unreadable.
-    """
-    if path is None:
-        return {}
-    try:
-        with open(Path(path), "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            logger.warning("system_prompts file %r must be a JSON object — ignored", path)
-            return {}
-        return {str(k): str(v) for k, v in data.items()}
-    except Exception as exc:
-        logger.warning("Failed to load system_prompts from %r: %s", path, exc)
-        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -327,13 +279,9 @@ class DialogRuntime:
         self,
         agent: Any,
         event_bus: "EventBus | None" = None,
-        system_prompts: dict[str, str] | None = None,
     ) -> None:
         self._agent = agent
         self._bus = event_bus
-        # Prompts loaded from the designer's system_prompts.json file; fallback
-        # to _BUILTIN_PROMPTS when a key is absent.
-        self._system_prompts: dict[str, str] = system_prompts or {}
         # Set by _run_mini when a BETWEEN_MOVES event interrupts a dialog;
         # read by SessionManager._dialog_loop() to decide PAUSE vs DISCARD.
         self.last_interrupt_event: Any = None
@@ -545,12 +493,8 @@ class DialogRuntime:
     async def _finalize_ask(self, move: Any, answer: str | None, context: RunContext) -> None:
         """Shared tail for all ask-move handlers: variable storage, interests, LLM followup, outcome.
 
-        LLM follow-up priority (first match wins):
-        1. ``move.llm_followup`` — author-supplied system prompt (any ask-move type).
-        2. ``move.personalize_followup=True`` with ``move.followup_prompt`` — per-move
-           prompt override for ``ask_open`` moves.
-        3. ``move.personalize_followup=True`` without ``move.followup_prompt`` — resolved
-           from the loaded system_prompts file, then from the built-in default.
+        When ``move.llm_followup`` is set, the LLM generates a single contextual
+        utterance using that string as the system prompt before the outcome is resolved.
         """
         logger.debug("User answered: %s", answer)
         self._store_set_variable(move, answer, context)
@@ -559,16 +503,6 @@ class DialogRuntime:
             await self._generate_llm_followup(
                 context, user_answer=answer or "", system_prompt=move.llm_followup
             )
-        elif getattr(move, "personalize_followup", False) and answer:
-            # Resolve prompt: per-move override > prompts file > built-in default.
-            prompt_template = (
-                getattr(move, "followup_prompt", None)
-                or self._system_prompts.get("personalize_followup")
-                or _BUILTIN_PROMPTS.get("personalize_followup", "")
-            )
-            if prompt_template:
-                system_prompt = prompt_template.format(question=move.text, answer=answer)
-                await self._generate_llm_followup(context, user_answer=answer, system_prompt=system_prompt)
         self._resolve_outcome(move, answer, context)
 
     # ------------------------------------------------------------------
@@ -645,6 +579,35 @@ class DialogRuntime:
             quit_phrases=move.quit_phrases,
             quit_signal=move.quit_signal,
         )
+
+    async def _handle_llm_say(self, move: Any, context: RunContext) -> None:
+        """Generate a single LLM utterance and speak it.
+
+        The system prompt undergoes ``%variable%`` substitution before being sent
+        to the LLM, so dialog authors can embed stored user-model values directly
+        (e.g. ``"The user likes %favorite_animal%. React warmly."``).
+
+        The full session history is passed as context so the generated utterance
+        is coherent with the preceding conversation.  If the LLM provider is not
+        configured or returns nothing, the move is silently skipped.
+        """
+        system_prompt = _substitute_variables(move.prompt, context.user_model)
+        context_messages = [
+            entry.get("text", "") for entry in context.session_history
+            if entry.get("text") is not None
+        ]
+        llm_text = await self._agent.ask_llm(
+            user_prompt="",
+            context_messages=context_messages,
+            system_prompt=system_prompt,
+            rag_enabled=move.rag_enabled,
+            index_name=move.index_name,
+        )
+        if llm_text:
+            await self._agent.say(llm_text)
+            context.session_history.append(
+                {"role": "robot", "type": MOVE_LLM_SAY, "text": llm_text}
+            )
 
     async def _handle_wait_for_button(self, move: Any, context: RunContext) -> None:
         """Wait for a button-press event from the event bus or until timeout.

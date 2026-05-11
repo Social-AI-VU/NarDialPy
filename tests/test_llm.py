@@ -5,9 +5,11 @@ from nardial.moves import (
     MoveAskOpen,
     MoveAskOptions,
     MoveAskYesNo,
+    MoveLLMSay,
     MOVE_ASK_LLM,
     MOVE_ANSWER_LLM,
     MOVE_LLM_FOLLOWUP,
+    MOVE_LLM_SAY,
     MOVE_ANSWER_OPEN,
     MOVE_ANSWER_YESNO,
     MOVE_ANSWER_OPTIONS,
@@ -242,3 +244,124 @@ async def test_dispatcher_runs_llm_followup_within_ask_open(
     agent.say.assert_called_once_with("Painting is a beautiful hobby!")
     assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
+
+
+# ---------------------------------------------------------------------------
+# MoveLLMSay tests
+# ---------------------------------------------------------------------------
+
+async def test_llm_say_generates_and_speaks_utterance(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say calls the LLM with the prompt and speaks the returned text."""
+    agent = make_mock_agent(ask_llm_side_effect=["What a lovely day for a walk!"])
+
+    move = MoveLLMSay(prompt="Generate a cheerful one-sentence remark about the weather.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_llm_say(move, context)
+
+    agent.ask_llm.assert_called_once()
+    agent.say.assert_called_once_with("What a lovely day for a walk!")
+    assert any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+    assert session_history[-1]['text'] == "What a lovely day for a walk!"
+
+
+async def test_llm_say_substitutes_variables_in_prompt(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say performs %variable% substitution on the prompt before the LLM call."""
+    agent = make_mock_agent(ask_llm_side_effect=["Labradors are wonderful!"])
+    user_model['favorite_animal'] = 'labrador'
+
+    move = MoveLLMSay(prompt="The user loves %favorite_animal%. React warmly in one sentence.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert 'labrador' in call_kwargs['system_prompt']
+    assert '%favorite_animal%' not in call_kwargs['system_prompt']
+
+
+async def test_llm_say_passes_session_history_as_context(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say forwards existing session history as context_messages to the LLM."""
+    agent = make_mock_agent(ask_llm_side_effect=["Interesting!"])
+    session_history.append({"role": "robot", "type": "say", "text": "Let's talk about food."})
+    session_history.append({"role": "user", "type": "answer_open", "text": "I love pizza."})
+
+    move = MoveLLMSay(prompt="React to the conversation so far.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert any("Let's talk about food." in m for m in call_kwargs['context_messages'])
+    assert any("I love pizza." in m for m in call_kwargs['context_messages'])
+
+
+async def test_llm_say_skips_when_llm_returns_none(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say does not call say() and records nothing when the LLM returns None."""
+    agent = make_mock_agent(ask_llm_side_effect=[None])
+
+    move = MoveLLMSay(prompt="Say something.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    agent.say.assert_not_called()
+    assert not any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+
+
+async def test_llm_say_uses_empty_user_prompt(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say passes an empty string as user_prompt — the system prompt carries all context."""
+    agent = make_mock_agent(ask_llm_side_effect=["Great!"])
+
+    move = MoveLLMSay(prompt="Be enthusiastic.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == ""
+
+
+async def test_dispatcher_routes_llm_say(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """The move dispatcher correctly routes llm_say moves."""
+    agent = make_mock_agent(
+        ask_open_side_effect=["Stargazing."],
+        ask_llm_side_effect=["That sounds amazing under a clear night sky!"],
+    )
+
+    moves = [
+        MoveAskOpen(text="What's your favorite activity?", set_variable="activity"),
+        MoveLLMSay(prompt="The user enjoys %activity%. React with one warm sentence."),
+    ]
+
+    dialog = ScriptedMiniDialog('test', moves=moves)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent).run(dialog, context)
+
+    agent.ask_llm.assert_called_once()
+    assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+    assert session_history[-1]['text'] == "That sounds amazing under a clear night sky!"
+
+
+async def test_llm_say_rag_enabled_forwarded(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """rag_enabled and index_name are forwarded to the LLM provider."""
+    agent = make_mock_agent(ask_llm_side_effect=["Here's what I know about that."])
+
+    move = MoveLLMSay(prompt="Answer based on stored knowledge.", rag_enabled=True, index_name="facts")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['rag_enabled'] is True
+    assert call_kwargs['index_name'] == "facts"

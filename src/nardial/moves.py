@@ -22,6 +22,7 @@ MOVE_BRANCH = "branch"
 MOVE_WAIT_FOR_BUTTON = "wait_for_button"
 MOVE_TIMED_WAIT = "timed_wait"
 MOVE_WAIT_FOR_WEB_INPUT = "wait_for_web_input"
+MOVE_LLM_SAY = "llm_say"
 
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
@@ -60,8 +61,6 @@ class MoveAskOpen(BaseModel):
     set_variable: str | None = None
     add_interest_from_answer: bool | None = None
     add_interest_from_variable: str | None = None
-    personalize_followup: bool | None = None
-    followup_prompt: str | None = None
     llm_followup: str | None = None
     outcomes: dict[str, str] = Field(default_factory=dict)
     default_outcome: str | None = None
@@ -161,6 +160,39 @@ class MoveTimedWait(BaseModel):
     duration_seconds: float
 
 
+class MoveLLMSay(BaseModel):
+    """A move that generates a single spoken utterance using the language model.
+
+    Unlike :class:`MoveAskLLM`, this is one-shot: the robot generates and speaks
+    one LLM response and does not listen for a user reply.  Use it to produce
+    dynamic, context-aware reactions — for example, immediately after an
+    ``ask_open`` move collects a user answer.
+
+    The full session history is passed to the LLM as context, so the generated
+    utterance is naturally informed by the preceding conversation without any
+    extra wiring.
+
+    Variable placeholders (``%variable%``) in ``prompt`` are substituted from
+    the user model before the LLM call, letting authors reference stored answers
+    directly (e.g. ``"The user likes %favorite_animal%. React warmly."``).
+
+    Parameters
+    ----------
+    prompt : str
+        System prompt sent to the LLM.  Supports ``%variable%`` substitution.
+    rag_enabled : bool
+        If True, retrieved snippets from the vector store are prepended to the
+        prompt.  Useful when the reaction should draw on stored knowledge.
+    index_name : str, optional
+        Vector store index to query; uses the provider default when omitted.
+    """
+
+    type: Literal[MOVE_LLM_SAY] = MOVE_LLM_SAY
+    prompt: str
+    rag_enabled: bool = False
+    index_name: str | None = None
+
+
 class MoveWaitForWebInput(BaseModel):
     """Suspend execution until a web input event arrives or the timeout elapses.
 
@@ -198,6 +230,7 @@ AnyMove = Annotated[
         MoveAskOpen,
         MoveAskOptions,
         MoveAskLLM,
+        MoveLLMSay,
         MovePlayAudio,
         MoveMotionSequence,
         MoveAnimation,

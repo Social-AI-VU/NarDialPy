@@ -9,7 +9,7 @@ from nardial.agenda import AgendaContext, resolve_agenda
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState, Session
 from nardial.dialog_registry import DialogRegistry
-from nardial.dialog_runtime import DialogRuntime, RunContext, _load_system_prompts
+from nardial.dialog_runtime import DialogRuntime, RunContext
 
 from nardial.authoring import load_dialogs
 
@@ -64,10 +64,6 @@ class SessionManager:
         If ``True``, check for an incomplete session (one with ``ended_at``
         still ``None``) and resume it by skipping already-completed dialogs.
         Proceeds as a fresh session when no incomplete session is found.
-    system_prompts_path : str | None
-        Path to a JSON file mapping prompt keys to template strings.  Used by
-        move features such as ``personalize_followup``.  When omitted the
-        built-in default templates are used.  See ``examples/system_prompts.json``.
     """
 
     def __init__(
@@ -80,11 +76,9 @@ class SessionManager:
         session_index: int | None = None,
         reset_history_from_session: int | None = None,
         resume: bool = False,
-        system_prompts_path: str | None = None,
     ):
         self._registry = self.load_dialog_registry(dialog_json_path)
         self.agent = agent
-        self._system_prompts = _load_system_prompts(system_prompts_path)
 
         # Dialog IDs that were already run in an incomplete session; pre-populated
         # by _apply_resume() so _build_agenda_context() treats them as completed.
@@ -475,7 +469,7 @@ class SessionManager:
             user_model=self.conversation_state.user_model,
         )
         context = self._build_agenda_context()
-        runtime = DialogRuntime(self.agent, event_bus=self._bus, system_prompts=self._system_prompts)
+        runtime = DialogRuntime(self.agent, event_bus=self._bus)
 
         checkpoint: "AnyCheckpoint | None" = None
         # When non-None, the dialog loop replays this dialog (PAUSE resume)

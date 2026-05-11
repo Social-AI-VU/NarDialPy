@@ -437,18 +437,19 @@
     "type": "chitchat",
     "topics": ["test", "personalization", "nature"],
     "dependencies": ["greeting"],
-    "_doc": "Demonstrates personalize_followup. Requires an LLM provider — the agent will generate a warm follow-up based on what the user says. The followup_prompt field overrides the default from system_prompts.json; omit it to use the file default.",
+    "_doc": "Demonstrates llm_say. Requires an LLM provider — the robot generates a warm, specific reaction to what the user just said. The llm_say move uses %variable% substitution so the prompt can reference the stored answer directly.",
     "moves": [
       { "type": "say", "text": "Let's try a small personalized follow-up." },
       {
         "type": "ask_open",
         "text": "What's something fun you did today?",
         "set_variable": "today_fun",
-        "add_interest_from_answer": true,
-        "personalize_followup": true,
-        "followup_prompt": "The user was asked: \"{question}\". They said: \"{answer}\". React with one warm, specific sentence that shows you listened. Do not ask another question."
+        "add_interest_from_answer": true
       },
-      { "type": "say", "text": "Thanks for telling me!" }
+      {
+        "type": "llm_say",
+        "prompt": "You are a warm, friendly robot. The user just told you they did '%today_fun%' today. React with exactly one sentence that shows you listened. Do not ask a follow-up question."
+      }
     ]
   }
 ]

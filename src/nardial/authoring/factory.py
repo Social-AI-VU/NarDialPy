@@ -1,6 +1,16 @@
 from typing import Any, Dict, List
 
-from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
+from nardial.mini_dialogs import (
+    MiniDialog,
+    NarrativeDialog,
+    ChitchatDialog,
+    FunctionalDialog,
+    LLMDialog,
+    LLMRouterDialog,
+    IntentRouterDialog,
+    DialogType,
+)
+from nardial.utils import normalize_text
 from nardial.moves import (
     MOVE_SAY,
     MOVE_ASK_OPEN,
@@ -95,9 +105,13 @@ class DialogFactory:
         did = doc.get("id")
         if not isinstance(did, str) or not did:
             errs.append("id must be non-empty string")
-        if t not in {"functional", "narrative", "chitchat", "llm_based"}:
-            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based'")
+        if t not in {"functional", "narrative", "chitchat", "llm_based", "llm_router", "intent_router"}:
+            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based' | 'llm_router' | 'intent_router'")
         # shared
+        if "intent" in doc and not isinstance(doc.get("intent"), str):
+            errs.append("intent must be string when provided")
+        if "repeatable" in doc and not isinstance(doc.get("repeatable"), bool):
+            errs.append("repeatable must be boolean when provided")
         deps = doc.get("dependencies")
         if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
             errs.append("dependencies must be a list of strings")
@@ -149,13 +163,48 @@ class DialogFactory:
                 errs.append("quit_phrases must be a list of strings for llm_based dialogs")
             if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
                 errs.append("quit_signal must be string for llm_based dialogs")
+        elif t == "llm_router":
+            if not isinstance(doc.get("base_prompt"), str):
+                errs.append("base_prompt must be string for llm_router dialogs")
+            if "done_phrases" in doc and (
+                    not isinstance(doc.get("done_phrases"), list) or not all(isinstance(x, str) for x in doc.get("done_phrases"))):
+                errs.append("done_phrases must be a list of strings for llm_router dialogs")
+            if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
+                errs.append("rag_enabled must be boolean for llm_router dialogs")
+            if doc.get("rag_enabled") is True and not (
+                    isinstance(doc.get("index_name"), str) and doc.get("index_name").strip()):
+                errs.append("index_name must be a non-empty string when rag_enabled is true for llm_router dialogs")
+            if "max_turns" in doc and not isinstance(doc.get("max_turns"), int):
+                errs.append("max_turns must be integer for llm_router dialogs")
+            sub_dialogs = doc.get("dialogs")
+            if not isinstance(sub_dialogs, list) or not sub_dialogs:
+                errs.append("dialogs must be a non-empty list for llm_router dialogs")
+            else:
+                for i, sub_doc in enumerate(sub_dialogs):
+                    if not isinstance(sub_doc, dict):
+                        errs.append(f"dialogs[{i}] must be an object")
+                        continue
+                    sub_errs = DialogFactory.validate_doc(sub_doc)
+                    errs.extend([f"dialogs[{i}]: {e}" for e in sub_errs])
+        elif t == "intent_router":
+            sub_dialogs = doc.get("dialogs")
+            if not isinstance(sub_dialogs, list) or not sub_dialogs:
+                errs.append("dialogs must be a non-empty list for intent_router dialogs")
+            else:
+                for i, sub_doc in enumerate(sub_dialogs):
+                    if not isinstance(sub_doc, dict):
+                        errs.append(f"dialogs[{i}] must be an object")
+                        continue
+                    sub_errs = DialogFactory.validate_doc(sub_doc)
+                    errs.extend([f"dialogs[{i}]: {e}" for e in sub_errs])
 
         moves = doc.get("moves")
-        if not isinstance(moves, list):
-            errs.append("moves must be a list")
-        else:
-            for i, mv in enumerate(moves):
-                errs.extend(MoveFactory.validate(mv, idx=i))
+        if t not in {"llm_router", "intent_router"}:
+            if not isinstance(moves, list):
+                errs.append("moves must be a list")
+            else:
+                for i, mv in enumerate(moves):
+                    errs.extend(MoveFactory.validate(mv, idx=i))
         return errs
 
     @staticmethod
@@ -171,7 +220,7 @@ class DialogFactory:
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
 
         if dtype == DialogType.NARRATIVE.value:
-            return NarrativeDialog(
+            dialog = NarrativeDialog(
                 dialog_id=did,
                 moves=moves,
                 thread=doc["thread"],
@@ -179,8 +228,11 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
         if dtype == DialogType.CHITCHAT.value:
-            return ChitchatDialog(
+            dialog = ChitchatDialog(
                 dialog_id=did,
                 moves=moves,
                 theme=doc.get("theme") or "",
@@ -188,15 +240,21 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
             )
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
         if dtype == DialogType.FUNCTIONAL.value:
-            return FunctionalDialog(
+            dialog = FunctionalDialog(
                 dialog_id=did,
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
             )
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
         if dtype == DialogType.LLM_BASED.value:
-            return LLMDialog(
+            dialog = LLMDialog(
                 dialog_id=did,
                 moves=moves,
                 prompt=doc["prompt"],
@@ -210,7 +268,47 @@ class DialogFactory:
                 rag_enabled=doc.get("rag_enabled", False),
                 rag_index_name=doc.get("index_name"),
             )
-        return MiniDialog(did, moves, deps, vdeps)
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
+        if dtype == DialogType.HYBRID_ROUTER.value:
+            routed_dialogs = [DialogFactory.from_json(sd) for sd in (doc.get("dialogs") or [])]
+            dialog = LLMRouterDialog(
+                dialog_id=did,
+                base_prompt=doc.get("base_prompt") or "",
+                dialogs=routed_dialogs,
+                dependencies=deps,
+                variable_dependencies=vdeps,
+                done_phrases=doc.get("done_phrases"),
+                rag_enabled=doc.get("rag_enabled", False),
+                rag_index_name=doc.get("index_name"),
+                max_turns=doc.get("max_turns", 100),
+            )
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
+        if dtype == DialogType.INTENT_ROUTER.value:
+            routed_dialogs = [DialogFactory.from_json(sd) for sd in (doc.get("dialogs") or [])]
+            intent_routing = {}
+            for child in routed_dialogs:
+                intent_name = normalize_text(getattr(child, "intent", None))
+                if intent_name:
+                    intent_routing[intent_name] = child.dialog_id
+            dialog = IntentRouterDialog(
+                child_dialogs=routed_dialogs,
+                intent_routing=intent_routing,
+                block_exit_intents=doc.get("block_exit_intents"),
+                dialog_id=did,
+                dependencies=deps,
+                variable_dependencies=vdeps,
+            )
+            setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(dialog, "intent", doc.get("intent"))
+            return dialog
+        dialog = MiniDialog(did, moves, deps, vdeps)
+        setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+        setattr(dialog, "intent", doc.get("intent"))
+        return dialog
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -219,6 +317,8 @@ class DialogFactory:
             "dependencies": list(getattr(d, "dependencies", []) or []),
             "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
             "moves": list(getattr(d, "moves", []) or []),
+            "repeatable": bool(getattr(d, "repeatable", False)),
+            "intent": getattr(d, "intent", None),
         }
         if isinstance(d, NarrativeDialog):
             base.update({
@@ -248,6 +348,22 @@ class DialogFactory:
                 "duration": getattr(d, "duration", None),
                 "rag_enabled": getattr(d, "rag_enabled", False),
                 "index_name": getattr(d, "rag_index_name", None),
+            })
+        elif isinstance(d, LLMRouterDialog):
+            base.update({
+                "type": "llm_router",
+                "base_prompt": getattr(d, "base_prompt", ""),
+                "done_phrases": list(getattr(d, "done_phrases", []) or []),
+                "rag_enabled": getattr(d, "rag_enabled", False),
+                "index_name": getattr(d, "rag_index_name", None),
+                "max_turns": int(getattr(d, "max_turns", 100)),
+                "dialogs": [DialogFactory.to_json(sd) for sd in list(getattr(d, "dialogs", []) or [])],
+            })
+        elif isinstance(d, IntentRouterDialog):
+            base.update({
+                "type": "intent_router",
+                "dialogs": [DialogFactory.to_json(sd) for sd in list(getattr(d, "child_dialogs", []) or [])],
+                "block_exit_intents": list(getattr(d, "block_exit_intents", []) or []),
             })
         else:
             base.update({"type": "unknown"})

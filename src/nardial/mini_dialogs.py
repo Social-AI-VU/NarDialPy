@@ -1,4 +1,6 @@
-from typing import Any, Optional, List, cast
+from typing import Any, Dict, Optional, List, cast
+
+from nardial.utils import normalize_text
 import re
 from time import monotonic
 
@@ -16,6 +18,8 @@ class DialogType(Enum):
     CHITCHAT = "chitchat"
     FUNCTIONAL = "functional"
     LLM_BASED = "llm_based"
+    HYBRID_ROUTER = "llm_router"
+    INTENT_ROUTER = "intent_router"
 
 
 MAX_LLM_TURNS = 5
@@ -194,6 +198,7 @@ class MiniDialog:
             context_messages=context_messages,
             system_prompt=system_prompt,
         )
+        print(f"[LLM] followup_response={llm_text!r}")
         if llm_text:
             self.conversation_agent.say(llm_text)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
@@ -315,11 +320,13 @@ class MiniDialog:
                 rag_enabled=rag_enabled,
                 rag_index_name=rag_index_name,
             )
+            print(f"[LLM] response={llm_text!r}")
             if llm_text is None:
                 continue
 
             # If the LLM embeds a quit signal, speak any remaining content and stop
             if quit_signal and quit_signal in llm_text:
+                print(f"[LLM] quit_signal_detected={quit_signal!r}")
                 clean = llm_text.replace(quit_signal, "").strip()
                 if clean:
                     agent.say(clean)
@@ -420,4 +427,159 @@ class LLMDialog(MiniDialog):
             duration=self.duration,
             rag_enabled=self.rag_enabled,
             rag_index_name=self.rag_index_name,
+        )
+
+
+class IntentRouterDialog(MiniDialog):
+    """
+    Routes each user turn to a child mini-dialog using Dialogflow intent names (when present),
+    then utterance-topic heuristics, then an optional ``fallback_in_character`` child.
+
+    Must be bound to a :class:`nardial.session_manager.SessionManager` via
+    ``bind_session_manager`` before ``run`` so child dialogs can reuse eligibility and logging.
+    """
+
+    def __init__(
+            self,
+            child_dialogs: List["MiniDialog"],
+            intent_routing: Dict[str, str],
+            block_exit_intents: Optional[List[str]] = None,
+            dialog_id: Optional[str] = None,
+            dependencies=None,
+            variable_dependencies=None,
+    ):
+        auto_id = dialog_id or ("intent_router__" + "__".join(sorted(d.dialog_id for d in child_dialogs)))
+        super().__init__(auto_id, moves=[], dependencies=dependencies, variable_dependencies=variable_dependencies)
+        self.child_dialogs = list(child_dialogs or [])
+        self.intent_routing = dict(intent_routing or {})
+        self.block_exit_intents = set(block_exit_intents or ["exit", "goodbye", "done", "stop", "cancel", "finish"])
+        self._session_manager = None
+
+    def bind_session_manager(self, session_manager: Any) -> None:
+        self._session_manager = session_manager
+
+    def infer_dialog_from_utterance(self, utterance: str, candidates: List["MiniDialog"]):
+        text = normalize_text(utterance)
+        if not text:
+            return None
+
+        scored = []
+        for d in candidates:
+            topics = [normalize_text(t) for t in getattr(d, "topics", [])]
+            if not topics:
+                continue
+            score = 0
+            for topic in topics:
+                if topic and topic in text:
+                    score += max(2, len(topic.split()))
+                else:
+                    topic_tokens = [tok for tok in topic.split() if len(tok) > 2]
+                    score += sum(1 for tok in topic_tokens if tok in text)
+            if score > 0:
+                scored.append((score, d))
+
+        if not scored:
+            return None
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return scored[0][1]
+
+    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        sm = self._session_manager
+        if sm is None:
+            raise RuntimeError(
+                "IntentRouterDialog requires bind_session_manager(SessionManager) before run()"
+            )
+
+        block_map = {d.dialog_id: d for d in self.child_dialogs}
+        fallback = block_map.get("fallback_in_character")
+        print(f"[ROUTER] Starting intent-routed block with dialogs: {sorted(block_map.keys())}")
+        remaining = {
+            d.dialog_id
+            for d in self.child_dialogs
+            if d.dialog_id != "fallback_in_character" and (
+                bool(getattr(d, "repeatable", False)) or d.dialog_id not in sm.conversation_state.completed_dialogs
+            )
+        }
+
+        while remaining:
+            utterance, intent = agent.orchestrator.listen()
+            intent_norm = normalize_text(intent)
+            utterance_norm = normalize_text(utterance)
+            print(
+                f"[ROUTER] user_utterance={utterance!r}, raw_intent={intent!r}, "
+                f"normalized_intent={intent_norm!r}, remaining={sorted(remaining)}"
+            )
+
+            if intent_norm in self.block_exit_intents or utterance_norm in self.block_exit_intents:
+                print(
+                    f"[ROUTER] Exiting block via exit intent/utterance: "
+                    f"intent={intent_norm!r}, utterance={utterance_norm!r}"
+                )
+                break
+
+            target_id = self.intent_routing.get(intent_norm)
+            target = block_map.get(target_id) if target_id else None
+            if intent_norm:
+                print(f"[ROUTER] intent_map lookup: {intent_norm!r} -> {target_id!r}")
+            else:
+                print("[ROUTER] No intent detected; falling back to utterance-topic routing.")
+
+            if not target:
+                candidate_dialogs = [block_map[did] for did in remaining if did in block_map]
+                target = self.infer_dialog_from_utterance(utterance_norm, candidate_dialogs)
+                print(f"[ROUTER] heuristic match result: {getattr(target, 'dialog_id', None)!r}")
+
+            if not target or target.dialog_id not in remaining:
+                if fallback:
+                    print("[ROUTER] No valid target; running fallback dialog.")
+                    sm._run_single_dialog(
+                        fallback,
+                        self.session_history,
+                        allow_repeatable_rerun=bool(getattr(fallback, "repeatable", False)),
+                    )
+                else:
+                    agent.say("I am not sure how to respond to that. Please ask in a different way.")
+                continue
+
+            is_repeatable = bool(getattr(target, "repeatable", False))
+            ran = sm._run_single_dialog(
+                target,
+                self.session_history,
+                allow_repeatable_rerun=is_repeatable,
+            )
+            print(f"[ROUTER] ran dialog={target.dialog_id!r}, repeatable={is_repeatable}, ran={ran}")
+            if not is_repeatable and target.dialog_id in remaining and (
+                    ran or target.dialog_id in sm.conversation_state.completed_dialogs):
+                remaining.remove(target.dialog_id)
+                print(f"[ROUTER] removed from remaining: {target.dialog_id!r}")
+
+
+class LLMRouterDialog(MiniDialog):
+    def __init__(self, dialog_id, base_prompt: str, dialogs: List[MiniDialog], dependencies=None, variable_dependencies=None,
+                 done_phrases: Optional[List[str]] = None, rag_enabled: bool = True, rag_index_name: Optional[str] = None,
+                 max_turns: int = 100):
+        super().__init__(dialog_id, moves=[], dependencies=dependencies, variable_dependencies=variable_dependencies)
+        self.base_prompt = base_prompt or ""
+        self.dialogs = dialogs or []
+        self.done_phrases = [p for p in (done_phrases or []) if p]
+        self.rag_enabled = bool(rag_enabled)
+        self.rag_index_name = rag_index_name
+        self.max_turns = max(1, int(max_turns or 100))
+
+    def run(self, agent, session_history, topics_of_interest, user_model):
+        self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        from nardial.llm_router_graph import run_llm_router_graph
+        run_llm_router_graph(
+            conversation_agent=self.conversation_agent,
+            session_history=self.session_history,
+            topics_of_interest=self.topics_of_interest,
+            user_model=self.user_model,
+            base_prompt=self.base_prompt,
+            dialogs=self.dialogs,
+            logger=getattr(getattr(self.conversation_agent, "orchestrator", None), "logger", None),
+            done_phrases=self.done_phrases,
+            rag_enabled=self.rag_enabled,
+            rag_index_name=self.rag_index_name,
+            max_turns=self.max_turns,
         )

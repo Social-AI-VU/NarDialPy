@@ -3,11 +3,12 @@ import base64
 import logging
 import os
 import hashlib
-import string
 import wave
 import websockets
 from enum import Enum
 from json import dumps, loads, load, dump
+
+from nardial.utils import normalize_text_for_cache_key
 
 
 class TTSService(Enum):
@@ -140,7 +141,7 @@ class ElevenLabsTTS:
         if self.websocket:
             try:
                 await self.websocket.send(dumps({"text": ""}))  # end marker
-                await self.websocket.closed()
+                await self.websocket.close()
             except Exception as e:
                 self.logger.error(f"[TTS] Error while closing websocket: {e}")
             finally:
@@ -153,10 +154,12 @@ class ElevenLabsTTS:
                 Returns:
                     bool: True if the connection is active, False otherwise.
         """
+        if not self.websocket:
+            return False
         try:
             await self.websocket.ping()
             return True
-        except:
+        except Exception:
             return False
 
     async def drain_socket(self):
@@ -183,10 +186,10 @@ class ElevenLabsTTS:
                     Optional[bytes]: Raw PCM audio bytes if successful, otherwise None.
         """
         # Reconnect if no active connection.
-        if not self.websocket or self.websocket.closed:
+        if not self.websocket:
             self.logger.warning("[TTS] Websocket not connected. Initiating reconnect.")
             await self.connect()
-        if not await self.ping_connection():
+        elif not await self.ping_connection():
             self.logger.warning("[TTS] Websocket not connected. Initiating reconnect.")
             await self.connect()
 
@@ -247,23 +250,6 @@ class TTSCacher:
 
         self.tts_cache = self._load_cache()
 
-    @staticmethod
-    def normalize_text(text: str) -> str:
-        """
-                Normalize text for consistent cache key generation.
-
-                This includes lowercasing, trimming whitespace, and removing punctuation.
-
-                Args:
-                    text (str): Input text.
-
-                Returns:
-                    str: Normalized text.
-        """
-        text = text.strip().lower()
-        text = text.translate(str.maketrans("", "", string.punctuation))
-        return text
-
     def make_tts_key(self, text: str, voice_conf: TTSConf) -> str:
         """
         Generate a unique hash key based on input text and TTS configuration.
@@ -280,7 +266,7 @@ class TTSCacher:
         """
         if isinstance(voice_conf, GoogleTTSConf):
             payload = {
-                "text": self.normalize_text(text),
+                "text": normalize_text_for_cache_key(text),
                 'tts_service': "GOOGLE",
                 "speaking_rate": voice_conf.speaking_rate,
                 "setting_1": voice_conf.google_tts_voice_name,
@@ -288,7 +274,7 @@ class TTSCacher:
             }
         elif isinstance(voice_conf, ElevenLabsTTSConf):
             payload = {
-                "text": self.normalize_text(text),
+                "text": normalize_text_for_cache_key(text),
                 'tts_service': "ELEVENLABS",
                 "speaking_rate": voice_conf.speaking_rate,
                 "setting_1": voice_conf.model_id,

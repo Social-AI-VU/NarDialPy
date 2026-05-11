@@ -8,6 +8,8 @@ from nardial.conversation_state import ConversationState
 from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
+from nardial.mini_dialogs import IntentRouterDialog
+from nardial.utils import normalize_text
 
 
 class SessionManager:
@@ -16,7 +18,13 @@ class SessionManager:
     and logging dialogs according to a session agenda and conversation state.
     """
 
-    def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str, participant_id=None):
+    def __init__(
+            self,
+            session_agenda: list,
+            agent: ConversationAgent,
+            dialog_json_path: str,
+            participant_id=None,
+            block_exit_intents: list[str] | None = None):
         """
         Initialize a session manager.
 
@@ -28,6 +36,13 @@ class SessionManager:
         self.session_agenda = session_agenda
         self.dialogs = self.load_dialogs_from_json(dialog_json_path)
         self.agent = agent
+        auto_intent_routing = {}
+        for d in self.dialogs:
+            intent_name = normalize_text(getattr(d, "intent", None))
+            if intent_name:
+                auto_intent_routing[intent_name] = d.dialog_id
+        self.intent_routing = dict(auto_intent_routing)
+        self.block_exit_intents = set(block_exit_intents or ["exit", "goodbye", "done", "stop", "cancel", "finish"])
 
         self.conversation_state = ConversationState(participant_id=participant_id)
         self.session_id = self.start_session()
@@ -84,14 +99,63 @@ class SessionManager:
             return self.dialogs
 
         dialog_map = {d.dialog_id: d for d in self.dialogs}
-
-        session_block = [
-            dialog_map[dialog_id]
-            for dialog_id in self.session_agenda
-            if dialog_id in dialog_map
-        ]
+        session_block = []
+        for agenda_item in self.session_agenda:
+            if isinstance(agenda_item, list):
+                block = [dialog_map[did] for did in agenda_item if did in dialog_map]
+                router = IntentRouterDialog(
+                    child_dialogs=block,
+                    intent_routing=self.intent_routing,
+                    block_exit_intents=list(self.block_exit_intents),
+                )
+                session_block.append(router)
+                continue
+            if agenda_item in dialog_map:
+                session_block.append(dialog_map[agenda_item])
 
         return session_block
+
+    def _log_dialog_start(self, session_history, dialog):
+        session_history.append({
+            "role": "system",
+            "type": "dialog_start",
+            "dialog_id": dialog.dialog_id
+        })
+
+    def _log_dialog_end(self, session_history, dialog):
+        session_history.append({
+            "role": "system",
+            "type": "dialog_end",
+            "dialog_id": dialog.dialog_id
+        })
+
+    def _run_single_dialog(self, dialog, session_history, allow_repeatable_rerun=False):
+        completed_for_check = list(self.conversation_state.completed_dialogs)
+        if allow_repeatable_rerun and bool(getattr(dialog, "repeatable", False)):
+            # Repeatable dialogs may run multiple times within a block; bypass only the
+            # "already completed" gate while still enforcing dependencies/variables.
+            completed_for_check = [d for d in completed_for_check if d != dialog.dialog_id]
+
+        if not DialogLogic.is_dialog_eligible(
+                dialog,
+                completed_for_check,
+                self.conversation_state.user_model,
+                self.dialogs
+        ):
+            print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
+            return False
+
+        self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
+        self._log_dialog_start(session_history, dialog)
+        dialog.run(
+            self.agent,
+            session_history,
+            self.conversation_state.topics_of_interest,
+            self.conversation_state.user_model
+        )
+        self._log_dialog_end(session_history, dialog)
+        self.conversation_state.completed_dialogs.append(dialog.dialog_id)
+        return True
 
     def run(self):
         """
@@ -104,38 +168,10 @@ class SessionManager:
         - Persisting session results
         """
         session_history = []
-        for dialog in self.session_block:
-            if not DialogLogic.is_dialog_eligible(
-                    dialog,
-                    self.conversation_state.completed_dialogs,
-                    self.conversation_state.user_model,
-                    self.dialogs
-            ):
-                print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
-                continue
-
-            self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
-
-            session_history.append({
-                "role": "system",
-                "type": "dialog_start",
-                "dialog_id": dialog.dialog_id
-            })
-
-            dialog.run(
-                self.agent,
-                session_history,
-                self.conversation_state.topics_of_interest,
-                self.conversation_state.user_model
-            )
-
-            session_history.append({
-                "role": "system",
-                "type": "dialog_end",
-                "dialog_id": dialog.dialog_id
-            })
-
-            self.conversation_state.completed_dialogs.append(dialog.dialog_id)
+        for agenda_item in self.session_block:
+            if isinstance(agenda_item, IntentRouterDialog):
+                agenda_item.bind_session_manager(self)
+            self._run_single_dialog(agenda_item, session_history)
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

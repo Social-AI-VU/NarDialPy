@@ -4,6 +4,7 @@ from json import load
 import queue
 import re
 import wave
+import logging
 from enum import Enum
 from os import environ, fsync
 from os.path import exists, abspath, join
@@ -18,6 +19,8 @@ import mini.mini_sdk as MiniSdk
 from mini import MouthLampColor, MouthLampMode
 from mini.apis.api_action import PlayAction
 from mini.apis.api_expression import SetMouthLamp, PlayExpression
+from google.cloud import dialogflow as gdialogflow
+from google.oauth2.service_account import Credentials
 from sic_framework.core import sic_logging
 from sic_framework.core.message_python2 import AudioRequest
 from sic_framework.core.sic_application import SICApplication
@@ -49,6 +52,7 @@ from sic_framework.services.datastore.redis_datastore import (
     VectorDBResultsMessage,
 )
 from dotenv import load_dotenv
+from typing import Optional, Union
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
@@ -68,6 +72,25 @@ class AnimationStyle(Enum):
     """
     EXPRESSIVE = 1
     EXPLANATORY = 2
+
+
+def resolve_log_level(log_level: Optional[Union[str, int]], sic=sic_logging):
+    """
+    Map ``InteractionConfig.log_level`` to a level accepted by ``SICApplication.set_log_level``.
+
+    ``None`` preserves the previous default (DEBUG). Names are case-insensitive (e.g. ``"INFO"``).
+    """
+    if log_level is None:
+        return sic.DEBUG
+    if isinstance(log_level, int):
+        return log_level
+    name = str(log_level).strip().upper()
+    if hasattr(sic, name):
+        return getattr(sic, name)
+    raise ValueError(
+        f"Unknown log_level {log_level!r}; use None or an int, or one of: "
+        f"{', '.join(sorted(k for k in dir(sic) if k.isupper() and not k.startswith('_')))}"
+    )
 
 
 def find_project_root(start: Path) -> Path:
@@ -98,9 +121,13 @@ class InteractionConfig:
 
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
                  env_file_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
+                 dialogflow: bool = True,
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
-                 override_existing: bool = False, force_recreate_index: bool = False):
+                 override_existing: bool = False, force_recreate_index: bool = False,
+                 log_level: Optional[Union[str, int]] = None,
+                 wait_for_playback: bool = True,
+                 playback_tail_margin_sec: float = 0.05):
         """
         Initialize interaction configuration.
 
@@ -112,9 +139,15 @@ class InteractionConfig:
             env_file_path (str, optional): Path to environment variable file.
             post_speech_delay (float, optional): Delay after speech playback.
             signal_listening_behavior (bool): Whether to show listening indicators.
+            log_level (str | int | None): SIC / app log level name (e.g. ``\"INFO\"``) or numeric level.
+                ``None`` defaults to DEBUG (matches prior hard-coded behavior).
+            wait_for_playback (bool): After PCM is sent to speakers, sleep for estimated playback duration
+                (helps Desktop/PyAudio where audio may still be in the output buffer).
+            playback_tail_margin_sec (float): Extra seconds after estimated PCM duration (buffering/OS latency).
         """
         self.language = language
         self.keyboard_input = keyboard_input
+        self.dialogflow = bool(dialogflow)
 
         self.tts_conf = tts_conf
         if not tts_conf:
@@ -149,6 +182,9 @@ class InteractionConfig:
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
+        self.log_level = log_level
+        self.wait_for_playback = bool(wait_for_playback)
+        self.playback_tail_margin_sec = float(playback_tail_margin_sec)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -232,7 +268,11 @@ class InteractionOrchestrator:
         # Development Logging
         self.app = SICApplication()
         self.logger = self.app.get_app_logger()
-        self.app.set_log_level(sic_logging.DEBUG)  # can be DEBUG, INFO, WARNING, ERROR, CRITICAL
+        _sic_level = resolve_log_level(int_config.log_level)
+        self.app.set_log_level(_sic_level)
+        if isinstance(_sic_level, int):
+            for _name in ("nardial", "droomrobot"):
+                logging.getLogger(_name).setLevel(_sic_level)
         self.app.set_log_file_path("./logs")
 
         # Data logging
@@ -301,12 +341,51 @@ class InteractionOrchestrator:
         print("Complete")
 
         print("\n SETTING UP DIALOGFLOW")
-        df_input = None if self.interaction_conf.keyboard_input else getattr(self, 'mic', None)
-        self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=df_input)
-        # flag to signal when the app should listen (i.e. transmit to dialogflow)
         self.request_id = np.random.randint(10000)
-        self.dialogflow.register_callback(self._on_dialog)
-        print("Complete and ready for interaction!")
+        self.dialogflow = None
+        self._dialogflow_text_client = None
+        if self.interaction_conf.dialogflow:
+            df_input = None if self.interaction_conf.keyboard_input else getattr(self, 'mic', None)
+            self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=df_input)
+            self.dialogflow.register_callback(self._on_dialog)
+            print("Complete and ready for interaction!")
+        else:
+            print("Skipped (dialogflow disabled in InteractionConfig).")
+
+    def _detect_intent_from_text(self, text, context=None):
+        if not text:
+            return None
+        try:
+            if self._dialogflow_text_client is None:
+                credentials = Credentials.from_service_account_info(self.interaction_conf.dialogflow_conf.keyfile_json)
+                self._dialogflow_text_client = gdialogflow.SessionsClient(credentials=credentials)
+
+            project_id = self.interaction_conf.dialogflow_conf.project_id
+            session_path = self._dialogflow_text_client.session_path(project_id, str(self.request_id))
+            query_input = gdialogflow.QueryInput(
+                text=gdialogflow.TextInput(
+                    text=text,
+                    language_code=self.interaction_conf.dialogflow_conf.language_code,
+                )
+            )
+
+            contexts = []
+            for context_name, lifespan in (context or {}).items():
+                context_id = f"projects/{project_id}/agent/sessions/{self.request_id}/contexts/{context_name}"
+                contexts.append(gdialogflow.Context(name=context_id, lifespan_count=lifespan))
+            query_params = gdialogflow.QueryParameters(contexts=contexts) if contexts else None
+
+            request = {"session": session_path, "query_input": query_input}
+            if query_params:
+                request["query_params"] = query_params
+
+            reply = self._dialogflow_text_client.detect_intent(request=request)
+            if reply and reply.query_result and reply.query_result.intent:
+                return reply.query_result.intent.display_name
+            return None
+        except Exception as e:
+            self.logger.warning("Dialogflow text intent detection failed: %s", e)
+            return None
 
     def start_logging(self, log_id, init_data: dict):
         folder = Path("logs")
@@ -404,6 +483,29 @@ class InteractionOrchestrator:
         print("\n Device is COMPUTER")
         self.speaker = self.device_manager.speakers
 
+    def _wait_after_pcm_playback(
+            self, audio_bytes: bytes, sample_rate: int, channels: int = 1, sample_width: int = 2) -> None:
+        """
+        Block until PCM should have finished playing on the speaker device.
+
+        PyAudio often returns from ``stream.write`` while data is still in the output buffer.
+        """
+        if not self.interaction_conf.wait_for_playback:
+            return
+        if not audio_bytes or sample_rate <= 0:
+            return
+        bpf = channels * sample_width
+        if bpf <= 0:
+            return
+        n_frames = len(audio_bytes) // bpf
+        if n_frames <= 0:
+            return
+        duration = n_frames / float(sample_rate)
+        margin = max(0.0, self.interaction_conf.playback_tail_margin_sec)
+        delay = duration + margin
+        if delay > 0:
+            sleep(delay)
+
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         if animated:
@@ -453,6 +555,7 @@ class InteractionOrchestrator:
 
             # Play audio
             self.speaker.request(AudioRequest(audio_bytes, sample_rate))
+            self._wait_after_pcm_playback(audio_bytes, sample_rate)
             self.log_utterance(speaker='robot', text=text)
 
             # Save to cache file
@@ -481,9 +584,14 @@ class InteractionOrchestrator:
 
             # Generate new audio
             audio_bytes = self.elevenlabs_generate_chunk_audio(chunk, amplified)
+            if not audio_bytes:
+                self.logger.error("ElevenLabs returned no audio for chunk; skipping playback.")
+                continue
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
+            sr = self.sample_rate or 22050
+            self.speaker.request(AudioRequest(audio_bytes, sr))
+            self._wait_after_pcm_playback(audio_bytes, sr)
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
@@ -496,6 +604,8 @@ class InteractionOrchestrator:
 
         # ElevenLabs TTS returns bytes
         audio_bytes = asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
+        if not audio_bytes:
+            return None
 
         if audio_bytes and amplified:
             audio_bytes = self._amplify_audio(audio_bytes)
@@ -517,8 +627,15 @@ class InteractionOrchestrator:
             if not line:
                 return None, None
             self.log_utterance(speaker="child", text=line)
-            return line, None
+            intent = None
+            if self.interaction_conf.dialogflow:
+                intent = self._detect_intent_from_text(line, context=context)
+                print("The detected intent:", intent)
+            return line, intent
         else:
+            if not self.interaction_conf.dialogflow or self.dialogflow is None:
+                self.logger.warning("listen() called with keyboard_input=False while dialogflow is disabled")
+                return None, None
             try:
                 reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
                 print("The detected intent:", reply.intent)
@@ -551,7 +668,9 @@ class InteractionOrchestrator:
             if amplified:
                 audio = self._amplify_audio(audio)
 
+            channels = wf.getnchannels()
             self.speaker.request(AudioRequest(audio, framerate))
+            self._wait_after_pcm_playback(audio, framerate, channels=channels)
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
 

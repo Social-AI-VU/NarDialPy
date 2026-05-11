@@ -1,14 +1,19 @@
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import re
 
+from pydantic import BaseModel, Field
+
 from .user_model import UserModel
 
+logger = logging.getLogger(__name__)
 
-class Session:
+
+class Session(BaseModel):
     """
     Represents a single conversation session.
 
@@ -18,7 +23,7 @@ class Session:
     - Dialog IDs executed during the session
     - A summary (e.g., extracted topics, user model updates)
 
-    Parameters
+    Attributes
     ----------
     session_id : str
         Unique identifier for the session (e.g., "sess_0001").
@@ -28,31 +33,27 @@ class Session:
         Identifier for this execution run (useful for experiments/logging).
     metadata : dict, optional
         Arbitrary metadata associated with the session.
-    started_at : str, optional
-        ISO timestamp when the session started (auto-generated if not provided).
+    started_at : str
+        ISO timestamp when the session started (auto-generated on construction).
     ended_at : str, optional
         ISO timestamp when the session ended.
-    events : list of dict, optional
+    events : list of dict
         Event history (e.g., dialog start/end, user/system actions).
-    dialog_ids : list of str, optional
+    dialog_ids : list of str
         Ordered list of dialog IDs executed in this session.
-    summary : dict, optional
+    summary : dict
         Aggregated session-level information (topics, user model, etc.).
     """
 
-    def __init__(self, session_id: str, participant_id: Optional[str] = None, run_id: Optional[str] = None,
-                 metadata: Optional[Dict[str, Any]] = None, started_at: Optional[str] = None, ended_at: Optional[str] = None,
-                 events: Optional[List[Dict[str, Any]]] = None, dialog_ids: Optional[List[str]] = None,
-                 summary: Optional[Dict[str, Any]] = None) -> None:
-        self.session_id = session_id
-        self.participant_id = participant_id
-        self.run_id = run_id
-        self.metadata = metadata or {}
-        self.started_at = started_at or datetime.utcnow().isoformat()
-        self.ended_at = ended_at
-        self.events: List[Dict[str, Any]] = events or []
-        self.dialog_ids: List[str] = dialog_ids or []
-        self.summary: Dict[str, Any] = summary or {}
+    session_id: str
+    participant_id: Optional[str] = None
+    run_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    started_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    ended_at: Optional[str] = None
+    events: List[Dict[str, Any]] = Field(default_factory=list)
+    dialog_ids: List[str] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ConversationState:
@@ -129,7 +130,6 @@ class ConversationState:
         self.sessions: List[Session] = []
 
         # participants folder inside caller's project
-        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self.participants_dir = self.base_dir / "participants"
         self.participants_dir.mkdir(parents=True, exist_ok=True)
 
@@ -142,7 +142,12 @@ class ConversationState:
             self.restore_participant_state()
 
     def restore_participant_state(self) -> None:
-        print(f"[INFO] Using participant_id={self.participant_id}")
+        """Load continuity data (completed dialogs, topics) for the current participant.
+
+        Reads from Redis (default) or the shared JSON file (when ``use_json_file=True``).
+        Called automatically from ``__init__`` when a ``participant_id`` is provided.
+        """
+        logger.info("Using participant_id=%s", self.participant_id)
         self.user_model.set_participant(self.participant_id)
 
         # Load continuity from Redis (default) or JSON file (opt-in).
@@ -173,6 +178,11 @@ class ConversationState:
             return set(), []
 
     def load_state_from_json(self) -> None:
+        """Load shared continuity state from the JSON file at ``self.path``.
+
+        Only called when ``use_json_file=True``.  Falls back to an empty state
+        when the file does not exist or is corrupt.
+        """
         if not self.path.exists():
             self._initialize_empty_state()
             return
@@ -187,9 +197,10 @@ class ConversationState:
 
         self.completed_dialogs = data.get("completed_dialogs", [])
         self.topics_of_interest = data.get("topics_of_interest", [])
-        self.sessions = [Session(**s) for s in data.get("sessions", [])]
+        self.sessions = [Session.model_validate(s) for s in data.get("sessions", [])]
 
     def _initialize_empty_state(self) -> None:
+        """Reset in-memory state to empty and, when ``use_json_file=True``, write a blank file."""
         self.completed_dialogs = []
         self.topics_of_interest = []
         self.sessions = []
@@ -198,12 +209,16 @@ class ConversationState:
             self.save_state_to_json()  # create file immediately
 
     def save_state_to_json(self) -> None:
+        """Write shared continuity state to ``self.path``.
+
+        No-op when ``use_json_file=False``.
+        """
         if not self.use_json_file:
             return
         data = {
             "completed_dialogs": self.completed_dialogs,
             "topics_of_interest": self.topics_of_interest,
-            "sessions": [s.__dict__ for s in self.sessions],
+            "sessions": [s.model_dump() for s in self.sessions],
         }
         self._atomic_write_json(self.path, data)
 
@@ -230,7 +245,7 @@ class ConversationState:
             The generated session ID.
         """
         sid = f"sess_{len(self.sessions) + 1:04d}"
-        session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata)
+        session = Session(session_id=sid, participant_id=participant_id, run_id=run_id, metadata=metadata or {})
         self.sessions.append(session)
         return sid
 
@@ -298,19 +313,21 @@ class ConversationState:
         - Saves transcript to disk
         """
         sess = self._get_session(session_id)
-        sess.ended_at = datetime.utcnow().isoformat()
+        sess.ended_at = datetime.now(timezone.utc).isoformat()
         user_model_snapshot: Dict[str, Any] = {}
         if isinstance(user_model, dict):
             user_model_snapshot = dict(user_model)
         elif isinstance(user_model, UserModel):
             try:
                 user_model_snapshot = dict(user_model.as_dict())
-            except Exception:
+            except Exception as exc:
+                logger.warning("end_session: failed to snapshot UserModel: %s", exc)
                 user_model_snapshot = {}
         elif user_model is not None:
             try:
                 user_model_snapshot = dict(user_model)
-            except Exception:
+            except Exception as exc:
+                logger.warning("end_session: failed to convert user_model to dict: %s", exc)
                 user_model_snapshot = {}
 
         sess.summary = {
@@ -319,7 +336,7 @@ class ConversationState:
             **(extra_summary or {})
         }
 
-        if not completed_ids and not sess.dialog_ids:
+        if completed_ids is None and not sess.dialog_ids:
             self._derive_dialog_ids_from_events(sess)
 
         if completed_ids:
@@ -406,14 +423,17 @@ class ConversationState:
             if self._sanitize_participant_id(s.participant_id) == target_id
         ]
 
+        # Use the accumulated completed_dialogs / topics_of_interest as the
+        # authoritative source so that cross-session continuity is preserved
+        # even when prior sessions are not held in memory.
         payload = {
             "participant_id": participant_id if participant_id is not None else target_id,
-            "sessions": [s.__dict__ for s in sessions],
+            "sessions": [s.model_dump() for s in sessions],
             "summary": {
-                "total_sessions": len(sessions),
-                "dialog_ids_seen": self._collect_dialog_ids(sessions),
-                "topics_of_interest": self._collect_topics_from_summaries(sessions),
-                "last_updated": datetime.utcnow().isoformat(),
+                "total_sessions": sum(1 for s in sessions if s.ended_at is not None),
+                "dialog_ids_seen": list(self.completed_dialogs),
+                "topics_of_interest": list(self.topics_of_interest),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -459,6 +479,113 @@ class ConversationState:
                         seen.add(k)
         return topics
 
+    # ── Session-plan helpers ──────────────────────────────────────────────────
+
+    def _load_participant_json(self) -> Dict[str, Any]:
+        """Load the raw participant JSON, returning an empty dict if unavailable.
+
+        Used by session-plan helpers that need the full session list even when
+        the in-memory ``sessions`` list is empty (the default when
+        ``use_json_file=False``).
+        """
+        if self.participant_id is None:
+            return {}
+        safe_id = self._sanitize_participant_id(self.participant_id)
+        path = self.participants_dir / f"{safe_id}.json"
+        if not path.exists():
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f) or {}
+        except Exception as exc:
+            logger.warning("Could not read participant JSON for %r: %s", self.participant_id, exc)
+            return {}
+
+    def count_completed_sessions(self) -> int:
+        """Return the number of completed (ended) sessions from the participant JSON.
+
+        Reads the persisted transcript rather than the in-memory ``sessions``
+        list so the count is accurate even when the file backend is not loaded
+        (``use_json_file=False``).  Returns 0 when no participant data exists.
+
+        Returns
+        -------
+        int
+        """
+        data = self._load_participant_json()
+        return data.get("summary", {}).get("total_sessions", 0)
+
+    def find_incomplete_session(self) -> Optional["Session"]:
+        """Check whether the participant's last session is incomplete.
+
+        A session is incomplete when its ``ended_at`` field is ``None``.
+        Loads the participant JSON to inspect the last session.
+
+        Returns
+        -------
+        Session or None
+            The incomplete session, or ``None`` if the last session is complete
+            or no sessions exist.
+        """
+        data = self._load_participant_json()
+        sessions_data = data.get("sessions", [])
+        if not sessions_data:
+            return None
+        try:
+            last = Session.model_validate(sessions_data[-1])
+        except Exception as exc:
+            logger.warning("find_incomplete_session: could not parse last session: %s", exc)
+            return None
+        return last if last.ended_at is None else None
+
+    def truncate_from_session(self, from_session: int) -> None:
+        """Remove sessions from session N onward and recompute persistent state.
+
+        Loads the participant JSON to get the full session list (which may not
+        be in the in-memory ``sessions`` list when ``use_json_file=False``),
+        retains only the sessions whose 1-based index is strictly less than
+        *from_session*, recomputes ``completed_dialogs`` and
+        ``topics_of_interest`` from the retained sessions, and writes the
+        truncated transcript back to disk.
+
+        Parameters
+        ----------
+        from_session : int
+            1-based session number.  Sessions at this index and beyond are
+            removed.  ``from_session=2`` keeps only the first session.
+        """
+        data = self._load_participant_json()
+        all_sessions_data = data.get("sessions", [])
+        try:
+            all_sessions = [Session.model_validate(s) for s in all_sessions_data]
+        except Exception as exc:
+            logger.warning("truncate_from_session: could not parse session list: %s", exc)
+            return
+
+        retained = all_sessions[: from_session - 1]
+        self.sessions = retained
+        self.completed_dialogs = self._collect_dialog_ids(retained)
+        self.topics_of_interest = self._collect_topics_from_summaries(retained)
+
+        # Persist the truncated state.
+        self.save_participant_transcript(self.participant_id)
+        if self.use_json_file:
+            self.save_state_to_json()
+
+        # Mirror the truncated state to Redis so subsequent sessions read
+        # the correct completed_dialogs regardless of which backend is active.
+        if self.participant_id is not None:
+            self.user_model.save_continuity(
+                completed_dialogs=list(self.completed_dialogs),
+                topics_of_interest=list(self.topics_of_interest),
+            )
+
+        logger.info(
+            "History truncated to %d session(s); completed_dialogs=%s",
+            len(retained),
+            self.completed_dialogs,
+        )
+
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
         """
@@ -473,7 +600,7 @@ class ConversationState:
 
         def _serialize(obj):
             if isinstance(obj, Session):
-                return obj.__dict__
+                return obj.model_dump()
             if isinstance(obj, datetime):
                 return obj.isoformat()
             raise TypeError(f"Type not serializable: {type(obj)}")
@@ -483,4 +610,4 @@ class ConversationState:
 
         os.replace(tmp_path, path)
 
-        print(f"[INFO] Saved conversation state to {path}")
+        logger.info("Saved conversation state to %s", path)

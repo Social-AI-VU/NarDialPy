@@ -1,17 +1,29 @@
-from nardial.mini_dialogs import MiniDialog, LLMDialog
-from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_LLM_FOLLOWUP, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
+from nardial.mini_dialogs import ScriptedMiniDialog, LLMMiniDialog
+from nardial.dialog_runtime import RunContext, DialogRuntime, _run_llm_exchange
+from nardial.moves import (
+    MoveAskLLM,
+    MoveAskOpen,
+    MoveAskOptions,
+    MoveAskYesNo,
+    MoveLLMSay,
+    MOVE_ASK_LLM,
+    MOVE_ANSWER_LLM,
+    MOVE_LLM_FOLLOWUP,
+    MOVE_LLM_SAY,
+    MOVE_ANSWER_OPEN,
+    MOVE_ANSWER_YESNO,
+    MOVE_ANSWER_OPTIONS,
+)
 
 
-def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["My favorite is 'pizza'", "I like cats"]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
+    await _run_llm_exchange(agent, context, prompt="p", max_turns=2, set_variable='favorite')
 
     assert agent.ask_llm.call_count == 2
     assert agent.orchestrator.listen.call_count == 2
@@ -24,31 +36,27 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
     assert user_model['favorite'] == 'cats' or user_model['favorite'] == "I like cats"
 
 
-def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["stop please"]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
+    await _run_llm_exchange(agent, context, prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
     assert agent.ask_llm.call_count == 1
     assert agent.orchestrator.listen.call_count == 1
 
 
-def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["finished <<QUIT>>"],
         ask_open_side_effect=[]
     )
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
+    await _run_llm_exchange(agent, context, prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
 
     assert agent.ask_llm.call_count == 1
     agent.say.assert_called_once()
@@ -57,18 +65,17 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
     assert "finished" in say_arg
 
 
-def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1"],
         ask_open_side_effect=["ans"]
     )
 
-    move = {'prompt': 'hello', 'max_turns': 1, 'set_variable': 'fav', 'quit_phrases': None, 'quit_signal': None}
+    move = MoveAskLLM(prompt='hello', max_turns=1, set_variable='fav')
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_llm(move)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_llm(move, context)
 
     assert agent.ask_llm.call_count >= 1
     assert agent.orchestrator.listen.call_count >= 1
@@ -76,22 +83,21 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
     assert any(entry['type'] == MOVE_ANSWER_LLM for entry in session_history)
 
 
-def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_of_interest, make_mock_agent):
+async def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
         ask_open_side_effect=["a1", "a2", "a3", "a4", "a5"]
     )
 
-    dialog = LLMDialog('d1', moves=[], prompt='p', max_turns=3)
-    dialog.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    dialog.run(agent, session_history, topics_of_interest, user_model)
+    dialog = LLMMiniDialog('d1', moves=[], prompt='p', max_turns=3)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent).run(dialog, context)
 
     assert agent.ask_llm.call_count <= 3
     assert agent.orchestrator.listen.call_count <= 3
 
 
-def test_ask_open_llm_followup_generates_response(
+async def test_ask_open_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_open: after the user replies, the LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -99,17 +105,15 @@ def test_ask_open_llm_followup_generates_response(
         ask_llm_side_effect=["That sounds wonderful! Mountains are so peaceful."],
     )
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What did you do this weekend?',
-        'set_variable': 'weekend_activity',
-        'llm_followup': 'You are a friendly robot. Respond warmly to what the user just said.',
-    }
+    move = MoveAskOpen(
+        text='What did you do this weekend?',
+        set_variable='weekend_activity',
+        llm_followup='You are a friendly robot. Respond warmly to what the user just said.',
+    )
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_open(move)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_open(move, context)
 
     # LLM should have been called once with the user's answer as the prompt
     agent.ask_llm.assert_called_once()
@@ -125,7 +129,7 @@ def test_ask_open_llm_followup_generates_response(
     assert user_model.get('weekend_activity') == 'mountains'
 
 
-def test_ask_open_llm_followup_receives_full_conversation_context(
+async def test_ask_open_llm_followup_receives_full_conversation_context(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup receives the full session history as context."""
     agent = make_mock_agent(
@@ -136,23 +140,21 @@ def test_ask_open_llm_followup_receives_full_conversation_context(
     # Pre-populate history so LLM receives context
     session_history.append({"role": "robot", "type": "say", "text": "Let's talk about food."})
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What is your favorite food?',
-        'llm_followup': 'Be enthusiastic about the user choice.',
-    }
+    move = MoveAskOpen(
+        text='What is your favorite food?',
+        llm_followup='Be enthusiastic about the user choice.',
+    )
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_open(move)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_open(move, context)
 
     call_kwargs = agent.ask_llm.call_args.kwargs
     # Context should include prior history entries
     assert any("Let's talk about food." in msg for msg in call_kwargs['context_messages'])
 
 
-def test_ask_yesno_llm_followup_generates_response(
+async def test_ask_yesno_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_yesno: after the user replies yes/no, LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -160,16 +162,14 @@ def test_ask_yesno_llm_followup_generates_response(
         ask_llm_side_effect=["That's great, dogs are amazing companions!"],
     )
 
-    move = {
-        'type': 'ask_yesno',
-        'text': 'Do you like dogs?',
-        'llm_followup': 'React warmly to the user answer about dogs.',
-    }
+    move = MoveAskYesNo(
+        text='Do you like dogs?',
+        llm_followup='React warmly to the user answer about dogs.',
+    )
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_yesno(move)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_yesno(move, context)
 
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
@@ -178,7 +178,7 @@ def test_ask_yesno_llm_followup_generates_response(
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_ask_options_llm_followup_generates_response(
+async def test_ask_options_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_options: after the user picks an option, LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -186,17 +186,15 @@ def test_ask_options_llm_followup_generates_response(
         ask_llm_side_effect=["Forests are so serene and full of life!"],
     )
 
-    move = {
-        'type': 'ask_options',
-        'text': 'Which place in nature do you prefer?',
-        'options': ['sea', 'forest', 'mountains'],
-        'llm_followup': 'Share enthusiasm about the user chosen nature spot.',
-    }
+    move = MoveAskOptions(
+        text='Which place in nature do you prefer?',
+        options=['sea', 'forest', 'mountains'],
+        llm_followup='Share enthusiasm about the user chosen nature spot.',
+    )
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_options(move)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_options(move, context)
 
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
@@ -205,27 +203,25 @@ def test_ask_options_llm_followup_generates_response(
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_ask_open_without_llm_followup_does_not_call_llm(
+async def test_ask_open_without_llm_followup_does_not_call_llm(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """Without llm_followup, ask_open does not call the LLM."""
     agent = make_mock_agent(ask_open_side_effect=["I like cats."])
 
-    move = {
-        'type': 'ask_open',
-        'text': 'What is your favorite animal?',
-        'set_variable': 'favorite_animal',
-    }
+    move = MoveAskOpen(
+        text='What is your favorite animal?',
+        set_variable='favorite_animal',
+    )
 
-    md = MiniDialog('test', moves=[])
-    md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-
-    md.handle_move_ask_open(move)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_ask_open(move, context)
 
     agent.ask_llm.assert_not_called()
     assert not any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_dispatcher_runs_llm_followup_within_ask_open(
+async def test_dispatcher_runs_llm_followup_within_ask_open(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """The move dispatcher triggers llm_followup when running ask_open moves."""
     agent = make_mock_agent(
@@ -234,17 +230,138 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     )
 
     moves = [
-        {
-            'type': 'ask_open',
-            'text': 'What is your hobby?',
-            'llm_followup': 'Respond positively to the user hobby.',
-        }
+        MoveAskOpen(
+            text='What is your hobby?',
+            llm_followup='Respond positively to the user hobby.',
+        )
     ]
 
-    md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    dialog = ScriptedMiniDialog('test', moves=moves)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent).run(dialog, context)
 
     agent.ask_llm.assert_called_once()
     agent.say.assert_called_once_with("Painting is a beautiful hobby!")
     assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
+
+
+# ---------------------------------------------------------------------------
+# MoveLLMSay tests
+# ---------------------------------------------------------------------------
+
+async def test_llm_say_generates_and_speaks_utterance(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say calls the LLM with the prompt and speaks the returned text."""
+    agent = make_mock_agent(ask_llm_side_effect=["What a lovely day for a walk!"])
+
+    move = MoveLLMSay(prompt="Generate a cheerful one-sentence remark about the weather.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_llm_say(move, context)
+
+    agent.ask_llm.assert_called_once()
+    agent.say.assert_called_once_with("What a lovely day for a walk!")
+    assert any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+    assert session_history[-1]['text'] == "What a lovely day for a walk!"
+
+
+async def test_llm_say_substitutes_variables_in_prompt(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say performs %variable% substitution on the prompt before the LLM call."""
+    agent = make_mock_agent(ask_llm_side_effect=["Labradors are wonderful!"])
+    user_model['favorite_animal'] = 'labrador'
+
+    move = MoveLLMSay(prompt="The user loves %favorite_animal%. React warmly in one sentence.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    runtime = DialogRuntime(agent)
+    await runtime._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert 'labrador' in call_kwargs['system_prompt']
+    assert '%favorite_animal%' not in call_kwargs['system_prompt']
+
+
+async def test_llm_say_passes_session_history_as_context(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say forwards existing session history as context_messages to the LLM."""
+    agent = make_mock_agent(ask_llm_side_effect=["Interesting!"])
+    session_history.append({"role": "robot", "type": "say", "text": "Let's talk about food."})
+    session_history.append({"role": "user", "type": "answer_open", "text": "I love pizza."})
+
+    move = MoveLLMSay(prompt="React to the conversation so far.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert any("Let's talk about food." in m for m in call_kwargs['context_messages'])
+    assert any("I love pizza." in m for m in call_kwargs['context_messages'])
+
+
+async def test_llm_say_skips_when_llm_returns_none(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say does not call say() and records nothing when the LLM returns None."""
+    agent = make_mock_agent(ask_llm_side_effect=[None])
+
+    move = MoveLLMSay(prompt="Say something.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    agent.say.assert_not_called()
+    assert not any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+
+
+async def test_llm_say_uses_empty_user_prompt(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """llm_say passes an empty string as user_prompt — the system prompt carries all context."""
+    agent = make_mock_agent(ask_llm_side_effect=["Great!"])
+
+    move = MoveLLMSay(prompt="Be enthusiastic.")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['user_prompt'] == ""
+
+
+async def test_dispatcher_routes_llm_say(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """The move dispatcher correctly routes llm_say moves."""
+    agent = make_mock_agent(
+        ask_open_side_effect=["Stargazing."],
+        ask_llm_side_effect=["That sounds amazing under a clear night sky!"],
+    )
+
+    moves = [
+        MoveAskOpen(text="What's your favorite activity?", set_variable="activity"),
+        MoveLLMSay(prompt="The user enjoys %activity%. React with one warm sentence."),
+    ]
+
+    dialog = ScriptedMiniDialog('test', moves=moves)
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent).run(dialog, context)
+
+    agent.ask_llm.assert_called_once()
+    assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
+    assert any(entry['type'] == MOVE_LLM_SAY for entry in session_history)
+    assert session_history[-1]['text'] == "That sounds amazing under a clear night sky!"
+
+
+async def test_llm_say_rag_enabled_forwarded(
+        session_history, user_model, topics_of_interest, make_mock_agent):
+    """rag_enabled and index_name are forwarded to the LLM provider."""
+    agent = make_mock_agent(ask_llm_side_effect=["Here's what I know about that."])
+
+    move = MoveLLMSay(prompt="Answer based on stored knowledge.", rag_enabled=True, index_name="facts")
+
+    context = RunContext(session_history=session_history, topics_of_interest=topics_of_interest, user_model=user_model)
+    await DialogRuntime(agent)._handle_llm_say(move, context)
+
+    call_kwargs = agent.ask_llm.call_args.kwargs
+    assert call_kwargs['rag_enabled'] is True
+    assert call_kwargs['index_name'] == "facts"

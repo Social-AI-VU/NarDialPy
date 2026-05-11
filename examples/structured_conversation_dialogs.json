@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "id": "welcome_and_name",
     "type": "functional",
@@ -30,7 +30,6 @@
   {
     "id": "plan_activity",
     "type": "chitchat",
-    "theme": "planning",
     "topics": ["planning", "hobbies", "daily routine"],
     "_doc": "Use options, save the choice, and branch by outcome labels.",
     "moves": [
@@ -121,7 +120,7 @@
         }
       },
       {
-        "type": "play",
+        "type": "play_audio",
         "audio": "audio/planning_chime.wav"
       },
       {

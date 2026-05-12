@@ -556,3 +556,128 @@ async def test_sic_show_transcript_sends_both_messages(mock_sic_webserver_servic
     mock_sic_webserver_service.WebInfoMessage.assert_called_once_with(
         label="transcript", message={"role": "robot", "text": "hello"}
     )
+
+
+# ===========================================================================
+# Group 8: PepperTabletScreenAdapter — tablet wiring and lifecycle
+# ===========================================================================
+
+@pytest.fixture
+def mock_pepper_tablet_module():
+    """Patch the SIC pepper_tablet module in sys.modules.
+
+    PepperTabletScreenAdapter defers all ``from sic_framework...`` imports to
+    method bodies.  This fixture injects mock classes so those lazy imports
+    resolve to controllable fakes without requiring SIC to be installed.
+    """
+    mock_tablet_mod = MagicMock()
+    extra_modules = {
+        "sic_framework.devices.common_pepper": MagicMock(),
+        "sic_framework.devices.common_pepper.pepper_tablet": mock_tablet_mod,
+    }
+    with patch.dict(sys.modules, extra_modules):
+        yield mock_tablet_mod
+
+
+def _make_pepper_adapter(host_ip="192.168.1.10", port=5000, **kwargs):
+    """Return a (PepperTabletScreenAdapter, mock_webserver, mock_tablet) triple."""
+    from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
+    ws = MagicMock()
+    tablet = MagicMock()
+    adapter = PepperTabletScreenAdapter(
+        webserver=ws,
+        tablet=tablet,
+        host_ip=host_ip,
+        port=port,
+        **kwargs,
+    )
+    return adapter, ws, tablet
+
+
+def test_pepper_tablet_sends_url_on_init(mock_pepper_tablet_module):
+    """The tablet webview is pointed at the webserver URL during construction."""
+    _, _, tablet = _make_pepper_adapter(host_ip="10.0.0.5", port=8080)
+
+    mock_pepper_tablet_module.UrlMessage.assert_called_once_with("http://10.0.0.5:8080/")
+    tablet.send_message.assert_called_once_with(
+        mock_pepper_tablet_module.UrlMessage.return_value
+    )
+
+
+def test_pepper_tablet_default_port(mock_pepper_tablet_module):
+    """Default port is 5000."""
+    _, _, tablet = _make_pepper_adapter(host_ip="192.168.1.1")
+
+    mock_pepper_tablet_module.UrlMessage.assert_called_once_with("http://192.168.1.1:5000/")
+
+
+def test_pepper_tablet_no_wifi_setup_when_ssid_none(mock_pepper_tablet_module):
+    """WifiConnectRequest is not sent when wifi_ssid is None (default)."""
+    _make_pepper_adapter()
+
+    mock_pepper_tablet_module.WifiConnectRequest.assert_not_called()
+
+
+def test_pepper_tablet_wifi_setup_when_ssid_given(mock_pepper_tablet_module):
+    """WifiConnectRequest is sent before UrlMessage when wifi_ssid is provided."""
+    _, _, tablet = _make_pepper_adapter(
+        wifi_ssid="MyNetwork", wifi_password="secret", wifi_security="wpa2"
+    )
+
+    mock_pepper_tablet_module.WifiConnectRequest.assert_called_once_with(
+        network_name="MyNetwork",
+        network_password="secret",
+        network_type="wpa2",
+    )
+    # Both the wifi request and the URL open must have been sent.
+    assert tablet.request.call_count == 1
+    assert tablet.send_message.call_count == 1
+
+
+def test_pepper_tablet_wifi_failure_does_not_raise(mock_pepper_tablet_module):
+    """A Wi-Fi connection failure is swallowed — the URL is still opened."""
+    _, _, tablet = _make_pepper_adapter(wifi_ssid="BadNet")
+    tablet.request.side_effect = RuntimeError("wifi timeout")
+
+    # Construction should not raise even though request() failed.
+    # Re-create with the side_effect already set.
+    from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
+    ws = MagicMock()
+    tablet2 = MagicMock()
+    tablet2.request.side_effect = RuntimeError("wifi timeout")
+
+    adapter = PepperTabletScreenAdapter(
+        webserver=ws, tablet=tablet2, host_ip="1.2.3.4", wifi_ssid="BadNet"
+    )
+
+    # UrlMessage should still have been sent despite the Wi-Fi failure.
+    tablet2.send_message.assert_called_once()
+
+
+async def test_pepper_tablet_close_sends_clear_display(mock_pepper_tablet_module):
+    """close() sends ClearDisplayMessage to the tablet."""
+    adapter, _, tablet = _make_pepper_adapter()
+    await adapter.close()
+
+    mock_pepper_tablet_module.ClearDisplayMessage.assert_called_once()
+    # send_message is called once during __init__ (UrlMessage) and once during close().
+    assert tablet.send_message.call_count == 2
+
+
+async def test_pepper_tablet_close_failure_does_not_raise(mock_pepper_tablet_module):
+    """A tablet clear failure during close() is swallowed."""
+    adapter, _, tablet = _make_pepper_adapter()
+    tablet.send_message.side_effect = [None, RuntimeError("disconnect")]
+
+    await adapter.close()  # must not raise
+
+
+def test_pepper_tablet_inherits_sic_screen_adapter(mock_pepper_tablet_module):
+    """PepperTabletScreenAdapter is a SICScreenAdapter (protocol-safe subclass)."""
+    from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
+    from nardial.providers.screen.sic_adapter import SICScreenAdapter
+    from nardial.providers.screen import ScreenProvider
+
+    adapter, _, _ = _make_pepper_adapter()
+    assert isinstance(adapter, SICScreenAdapter)
+    assert isinstance(adapter, ScreenProvider)

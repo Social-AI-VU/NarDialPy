@@ -126,4 +126,6 @@ class ScreenProvider(Protocol):
         ...
 
 
-__all__ = ["ScreenProvider"]
+from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
+
+__all__ = ["ScreenProvider", "PepperTabletScreenAdapter"]

@@ -166,6 +166,7 @@ NarDialPy is built around a set of provider protocols. Each protocol defines a r
 | **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
 | | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
 | **Screen** | `SICScreenAdapter` | `nardial.providers.screen.sic_adapter` | `nardial[webserver]` + `run-webserver` |
+| | `PepperTabletScreenAdapter` | `nardial.providers.screen.pepper_tablet` | `nardial[webserver]` + Pepper on same LAN |
 | | `NullScreenProvider` | `nardial.providers.screen.null` | base (logs display commands, no browser needed) |
 
 ---
@@ -299,6 +300,50 @@ Use `NullScreenProvider` during development when no browser is available — it 
 from nardial.providers.screen.null import NullScreenProvider
 agent = ConversationAgent(..., screen_provider=NullScreenProvider())
 ```
+
+#### Pepper tablet
+
+`PepperTabletScreenAdapter` extends `SICScreenAdapter` with two extra steps: pointing Pepper's built-in tablet webview at the webserver URL on construction, and clearing the tablet when the session ends. All display, transcript, and input logic is identical to `SICScreenAdapter`.
+
+Two requirements differ from the desktop setup:
+
+* The webserver **must** use `host="0.0.0.0"` — Pepper's tablet cannot reach `localhost`.
+* The tablet URL must use the **host machine's LAN IP**, not `localhost` or `127.0.0.1`.
+
+```python
+import socket
+from pathlib import Path
+from sic_framework.devices import Pepper
+from sic_framework.services.webserver.webserver_service import Webserver, WebserverConf
+from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
+import nardial.providers.screen as _screen_pkg
+
+_WEB_DIR = Path(_screen_pkg.__file__).parent / "web"
+host_ip = socket.gethostbyname(socket.gethostname())
+
+pepper = Pepper(ip="<ROBOT_IP>")
+
+webserver = Webserver(
+    conf=WebserverConf(
+        host="0.0.0.0",          # required — Pepper cannot route to localhost
+        port=5000,
+        templates_dir=str(_WEB_DIR / "templates"),
+        static_dir=str(_WEB_DIR / "static"),
+    )
+)
+screen = PepperTabletScreenAdapter(
+    webserver=webserver,
+    tablet=pepper.tablet,
+    host_ip=host_ip,             # LAN IP Pepper can reach
+    port=5000,
+)
+
+agent = ConversationAgent(device=device, tts_provider=tts, nlu_provider=nlu, screen_provider=screen)
+```
+
+If Pepper's tablet needs to join a specific Wi-Fi network first, pass `wifi_ssid` (and optionally `wifi_password` / `wifi_security`) to the constructor — the connection request is sent before the page is opened.
+
+See `examples/demo_pepper_tablet_screen.py` for a full working example.
 
 ---
 

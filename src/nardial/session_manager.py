@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -119,15 +120,63 @@ class SessionManager:
         session_history.append({
             "role": "system",
             "type": "dialog_start",
-            "dialog_id": dialog.dialog_id
+            "dialog_id": dialog.dialog_id,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         })
 
     def _log_dialog_end(self, session_history, dialog):
         session_history.append({
             "role": "system",
             "type": "dialog_end",
-            "dialog_id": dialog.dialog_id
+            "dialog_id": dialog.dialog_id,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         })
+
+    @staticmethod
+    def _compute_detailed_transcript_summary(session_history):
+        robot_events = [ev for ev in session_history if ev.get("role") == "robot" and isinstance(ev.get("timestamp_monotonic"), (int, float))]
+        user_events = [ev for ev in session_history if ev.get("role") == "user" and isinstance(ev.get("timestamp_monotonic"), (int, float))]
+
+        total_interaction_duration_seconds = None
+        if robot_events:
+            total_interaction_duration_seconds = round(
+                float(robot_events[-1]["timestamp_monotonic"]) - float(robot_events[0]["timestamp_monotonic"]),
+                3,
+            )
+
+        # Exchange count: number of user utterances that occur after robot starts speaking.
+        exchanges = 0
+        if robot_events:
+            first_robot_ts = float(robot_events[0]["timestamp_monotonic"])
+            exchanges = sum(1 for ev in user_events if float(ev["timestamp_monotonic"]) >= first_robot_ts)
+        else:
+            exchanges = len(user_events)
+
+        agent_thinking_latency_per_exchange_seconds = []
+        for user_ev in user_events:
+            user_ts = float(user_ev["timestamp_monotonic"])
+            next_robot = next(
+                (
+                    ev for ev in robot_events
+                    if float(ev["timestamp_monotonic"]) >= user_ts
+                ),
+                None
+            )
+            if not next_robot:
+                continue
+            agent_thinking_latency_per_exchange_seconds.append(
+                round(float(next_robot["timestamp_monotonic"]) - user_ts, 3)
+            )
+
+        return {
+            "total_interaction_duration_seconds": total_interaction_duration_seconds,
+            "number_of_exchanges": exchanges,
+            "agent_thinking_latency_per_exchange_seconds": agent_thinking_latency_per_exchange_seconds,
+            "agent_thinking_latency_avg_seconds": round(
+                sum(agent_thinking_latency_per_exchange_seconds) / len(agent_thinking_latency_per_exchange_seconds), 3
+            )
+            if agent_thinking_latency_per_exchange_seconds else None,
+        }
 
     def _run_single_dialog(self, dialog, session_history, allow_repeatable_rerun=False):
         completed_for_check = list(self.conversation_state.completed_dialogs)
@@ -180,11 +229,15 @@ class SessionManager:
         topics_of_interest = self.condense_topics(self.conversation_state.topics_of_interest)
 
         self.conversation_state.add_events(self.session_id, session_history)
+        extra_summary = None
+        if bool(getattr(self.agent.orchestrator.interaction_conf, "detailed_transcript", False)):
+            extra_summary = self._compute_detailed_transcript_summary(session_history)
         self.conversation_state.end_session(
             self.session_id,
             completed_ids=self.conversation_state.completed_dialogs,
             user_model=self.conversation_state.user_model,
-            topics_of_interest=topics_of_interest
+            topics_of_interest=topics_of_interest,
+            extra_summary=extra_summary,
         )
         self.conversation_state.save()
 

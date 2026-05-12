@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional, TypedDict
+from datetime import datetime, timezone
+from time import monotonic
 
 from langgraph.graph import END, StateGraph
 
@@ -88,6 +90,15 @@ def run_llm_router_graph(
 
     _log_info(f"[HYBRID_ROUTER] start dialog_candidates={list(dialog_map.keys())}")
 
+    def _robot_timestamp_monotonic() -> float:
+        try:
+            ts = conversation_agent.orchestrator.last_robot_speech_start_monotonic
+            if isinstance(ts, (int, float)):
+                return float(ts)
+        except Exception:
+            pass
+        return monotonic()
+
     def listen_node(state: HybridRouterState) -> HybridRouterState:
         turns = int(state.get("turns", 0))
         if turns >= max_turns:
@@ -97,7 +108,13 @@ def run_llm_router_graph(
         reply, _intent = conversation_agent.orchestrator.listen()
         user_text = (reply or "").strip()
         if user_text:
-            session_history.append({"role": "user", "type": "answer_open", "text": user_text})
+            session_history.append({
+                "role": "user",
+                "type": "answer_open",
+                "text": user_text,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "timestamp_monotonic": monotonic(),
+            })
         _log_debug(f"[HYBRID_ROUTER] user_input={user_text!r}")
         done = normalize_text(user_text) in done_markers
         return {"last_user_input": user_text, "done": done, "turns": turns + 1}
@@ -180,7 +197,13 @@ def run_llm_router_graph(
         )
         if text:
             conversation_agent.say(text)
-            session_history.append({"role": "robot", "type": "ask_llm", "text": text})
+            session_history.append({
+                "role": "robot",
+                "type": "ask_llm",
+                "text": text,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "timestamp_monotonic": _robot_timestamp_monotonic(),
+            })
             _log_debug(f"[HYBRID_ROUTER] improvised_response={text!r}")
         return {}
 

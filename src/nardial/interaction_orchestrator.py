@@ -11,7 +11,7 @@ from os.path import exists, abspath, join
 from pathlib import Path
 import random as rand
 from threading import Thread
-from time import sleep, strftime
+from time import sleep, strftime, monotonic
 
 import numpy as np
 import mini.mini_sdk as MiniSdk
@@ -125,7 +125,7 @@ class InteractionConfig:
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
-                 log_level: Optional[Union[str, int]] = None):
+                 log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False):
         """
         Initialize interaction configuration.
 
@@ -139,6 +139,8 @@ class InteractionConfig:
             signal_listening_behavior (bool): Whether to show listening indicators.
             log_level (str | int | None): SIC / app log level name (e.g. ``\"INFO\"``) or numeric level.
                 ``None`` defaults to DEBUG (matches prior hard-coded behavior).
+            detailed_transcript (bool): When True, store detailed session transcript metadata
+                (timing metrics and full user/robot events).
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -178,6 +180,7 @@ class InteractionConfig:
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
         self.chunk_audio = True
         self.log_level = log_level
+        self.detailed_transcript = bool(detailed_transcript)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -271,6 +274,7 @@ class InteractionOrchestrator:
         # Data logging
         self._log_queue = None
         self._log_thread = None
+        self.last_robot_speech_start_monotonic = None
 
         # Interaction configuration
         self.interaction_conf = int_config
@@ -478,6 +482,7 @@ class InteractionOrchestrator:
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+        self.last_robot_speech_start_monotonic = monotonic()
         if animated:
             self.animation()
 

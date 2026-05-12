@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, List, cast
 from nardial.utils import normalize_text
 import re
 from time import monotonic
+from datetime import datetime, timezone
 
 from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
@@ -71,18 +72,45 @@ class MiniDialog:
         if all(low != str(x).lower() for x in topics_of_interest):
             topics_of_interest.append(t)
 
+    def _robot_timestamp_monotonic(self):
+        try:
+            ts = self.conversation_agent.orchestrator.last_robot_speech_start_monotonic
+            if isinstance(ts, (int, float)):
+                return float(ts)
+        except Exception:
+            pass
+        return monotonic()
+
     def _record_robot(self, type_name: str, text: str, **extra):
-        entry = {"role": "robot", "type": type_name, "text": text}
+        entry = {
+            "role": "robot",
+            "type": type_name,
+            "text": text,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": self._robot_timestamp_monotonic(),
+        }
         entry.update(extra)
         self.session_history.append(entry)
 
     def _record_user(self, type_name: str, text: str, **extra):
-        entry = {"role": "user", "type": type_name, "text": text}
+        entry = {
+            "role": "user",
+            "type": type_name,
+            "text": text,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": monotonic(),
+        }
         entry.update(extra)
         self.session_history.append(entry)
 
     def _record_system(self, type_name: str, text: str, **extra):
-        entry = {"role": "system", "type": type_name, "text": text}
+        entry = {
+            "role": "system",
+            "type": type_name,
+            "text": text,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": monotonic(),
+        }
         entry.update(extra)
         self.session_history.append(entry)
 
@@ -506,6 +534,8 @@ class IntentRouterDialog(MiniDialog):
             utterance, intent = agent.orchestrator.listen()
             intent_norm = normalize_text(intent)
             utterance_norm = normalize_text(utterance)
+            if utterance:
+                self._record_user("answer_open", utterance, intent=intent)
             print(
                 f"[ROUTER] user_utterance={utterance!r}, raw_intent={intent!r}, "
                 f"normalized_intent={intent_norm!r}, remaining={sorted(remaining)}"
@@ -569,7 +599,8 @@ class LLMRouterDialog(MiniDialog):
 
     def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-        from nardial.llm_router_graph import run_llm_router_graph
+        # LLM router uses the same graph implementation as the hybrid router.
+        from nardial.hybrid_router_graph import run_llm_router_graph
         run_llm_router_graph(
             conversation_agent=self.conversation_agent,
             session_history=self.session_history,

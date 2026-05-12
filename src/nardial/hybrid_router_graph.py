@@ -120,8 +120,35 @@ def run_llm_router_graph(
         return {"last_user_input": user_text, "done": done, "turns": turns + 1}
 
     def route_node(state: HybridRouterState) -> HybridRouterState:
+        def _append_router_event(
+            *,
+            router_action: str,
+            router_dialog_id: Optional[str],
+            token_usage: Optional[Dict[str, Any]],
+            text: str,
+            available_ids: Optional[List[str]] = None,
+        ) -> None:
+            session_history.append({
+                "role": "system",
+                "type": "hybrid_router_route",
+                "text": text,
+                "router_action": router_action,
+                "router_dialog_id": router_dialog_id,
+                "available_dialog_ids": available_ids,
+                "token_usage": dict(token_usage) if isinstance(token_usage, dict) else token_usage,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "timestamp_monotonic": monotonic(),
+            })
+
         if state.get("done"):
             _log_info("[HYBRID_ROUTER] route_action=DONE (explicit done phrase)")
+            _append_router_event(
+                router_action="DONE",
+                router_dialog_id=None,
+                token_usage=None,
+                text="Routing skipped: user finished (done phrase).",
+                available_ids=None,
+            )
             return {"action": "DONE"}
 
         completed_ids = list(state.get("completed_dialog_ids") or [])
@@ -134,8 +161,17 @@ def run_llm_router_graph(
                 "description": str(getattr(d, "description", "") or getattr(d, "theme", "") or d.dialog_id),
             })
 
+        available_ids = [a["id"] for a in available]
+
         if not available:
             _log_info("[HYBRID_ROUTER] route_action=IMPROVISE (no eligible structured dialogs)")
+            _append_router_event(
+                router_action="IMPROVISE",
+                router_dialog_id=None,
+                token_usage=None,
+                text="No eligible structured dialogs; improvising.",
+                available_ids=available_ids,
+            )
             return {"action": "IMPROVISE"}
 
         router_prompt = (
@@ -155,9 +191,23 @@ def run_llm_router_graph(
             json_response=True,
             rag_enabled=False,
         )
+        # Snapshot immediately so a later LLM call (e.g. improvise) does not overwrite usage.
+        router_token_usage = getattr(conversation_agent.orchestrator, "last_llm_usage", None)
+
         parsed = _safe_json_loads(routed)
         action = str(parsed.get("action", "IMPROVISE")).upper()
         dialog_id = str(parsed.get("dialog_id", "") or "")
+
+        summary = f"Router LLM: action={action}"
+        if dialog_id:
+            summary += f", dialog_id={dialog_id}"
+        _append_router_event(
+            router_action=action,
+            router_dialog_id=dialog_id or None,
+            token_usage=router_token_usage,
+            text=summary,
+            available_ids=available_ids,
+        )
 
         if action == "RUN_DIALOG" and dialog_id in dialog_map:
             _log_info(f"[HYBRID_ROUTER] route_action=RUN_DIALOG dialog_id={dialog_id}")

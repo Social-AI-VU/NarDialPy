@@ -125,7 +125,8 @@ class InteractionConfig:
                  rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
-                 log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False):
+                 log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
+                 langgraph: bool = False):
         """
         Initialize interaction configuration.
 
@@ -141,6 +142,8 @@ class InteractionConfig:
                 ``None`` defaults to DEBUG (matches prior hard-coded behavior).
             detailed_transcript (bool): When True, store detailed session transcript metadata
                 (timing metrics and full user/robot events).
+            langgraph (bool): If True, route LLM calls through LangChain ChatOpenAI
+                (LangSmith tracing compatible) instead of the SIC GPT service.
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -181,6 +184,7 @@ class InteractionConfig:
         self.chunk_audio = True
         self.log_level = log_level
         self.detailed_transcript = bool(detailed_transcript)
+        self.langgraph = bool(langgraph)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -275,6 +279,7 @@ class InteractionOrchestrator:
         self._log_queue = None
         self._log_thread = None
         self.last_robot_speech_start_monotonic = None
+        self.last_llm_usage = None
 
         # Interaction configuration
         self.interaction_conf = int_config
@@ -287,6 +292,7 @@ class InteractionOrchestrator:
 
         print("\n SETTING UP OPENAI")
         self.gpt = None
+        self.langchain_chat = None
         self.datastore = None
         self.rag_enabled = bool(self.interaction_conf.rag)
         if self.interaction_conf.env_file_path:
@@ -296,6 +302,21 @@ class InteractionOrchestrator:
             self.gpt = GPT(conf=GPTConf(openai_key=environ["OPENAI_API_KEY"]))
         except KeyError:
             self.logger.warning("No openAI key available")
+        if self.interaction_conf.langgraph:
+            try:
+                from langchain_openai import ChatOpenAI
+                self.langchain_chat = ChatOpenAI(
+                    model=environ.get("NARDIAL_OPENAI_MODEL", "gpt-4o-mini"),
+                )
+                self.logger.info(
+                    "LangChain LLM enabled via InteractionConfig.langgraph=True using model %s",
+                    environ.get("NARDIAL_OPENAI_MODEL", "gpt-4o-mini"),
+                )
+            except Exception as e:
+                self.logger.warning(
+                    "Failed to initialize LangChain ChatOpenAI; falling back to GPT service: %s",
+                    e,
+                )
         if self.rag_enabled:
             self._setup_rag(openai_key=openai_key)
         print('Complete')
@@ -646,6 +667,7 @@ class InteractionOrchestrator:
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
                          rag_enabled=None, rag_index_name=None):
+        self.last_llm_usage = None
         use_rag = self.rag_enabled if rag_enabled is None else bool(rag_enabled)
         if use_rag and not rag_index_name and not self.interaction_conf.index_name:
             raise ValueError("RAG-enabled LLM requests require an index name")
@@ -667,8 +689,40 @@ class InteractionOrchestrator:
                 else:
                     system_prompt = rag_prefix
         try:
-            resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
-            text = (resp.response or "").strip()
+            if self.interaction_conf.langgraph and self.langchain_chat is not None:
+                from langchain_core.messages import SystemMessage, HumanMessage
+                messages = []
+                if system_prompt:
+                    messages.append(SystemMessage(content=str(system_prompt)))
+                if context_messages:
+                    context_blob = "\n".join(str(m) for m in context_messages if m is not None)
+                    if context_blob.strip():
+                        messages.append(
+                            SystemMessage(content=f"Conversation context:\n{context_blob}")
+                        )
+                messages.append(HumanMessage(content=str(user_prompt or "")))
+                resp = self.langchain_chat.invoke(messages)
+                text_content = getattr(resp, "content", "")
+                if isinstance(text_content, str):
+                    text = text_content.strip()
+                elif isinstance(text_content, list):
+                    text = "".join(
+                        block.get("text", "") if isinstance(block, dict) else str(block)
+                        for block in text_content
+                    ).strip()
+                else:
+                    text = str(text_content or "").strip()
+                usage = getattr(resp, "usage_metadata", None) or getattr(resp, "response_metadata", {}).get("token_usage", {})
+                self.last_llm_usage = {
+                    "provider": "langchain_openai",
+                    "model": environ.get("NARDIAL_OPENAI_MODEL", "gpt-4o-mini"),
+                    "input_tokens": usage.get("input_tokens") or usage.get("prompt_tokens"),
+                    "output_tokens": usage.get("output_tokens") or usage.get("completion_tokens"),
+                    "total_tokens": usage.get("total_tokens"),
+                }
+            else:
+                resp = self.gpt.request(GPTRequest(prompt=user_prompt, context_messages=context_messages, system_message=system_prompt))
+                text = (resp.response or "").strip()
             if json_response:
                 return json.loads(text)
             return text

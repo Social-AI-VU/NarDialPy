@@ -229,7 +229,11 @@ class MiniDialog:
         print(f"[LLM] followup_response={llm_text!r}")
         if llm_text:
             self.conversation_agent.say(llm_text)
-            self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
+            self._record_robot(
+                MOVE_LLM_FOLLOWUP,
+                llm_text,
+                token_usage=getattr(self.conversation_agent.orchestrator, "last_llm_usage", None),
+            )
 
     def handle_move_say(self, move):
         text = self._get(move, 'text')
@@ -358,7 +362,11 @@ class MiniDialog:
                 clean = llm_text.replace(quit_signal, "").strip()
                 if clean:
                     agent.say(clean)
-                    self._record_robot(MOVE_SAY, clean)
+                    self._record_robot(
+                        MOVE_SAY,
+                        clean,
+                        token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
+                    )
                 return
 
             # Ask the user the LLM's text and listen for reply
@@ -371,7 +379,11 @@ class MiniDialog:
                 user_input = ""
 
             # Record the exchange using the provided record types
-            self._record_robot(MOVE_ASK_LLM, llm_text)
+            self._record_robot(
+                MOVE_ASK_LLM,
+                llm_text,
+                token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
+            )
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
             # Optionally store a variable from user's answer

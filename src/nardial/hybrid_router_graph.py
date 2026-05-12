@@ -201,6 +201,7 @@ def run_llm_router_graph(
                 "role": "robot",
                 "type": "ask_llm",
                 "text": text,
+                "token_usage": getattr(conversation_agent.orchestrator, "last_llm_usage", None),
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "timestamp_monotonic": _robot_timestamp_monotonic(),
             })

@@ -1,63 +1,84 @@
 import json
+import logging
 import re
 
-from sic_framework.devices import Nao, Pepper
-from sic_framework.devices.device import SICDeviceManager
+from nardial.providers.device import DeviceAdapter
+from nardial.providers.tts import TTSProvider
+from nardial.providers.nlu import (
+    NLUProvider,
+    INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
+)
+from nardial.providers.llm import LLMProvider
+from nardial.providers.vector_store import VectorStoreProvider
+from nardial.providers.screen import ScreenProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
+logger = logging.getLogger(__name__)
+
+
 class ConversationAgent:
-    """
-    High-level interface for running conversational interactions with a user.
+    """High-level async interface for running conversational interactions.
 
-    This class wraps the lower-level `InteractionOrchestrator` and provides
-    convenient methods for:
-    - Speaking (`say`)
-    - Playing audio and animations
-    - Asking different types of questions (yes/no, open, options)
-    - Calling LLMs (e.g., GPT) for reasoning or post-processing
-
-    It abstracts away device-specific behavior (e.g., Desktop vs Pepper robot)
-    and external services (Dialogflow, TTS, GPT).
+    Wraps :class:`~nardial.interaction_orchestrator.InteractionOrchestrator`
+    and exposes convenient ``async`` methods for speech, listening, and LLM
+    interaction.  All I/O methods are coroutines so the event loop is never
+    blocked; blocking work is delegated to ``asyncio.to_thread`` inside the
+    orchestrator.
 
     Parameters
     ----------
-    device_manager : SICDeviceManager
-        The device interface (e.g., Desktop, Pepper, Nao) that handles I/O.
-    int_config : InteractionConfig, optional
-        Configuration for language, TTS, APIs, and interaction behavior.
-        If not provided, a default configuration is used.
-
-    Notes
-    -----
-    Most methods internally rely on:
-    - Speech recognition (Dialogflow)
-    - Text-to-speech (Google TTS or configured backend)
-    - LLM calls (OpenAI GPT)
-
-    Ensure required services are running before using this class.
+    device : DeviceAdapter
+        Device adapter (Desktop, Pepper, Nao, AlphaMini) that handles I/O.
+    tts_provider : TTSProvider
+        Text-to-speech provider.
+    nlu_provider : NLUProvider
+        Natural-language understanding provider.
+    llm_provider : LLMProvider, optional
+        Large-language-model provider for generative responses.
+    vector_store : VectorStoreProvider, optional
+        Vector store for retrieval-augmented generation.
+    screen_provider : ScreenProvider, optional
+        Browser-based display provider.  When supplied, the robot's spoken text
+        and the user's recognised speech are pushed to the screen automatically.
+        Dialog authors may also use display moves (``show_image``, ``show_video``,
+        ``show_iframe``, ``show_html``, ``black_screen``) and input moves
+        (``wait_for_web_input``) in JSON dialogs.
+    interaction_config : InteractionConfig, optional
+        Behavioural configuration.  Defaults are used when omitted.
     """
 
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
-        if int_config is None:
-            int_config = InteractionConfig()
-        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
-        self.device = device_manager
+    def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
+                 nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
+                 vector_store: VectorStoreProvider | None = None,
+                 screen_provider: ScreenProvider | None = None,
+                 interaction_config: InteractionConfig | None = None):
+        self.orchestrator = InteractionOrchestrator(
+            device=device,
+            tts_provider=tts_provider,
+            nlu_provider=nlu_provider,
+            llm_provider=llm_provider,
+            vector_store=vector_store,
+            screen_provider=screen_provider,
+            interaction_config=interaction_config,
+        )
 
-    def say(self, text):
-        """
-        Speak a piece of text using the configured TTS system.
+    # ------------------------------------------------------------------
+    # Speech and playback
+    # ------------------------------------------------------------------
+
+    async def say(self, text) -> None:
+        """Speak ``text`` using the configured TTS provider.
 
         Parameters
         ----------
         text : str
-            The text to be spoken aloud.
+            Text to be spoken aloud.
         """
-        self.orchestrator.say(text)
+        await self.orchestrator.say(text)
 
-    def play_audio(self, audio_file):
-        """
-        Play a pre-recorded audio file.
+    def play_audio(self, audio_file) -> None:
+        """Play a pre-recorded audio file.
 
         Parameters
         ----------
@@ -66,9 +87,8 @@ class ConversationAgent:
         """
         self.orchestrator.play_audio(audio_file)
 
-    def play_motion_sequence(self, motion_sequence_file):
-        """
-        Execute a predefined motion sequence (if supported by the device).
+    def play_motion_sequence(self, motion_sequence_file) -> None:
+        """Execute a predefined motion sequence (if supported by the device).
 
         Parameters
         ----------
@@ -77,102 +97,89 @@ class ConversationAgent:
         """
         self.orchestrator.play_motion(motion_sequence_file)
 
-    def play_animation(self, animation_name, block=False):
-        """
-        Trigger a built-in animation on supported robot platforms (Pepper, Nao).
+    def play_animation(self, animation_name, run_async=False) -> None:
+        """Trigger an animation on the current device.
+
+        No-op on devices that do not support animations (e.g. Desktop).
 
         Parameters
         ----------
         animation_name : str
-            Name of the animation (NAOqi animation key).
-        block : bool, optional
-            Whether to block execution until the animation completes.
-
-        Notes
-        -----
-        This only works on Pepper/Nao devices. On Desktop, this call is ignored.
+            Device-specific animation key.
+        run_async : bool, optional
+            If True, the animation runs without blocking execution.
         """
-        if isinstance(self.device, Pepper) or isinstance(self.device, Nao):
-            try:
-                self.orchestrator.animate_naoqi(animation_name, block)
-            except Exception as e:
-                print(f"Failed to play animation: {animation_name}", e)
+        self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    def ask_yesno(self, question, max_attempts=1):
-        """
-        Ask a yes/no question and interpret the response using intent recognition.
+    # ------------------------------------------------------------------
+    # Listening and questions
+    # ------------------------------------------------------------------
+
+    async def ask_yesno(self, question, max_attempts=1) -> str | None:
+        """Ask a yes/no question and interpret the NLU response.
 
         Parameters
         ----------
         question : str
             The question to ask the user.
         max_attempts : int, optional
-            Number of retries if no valid answer is detected.
+            Number of retries when no valid intent is detected.
 
         Returns
         -------
         str or None
-            One of: "yes", "no", "dontknow", or None if no valid response.
-
-        Notes
-        -----
-        Requires Dialogflow intents:
-        - yesno_yes
-        - yesno_no
-        - yesno_dontknow
+            One of ``"yes"``, ``"no"``, ``"dontknow"``, or None.
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            reply, intent = self.orchestrator.listen()
-
-            if intent:
-                print(f'context: answer_yesno, recognized_intent: {str(intent)}')
-                if intent == "yesno_yes":
+            await self.say(question)
+            result = await self.orchestrator.listen()
+            if result.intent:
+                logger.debug("answer_yesno: recognized_intent=%s", result.intent)
+                if result.intent == INTENT_YESNO_YES:
                     return "yes"
-                elif intent == "yesno_no":
+                elif result.intent == INTENT_YESNO_NO:
                     return "no"
-                elif intent == "yesno_dontknow":
+                elif result.intent == INTENT_YESNO_DONTKNOW:
                     return "dontknow"
-
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
-        """
-        Ask an open-ended question and return the user's spoken response.
+    async def ask_open(self, question, max_attempts=2) -> str | None:
+        """Ask an open-ended question and return the user's spoken response.
 
         Parameters
         ----------
         question : str
             The question to ask.
         max_attempts : int, optional
-            Number of retries if no response is captured.
+            Number of retries when no transcript is captured.
 
         Returns
         -------
         str or None
-            The recognized user response, or None if no input is captured.
+            The recognised user response, or None if no input is captured.
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            reply, _ = self.orchestrator.listen()
-            if reply:
-                return reply
+            await self.say(question)
+            result = await self.orchestrator.listen()
+            if result.transcript:
+                return result.transcript
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
-        """
-        Ask a question and match the response against a set of predefined options.
+    async def ask_options(self, question, options, max_attempts=2) -> str | None:
+        """Ask a question and match the response against a set of options.
+
+        Matching is case-insensitive substring presence.
 
         Parameters
         ----------
         question : str
             The question to ask.
         options : list of str
-            List of expected keywords/options to match against the response.
+            Expected keywords / option labels.
         max_attempts : int, optional
             Number of retries.
 
@@ -180,25 +187,141 @@ class ConversationAgent:
         -------
         str or None
             The matched option, or None if no match is found.
-
-        Notes
-        -----
-        Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts)
+        answer = await self.ask_open(question, max_attempts=max_attempts)
         if answer:
             answer_lower = answer.lower()
             for opt in options:
-                if opt in answer_lower:
+                if opt.lower() in answer_lower:
                     return opt
         return None
 
-    def extract_topics_with_gpt(self, raw_topics):
-        """
-        Extract concise topic keywords from a list of raw user utterances.
+    # ------------------------------------------------------------------
+    # LLM integration
+    # ------------------------------------------------------------------
 
-        This method uses GPT to condense free-form text into 1–2 keyword(s)
-        per input item. If GPT fails, a local heuristic fallback is used.
+    async def ask_llm(self, user_prompt, context_messages, system_prompt,
+                      rag_enabled: bool = False,
+                      index_name: str | None = None):
+        """Send a request to the configured LLM and return the response.
+
+        Parameters
+        ----------
+        user_prompt : str
+            The user's input or query.
+        context_messages : list
+            Conversation history or additional context.
+        system_prompt : str
+            Instruction defining the assistant's behaviour.
+        rag_enabled : bool, optional
+            If True, augment the request with vector store context.
+        index_name : str, optional
+            Vector store index to query (overrides the provider default).
+
+        Returns
+        -------
+        str or None
+            The LLM response text, or None on failure.
+        """
+        return await self.orchestrator.request_from_llm(
+            user_prompt,
+            context_messages,
+            system_prompt,
+            rag_enabled=rag_enabled,
+            index_name=index_name,
+        )
+
+    # ------------------------------------------------------------------
+    # Screen display
+    # ------------------------------------------------------------------
+
+    async def show_image(self, src: str, caption: str = "") -> None:
+        """Display an image on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        src : str
+            Local file path (relative to the static directory) or a full URL.
+        caption : str
+            Optional caption text shown below the image.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_image(src, caption=caption)
+
+    async def show_video(self, src: str) -> None:
+        """Display a video on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        src : str
+            Local file path or an embeddable URL.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_video(src)
+
+    async def show_iframe(self, url: str) -> None:
+        """Embed a URL in an iframe on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        url : str
+            The URL to embed.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_iframe(url)
+
+    async def show_html(self, html: str) -> None:
+        """Render a raw HTML snippet on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        html : str
+            The HTML to inject into the display area.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_html(html)
+
+    async def show_buttons(self, options: list[str]) -> None:
+        """Display clickable buttons on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        options : list of str
+            Button labels.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_buttons(options)
+
+    async def show_text_input(self, prompt: str = "") -> None:
+        """Show a text-input field on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        prompt : str
+            Placeholder / hint text for the input field.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_text_input(prompt)
+
+    async def hide_input(self) -> None:
+        """Hide the current input widget on the screen, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.hide_input()
+
+    async def black(self) -> None:
+        """Set the screen to black/blank, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.black()
+
+    # ------------------------------------------------------------------
+    # LLM integration
+    # ------------------------------------------------------------------
+
+    async def extract_topics_with_llm(self, raw_topics) -> list[str]:
+        """Extract concise topic keywords from a list of raw user utterances.
+
+        Uses the LLM to condense free-form text into 1–2 keywords per input
+        item.  Falls back to a local heuristic if the LLM call fails.
 
         Parameters
         ----------
@@ -209,17 +332,6 @@ class ConversationAgent:
         -------
         list of str
             De-duplicated list of lowercase topic keywords.
-
-        Behavior
-        --------
-        - Prefers specific nouns (e.g., "dogs", "music", "travel")
-        - Removes stopwords and short tokens
-        - Ensures uniqueness and order preservation
-
-        Fallback
-        --------
-        If GPT is unavailable or returns invalid output, a regex-based
-        keyword extraction heuristic is applied locally.
         """
 
         def _heuristic(lines):
@@ -253,9 +365,9 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.orchestrator.request_from_gpt(system_prompt=prompt)
+            data = await self.orchestrator.request_from_llm(system_prompt=prompt)
             if not isinstance(data, list):
-                raise ValueError("GPT did not return a JSON list")
+                raise ValueError("LLM did not return a JSON list")
             out, seen = [], set()
             for item in data:
                 if not isinstance(item, str):
@@ -267,29 +379,3 @@ class ConversationAgent:
             return out or _heuristic(raw_topics)
         except Exception:
             return _heuristic(raw_topics)
-
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled=None, rag_index_name=None):
-        """
-        Send a request to the configured LLM (e.g., GPT) and return the response.
-
-        Parameters
-        ----------
-        user_prompt : str
-            The user's input or query.
-        context_messages : list
-            Conversation history or additional context.
-        system_prompt : str
-            Instruction defining the assistant's behavior.
-
-        Returns
-        -------
-        Any
-            The parsed response from the LLM (format depends on orchestrator).
-        """
-        return self.orchestrator.request_from_gpt(
-            user_prompt,
-            context_messages,
-            system_prompt,
-            rag_enabled=rag_enabled,
-            rag_index_name=rag_index_name,
-        )

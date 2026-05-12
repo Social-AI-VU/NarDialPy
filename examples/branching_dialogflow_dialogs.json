@@ -1,0 +1,275 @@
+﻿[
+  {
+    "id": "profile_greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "_doc": "Collects first_name via ask_open (branch on outcome), then determines lifestyle via ask_options (branch on outcome). Sets lifestyle='outdoor'|'indoor' for later variable branching.",
+    "moves": [
+      { "type": "say", "text": "Hi there! I am your personal companion for today." },
+      { "type": "say", "text": "I would love to get to know you a little better." },
+      {
+        "type": "ask_open",
+        "text": "Before we get started, what should I call you?",
+        "set_variable": "first_name",
+        "outcomes": { "*": "name_given" },
+        "default_outcome": "name_missing"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "name_given": [
+            { "type": "say", "text": "Lovely to meet you, %first_name%!" }
+          ],
+          "name_missing": [
+            { "type": "say", "text": "No problem at all, we can continue without a name." }
+          ]
+        }
+      },
+      {
+        "type": "ask_options",
+        "text": "Here is a quick question to start: would you say you are more of an outdoor or an indoor person?",
+        "options": ["outdoor", "indoor"],
+        "set_variable": "lifestyle",
+        "outcomes": {
+          "outdoor": "outdoor_lifestyle",
+          "indoor": "indoor_lifestyle"
+        },
+        "default_outcome": "indoor_lifestyle"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "outdoor_lifestyle": [
+            { "type": "say", "text": "A fresh air enthusiast — I like that!" }
+          ],
+          "indoor_lifestyle": [
+            { "type": "say", "text": "A cosy indoor kind of person — sounds comfortable!" }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "lifestyle_interests",
+    "type": "chitchat",
+    "topics": ["hobbies", "leisure", "activities", "outdoors", "indoors"],
+    "dependencies": ["profile_greeting"],
+    "variable_dependencies": [{ "variable": "lifestyle", "required": true }],
+    "_doc": "Branches on the persisted 'lifestyle' variable before any ask move. Each branch path contains a 5-way ask_options followed by a 5-way branch on outcome — demonstrating two levels of branching driven entirely by Dialogflow intent recognition.",
+    "moves": [
+      { "type": "say", "text": "Let's talk about what you enjoy doing in your free time." },
+      {
+        "type": "branch",
+        "on": "lifestyle",
+        "cases": {
+          "outdoor": [
+            {
+              "type": "ask_options",
+              "text": "Which outdoor activity do you enjoy most: hiking, cycling, swimming, or gardening?",
+              "options": ["hiking", "cycling", "swimming", "gardening"],
+              "set_variable": "hobby",
+              "add_interest_from_variable": "hobby",
+              "outcomes": {
+                "hiking":    "hobby_hiking",
+                "cycling":   "hobby_cycling",
+                "swimming":  "hobby_swimming",
+                "gardening": "hobby_gardening"
+              },
+              "default_outcome": "hobby_other_outdoor"
+            },
+            {
+              "type": "branch",
+              "on": "outcome",
+              "cases": {
+                "hobby_hiking": [
+                  { "type": "say", "text": "Hiking is wonderful! There is nothing quite like exploring a trail at your own pace." },
+                  { "type": "say", "text": "The changing scenery and fresh air really do clear the mind." }
+                ],
+                "hobby_cycling": [
+                  { "type": "say", "text": "Cycling is great — you can cover so much ground and it is a real workout." },
+                  { "type": "say", "text": "Road cycling and trail cycling both have their own kind of thrill." }
+                ],
+                "hobby_swimming": [
+                  { "type": "say", "text": "Swimming is such a full-body workout, and being in the water is so calming." },
+                  { "type": "say", "text": "Open water or a pool — both have their own magic." }
+                ],
+                "hobby_gardening": [
+                  { "type": "say", "text": "Gardening connects you to nature in such a hands-on, rewarding way." },
+                  { "type": "say", "text": "Watching things grow that you planted yourself is genuinely satisfying." }
+                ],
+                "hobby_other_outdoor": [
+                  { "type": "say", "text": "Whatever it is, spending time outdoors is always time well spent." }
+                ]
+              }
+            }
+          ],
+          "indoor": [
+            {
+              "type": "ask_options",
+              "text": "Which indoor activity do you enjoy most: reading, gaming, cooking, or crafts?",
+              "options": ["reading", "gaming", "cooking", "crafts"],
+              "set_variable": "hobby",
+              "add_interest_from_variable": "hobby",
+              "outcomes": {
+                "reading": "hobby_reading",
+                "gaming":  "hobby_gaming",
+                "cooking": "hobby_cooking",
+                "crafts":  "hobby_crafts"
+              },
+              "default_outcome": "hobby_other_indoor"
+            },
+            {
+              "type": "branch",
+              "on": "outcome",
+              "cases": {
+                "hobby_reading": [
+                  { "type": "say", "text": "Reading is wonderful — you can travel anywhere without leaving your chair." },
+                  { "type": "say", "text": "Fiction or non-fiction, both open up entirely new worlds." }
+                ],
+                "hobby_gaming": [
+                  { "type": "say", "text": "Gaming sharpens problem-solving and reflexes in a very engaging way." },
+                  { "type": "say", "text": "The storytelling in modern games can be absolutely incredible." }
+                ],
+                "hobby_cooking": [
+                  { "type": "say", "text": "Cooking is such a creative and practical skill all at once." },
+                  { "type": "say", "text": "And you get to eat the results, which is always a bonus." }
+                ],
+                "hobby_crafts": [
+                  { "type": "say", "text": "Crafting is so satisfying — there is real pride in something made with your own hands." },
+                  { "type": "say", "text": "And every finished piece is completely yours." }
+                ],
+                "hobby_other_indoor": [
+                  { "type": "say", "text": "Whatever keeps you busy indoors, I am sure it brings you a lot of joy." }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "hobby_deep_dive",
+    "type": "narrative",
+    "thread": "hobbies",
+    "position": 1,
+    "dependencies": ["lifestyle_interests"],
+    "variable_dependencies": [{ "variable": "hobby", "required": true }],
+    "_doc": "Demonstrates three levels of nesting: ask_yesno → 3-way branch on outcome (yes case contains ask_open → 2-way branch on outcome), followed by a separate branch on the 'lifestyle' variable. Requires 'hobby' from the previous chitchat dialog.",
+    "moves": [
+      { "type": "say", "text": "So you enjoy %hobby% — that is great to know." },
+      {
+        "type": "ask_yesno",
+        "text": "Would you say %hobby% helps you relax and unwind?",
+        "set_variable": "hobby_relaxes",
+        "outcomes": {
+          "yes": "hobby_relaxes_yes",
+          "no": "hobby_relaxes_no",
+          "dontknow": "hobby_relaxes_dontknow"
+        },
+        "default_outcome": "hobby_relaxes_dontknow"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "hobby_relaxes_yes": [
+            { "type": "say", "text": "That is wonderful. Hobbies that help you decompress are genuinely valuable." },
+            {
+              "type": "ask_open",
+              "text": "When do you usually find time for %hobby%?",
+              "set_variable": "hobby_time",
+              "outcomes": { "*": "time_shared" },
+              "default_outcome": "time_missing"
+            },
+            {
+              "type": "branch",
+              "on": "outcome",
+              "cases": {
+                "time_shared": [
+                  { "type": "say", "text": "Making that time for yourself is so important — keep protecting it." }
+                ],
+                "time_missing": [
+                  { "type": "say", "text": "Finding a regular slot for it can make a real difference to how you feel." }
+                ]
+              }
+            }
+          ],
+          "hobby_relaxes_no": [
+            { "type": "say", "text": "Interesting! Some hobbies are energising rather than relaxing." },
+            { "type": "say", "text": "It is great that %hobby% gives you that kind of boost." }
+          ],
+          "hobby_relaxes_dontknow": [
+            { "type": "say", "text": "That is a thoughtful question to sit with." },
+            { "type": "say", "text": "Pay attention next time you do %hobby% and notice how you feel afterwards." }
+          ]
+        }
+      },
+      { "type": "say", "text": "I find it interesting how a person's lifestyle shapes the hobbies they choose." },
+      {
+        "type": "branch",
+        "on": "lifestyle",
+        "cases": {
+          "outdoor": [
+            { "type": "say", "text": "Outdoor hobbies often attract people who crave space, movement, and that sense of freedom." },
+            { "type": "say", "text": "There is something deeply grounding about being out in the world." }
+          ],
+          "indoor": [
+            { "type": "say", "text": "Indoor hobbies often attract people who value focus, creativity, and their own rhythm." },
+            { "type": "say", "text": "There is real depth in activities you can pursue anywhere, any time." }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "hobby_reflection",
+    "type": "narrative",
+    "thread": "hobbies",
+    "position": 2,
+    "dependencies": ["hobby_deep_dive"],
+    "_doc": "Final narrative in the hobbies thread. Uses ask_open with llm_followup to generate a personalised encouraging response, then branches on whether a goal was shared.",
+    "moves": [
+      { "type": "say", "text": "Thinking about everything we have discussed, I have one last question for you." },
+      {
+        "type": "ask_open",
+        "text": "Is there something new you would like to try or explore — whether related to %hobby% or something completely different?",
+        "set_variable": "next_goal",
+        "add_interest_from_answer": true,
+        "llm_followup": "Reply in one warm, encouraging sentence that echoes what the user just shared and motivates them to take a first small step. Sound genuine and human.",
+        "outcomes": { "*": "goal_shared" },
+        "default_outcome": "goal_missing"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "goal_shared": [
+            { "type": "say", "text": "I will keep that in mind for our next conversation." }
+          ],
+          "goal_missing": [
+            { "type": "say", "text": "That is okay — sometimes the next thing finds you when you are not looking." }
+          ]
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "profile_goodbye",
+    "type": "functional",
+    "functional_type": "farewell",
+    "dependencies": ["profile_greeting"],
+    "_doc": "Personalised farewell using %first_name% and %hobby% substitution, both reliably set by the time this dialog runs.",
+    "moves": [
+      { "type": "say", "text": "It was truly wonderful getting to know you, %first_name%." },
+      { "type": "say", "text": "I hope you get to enjoy plenty of %hobby% in the days ahead." },
+      { "type": "say", "text": "Until we meet again — goodbye!" }
+    ]
+  }
+]

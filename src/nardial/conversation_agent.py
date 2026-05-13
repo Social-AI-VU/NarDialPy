@@ -124,7 +124,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, intent = self.orchestrator.listen()
+            reply, intent = self.orchestrator.listen(detect_intent=True)
 
             if intent:
                 print(f'context: answer_yesno, recognized_intent: {str(intent)}')
@@ -157,7 +157,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, _ = self.orchestrator.listen()
+            reply, _ = self.orchestrator.listen(detect_intent=False)
             if reply:
                 return reply
             attempts += 1

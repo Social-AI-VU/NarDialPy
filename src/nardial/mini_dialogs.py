@@ -621,7 +621,6 @@ class LLMRouterDialog(MiniDialog):
             base_prompt=self.base_prompt,
             dialogs=self.dialogs,
             logger=getattr(getattr(self.conversation_agent, "orchestrator", None), "logger", None),
-            done_phrases=self.done_phrases,
             rag_enabled=self.rag_enabled,
             rag_index_name=self.rag_index_name,
             max_turns=self.max_turns,

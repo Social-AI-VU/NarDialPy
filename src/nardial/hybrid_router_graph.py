@@ -81,13 +81,11 @@ def run_llm_router_graph(
         base_prompt: str,
         dialogs: List[Any],
         logger=None,
-        done_phrases: Optional[List[str]] = None,
         rag_enabled: bool = True,
         rag_index_name: Optional[str] = None,
         max_turns: int = 100,
 ) -> None:
     dialog_map = {d.dialog_id: d for d in dialogs}
-    done_markers = {normalize_text(x) for x in (done_phrases or ["done", "finish", "goodbye", "bye", "quit", "stop"]) if x}
     log = logger
     if log is None:
         try:
@@ -128,9 +126,13 @@ def run_llm_router_graph(
         turns = int(state.get("turns", 0))
         if turns >= max_turns:
             _log_info(f"[HYBRID_ROUTER] max_turns_reached={max_turns}")
-            return {"done": True, "action": "DONE"}
+            return {"done": True, "turns": turns + 1}
 
-        reply, _intent = conversation_agent.orchestrator.listen()
+        reply, listen_meta = conversation_agent.orchestrator.listen(detect_intent=False)
+        if listen_meta == "__stdin_eof__":
+            _log_info("[HYBRID_ROUTER] stdin EOF (Ctrl+D); ending hybrid router loop")
+            return {"last_user_input": "", "done": True, "turns": turns + 1}
+
         user_text = (reply or "").strip()
         if user_text:
             session_history.append({
@@ -141,8 +143,7 @@ def run_llm_router_graph(
                 "timestamp_monotonic": monotonic(),
             })
         _log_debug(f"[HYBRID_ROUTER] user_input={user_text!r}")
-        done = normalize_text(user_text) in done_markers
-        return {"last_user_input": user_text, "done": done, "turns": turns + 1}
+        return {"last_user_input": user_text, "done": False, "turns": turns + 1}
 
     def route_node(state: HybridRouterState) -> HybridRouterState:
         def _append_router_event(
@@ -166,15 +167,15 @@ def run_llm_router_graph(
             })
 
         if state.get("done"):
-            _log_info("[HYBRID_ROUTER] route_action=DONE (explicit done phrase)")
+            _log_info("[HYBRID_ROUTER] route_action=END (max_turns or stdin EOF)")
             _append_router_event(
-                router_action="DONE",
+                router_action="END",
                 router_dialog_id=None,
                 token_usage=None,
-                text="Routing skipped: user finished (done phrase).",
+                text="Hybrid router loop ending (Ctrl+D / EOF on keyboard input, or max_turns).",
                 available_ids=None,
             )
-            return {"action": "DONE"}
+            return {"action": "END"}
 
         completed_ids = list(state.get("completed_dialog_ids") or [])
         available: List[Dict[str, str]] = []
@@ -202,10 +203,12 @@ def run_llm_router_graph(
         router_prompt = (
             "You route user inputs to one of the available dialog ids.\n"
             "Return JSON ONLY with keys: action, dialog_id.\n"
-            "Valid actions: RUN_DIALOG, IMPROVISE, DONE.\n"
-            "Choose RUN_DIALOG only when one description clearly matches the user request.\n"
+            "Valid actions: RUN_DIALOG, IMPROVISE.\n"
+            "Choose RUN_DIALOG when one description clearly matches the user request, including when the user repeats "
+            "or rephrases the same question you already matched earlier in the interview. Same topic again should route "
+            "to the same dialog_id again if it is still listed in Available dialogs.\n"
             "Choose IMPROVISE if nothing matches.\n"
-            "Only choose DONE if the user explicitly says they are finished or wants to end the conversation.\n\n"
+            "Do not try to end the interview: there is no DONE action.\n\n"
             f"Available dialogs: {json.dumps(available, ensure_ascii=False)}"
         )
 
@@ -223,6 +226,10 @@ def run_llm_router_graph(
         action = str(parsed.get("action", "IMPROVISE")).upper()
         dialog_id = str(parsed.get("dialog_id", "") or "")
 
+        if action == "DONE":
+            _log_info("[HYBRID_ROUTER] router returned legacy DONE; coercing to IMPROVISE (DONE is not supported)")
+            action = "IMPROVISE"
+
         summary = f"Router LLM: action={action}"
         if dialog_id:
             summary += f", dialog_id={dialog_id}"
@@ -237,9 +244,6 @@ def run_llm_router_graph(
         if action == "RUN_DIALOG" and dialog_id in dialog_map:
             _log_info(f"[HYBRID_ROUTER] route_action=RUN_DIALOG dialog_id={dialog_id}")
             return {"action": "RUN_DIALOG", "selected_dialog_id": dialog_id}
-        if action == "DONE":
-            _log_info("[HYBRID_ROUTER] route_action=DONE (router decided)")
-            return {"action": "DONE", "done": True}
         _log_info("[HYBRID_ROUTER] route_action=IMPROVISE (router fallback)")
         return {"action": "IMPROVISE"}
 
@@ -311,9 +315,9 @@ def run_llm_router_graph(
         return {}
 
     def route_decision(state: HybridRouterState) -> str:
-        action = str(state.get("action", "")).upper()
-        if action == "DONE" or state.get("done"):
+        if state.get("done"):
             return "end"
+        action = str(state.get("action", "")).upper()
         if action == "RUN_DIALOG":
             return "run_dialog"
         return "improvise"

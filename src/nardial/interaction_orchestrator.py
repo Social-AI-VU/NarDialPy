@@ -608,7 +608,18 @@ class InteractionOrchestrator:
 
         return audio_bytes
 
-    def listen(self, context=None, timeout=10):
+    def listen(self, context=None, timeout=10, detect_intent=True):
+        """Collect user input and optionally map it to a Dialogflow-style intent.
+
+        When ``keyboard_input`` is True and ``detect_intent`` is False, skips
+        :meth:`_detect_intent_from_text` so open routing (e.g. hybrid LLM router
+        turns) does not pay intent classification; use ``detect_intent=True`` for
+        yes/no and other moves that need intents.
+
+        On keyboard input, Ctrl+D (EOF) raises ``EOFError`` from ``input``; that
+        is returned as the pair ``(None, "__stdin_eof__")`` so callers can exit loops
+        without treating it like an empty line (which returns ``(None, None)``).
+        """
 
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
@@ -616,12 +627,12 @@ class InteractionOrchestrator:
             try:
                 line = input("Your reply: ").strip()
             except EOFError:
-                return None, None
+                return None, "__stdin_eof__"
             if not line:
                 return None, None
             self.log_utterance(speaker="child", text=line)
             intent = None
-            if self.interaction_conf.dialogflow:
+            if self.interaction_conf.dialogflow and detect_intent:
                 intent = self._detect_intent_from_text(line, context=context)
                 print("The detected intent:", intent)
             return line, intent
@@ -633,6 +644,8 @@ class InteractionOrchestrator:
                 reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
                 print("The detected intent:", reply.intent)
                 intent = reply.intent if reply.intent else None
+                if not detect_intent:
+                    intent = None
                 if reply.response.query_result.query_text:
                     return reply.response.query_result.query_text, intent
                 return None, intent

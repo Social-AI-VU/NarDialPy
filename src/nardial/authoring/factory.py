@@ -143,6 +143,20 @@ class DialogFactory:
             topics = doc.get("topics")
             if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
                 errs.append("topics must be a list of strings for chitchat dialogs")
+            rm = doc.get("repeat_moves")
+            if rm is not None:
+                if not bool(doc.get("repeatable", False)):
+                    errs.append("repeat_moves requires repeatable true for chitchat dialogs")
+                if not isinstance(rm, list) or not rm:
+                    errs.append("repeat_moves must be a non-empty list when provided for chitchat dialogs")
+                else:
+                    for i, mv in enumerate(rm):
+                        errs.extend([f"repeat_moves[{i}]: {e}" for e in MoveFactory.validate(mv, idx=i)])
+                    has_yesno = any(
+                        isinstance(m, dict) and m.get("type") == MOVE_ASK_YESNO for m in rm
+                    )
+                    if not has_yesno:
+                        errs.append("repeat_moves must include at least one ask_yesno move for chitchat dialogs")
         elif t == "llm_based":
             if not isinstance(doc.get("prompt"), str):
                 errs.append("prompt must be string for llm_based dialogs")
@@ -241,6 +255,11 @@ class DialogFactory:
                 variable_dependencies=vdeps,
             )
             setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
+            setattr(
+                dialog,
+                "repeat_moves",
+                [MoveFactory.normalize(m) for m in (doc.get("repeat_moves") or [])],
+            )
             setattr(dialog, "intent", doc.get("intent"))
             return dialog
         if dtype == DialogType.FUNCTIONAL.value:
@@ -332,6 +351,9 @@ class DialogFactory:
                 "theme": getattr(d, "theme", ""),
                 "topics": list(getattr(d, "topics", []) or []),
             })
+            rm = list(getattr(d, "repeat_moves", []) or [])
+            if rm:
+                base["repeat_moves"] = rm
         elif isinstance(d, FunctionalDialog):
             base.update({
                 "type": "functional",

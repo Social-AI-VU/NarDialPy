@@ -8,6 +8,8 @@ from time import monotonic
 from langgraph.graph import END, StateGraph
 
 from nardial.utils import normalize_text
+from nardial.mini_dialogs import MiniDialog
+from nardial.moves import MOVE_ANSWER_YESNO
 
 
 class HybridRouterState(TypedDict, total=False):
@@ -41,10 +43,33 @@ def _safe_json_loads(value: Any) -> Dict[str, Any]:
     return {}
 
 
+def _dialog_has_repeat_prompt(dialog: Any) -> bool:
+    return bool(getattr(dialog, "repeatable", False)) and bool(
+        list(getattr(dialog, "repeat_moves", []) or [])
+    )
+
+
+def _user_confirmed_repeat(session_tail: List[Dict[str, Any]]) -> bool:
+    """True if the latest ask_yesno answer in *session_tail* is affirmative (repeat main moves)."""
+    yes_vals = {
+        "yes", "y", "yeah", "yep", "sure", "please", "ok", "okay", "alright",
+        "correct", "affirmative", "repeat", "go ahead",
+    }
+    for entry in reversed(session_tail or []):
+        if entry.get("role") == "user" and entry.get("type") == MOVE_ANSWER_YESNO:
+            ans = normalize_text(str(entry.get("text") or ""))
+            return ans in yes_vals
+    return False
+
+
 def _is_dialog_eligible(dialog: Any, completed_ids: List[str], user_model: Dict[str, Any], all_dialogs: List[Any]) -> bool:
     # Lazy import avoids circular import at module-load time.
     from nardial.dialog_logic import DialogLogic
-    return DialogLogic.is_dialog_eligible(dialog, completed_ids, user_model, all_dialogs)
+    cid = list(completed_ids or [])
+    did = getattr(dialog, "dialog_id", None)
+    if did and did in cid and _dialog_has_repeat_prompt(dialog):
+        cid = [x for x in cid if x != did]
+    return DialogLogic.is_dialog_eligible(dialog, cid, user_model, all_dialogs)
 
 
 def run_llm_router_graph(
@@ -219,15 +244,42 @@ def run_llm_router_graph(
         return {"action": "IMPROVISE"}
 
     def run_dialog_node(state: HybridRouterState) -> HybridRouterState:
+        """Run structured child dialogs under the LLM router.
+
+        First time (dialog id not in ``completed_dialog_ids``): only ``moves`` run.
+        If ``repeatable`` and ``repeat_moves`` are set, the id is recorded after that run.
+        Later times: ``repeat_moves`` run first; if the user answers yes to repeat, the same
+        ``moves`` list runs again unchanged.
+        """
         did = state.get("selected_dialog_id", "")
         d = dialog_map.get(did)
         if not d:
             _log_info(f"[HYBRID_ROUTER] selected dialog missing: {did!r}, switching to IMPROVISE")
             return {"action": "IMPROVISE"}
         _log_info(f"[HYBRID_ROUTER] executing_dialog={did}")
-        d.run(conversation_agent, session_history, topics_of_interest, user_model)
-
         completed = list(state.get("completed_dialog_ids") or [])
+        has_repeat_prompt = _dialog_has_repeat_prompt(d)
+
+        if has_repeat_prompt and did in completed:
+            repeat_moves = list(getattr(d, "repeat_moves", []) or [])
+            prompt_dialog = MiniDialog(f"{did}__repeat_prompt", repeat_moves)
+            _hist_len = len(session_history)
+            prompt_dialog.run(
+                conversation_agent,
+                session_history,
+                topics_of_interest,
+                user_model,
+            )
+            if _user_confirmed_repeat(session_history[_hist_len:]):
+                d.run(conversation_agent, session_history, topics_of_interest, user_model)
+            else:
+                _log_debug(f"[HYBRID_ROUTER] repeat_declined dialog_id={did!r}")
+        else:
+            d.run(conversation_agent, session_history, topics_of_interest, user_model)
+            if has_repeat_prompt and did not in completed:
+                completed.append(did)
+                _log_debug(f"[HYBRID_ROUTER] marked_once_played={did!r} (repeat_prompt path)")
+
         if not bool(getattr(d, "repeatable", False)) and did not in completed:
             completed.append(did)
             _log_debug(f"[HYBRID_ROUTER] marked_completed={did}")

@@ -3,7 +3,7 @@ import re
 
 from sic_framework.devices import Nao, Pepper
 from sic_framework.devices.device import SICDeviceManager
-from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
+from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig, ConversationStdinEOF
 
 
 class ConversationAgent:
@@ -125,6 +125,8 @@ class ConversationAgent:
         while attempts < max_attempts:
             self.say(question)
             reply, intent = self.orchestrator.listen(detect_intent=True)
+            if intent == "__stdin_eof__":
+                raise ConversationStdinEOF
 
             if intent:
                 print(f'context: answer_yesno, recognized_intent: {str(intent)}')
@@ -157,7 +159,9 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             self.say(question)
-            reply, _ = self.orchestrator.listen(detect_intent=False)
+            reply, meta = self.orchestrator.listen(detect_intent=False)
+            if meta == "__stdin_eof__":
+                raise ConversationStdinEOF
             if reply:
                 return reply
             attempts += 1

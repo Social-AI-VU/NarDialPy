@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 from nardial.utils import normalize_text
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MOVE_ANSWER_YESNO
+from nardial.interaction_orchestrator import ConversationStdinEOF
 
 
 class HybridRouterState(TypedDict, total=False):
@@ -123,6 +124,8 @@ def run_llm_router_graph(
         return monotonic()
 
     def listen_node(state: HybridRouterState) -> HybridRouterState:
+        if state.get("done"):
+            return {}
         turns = int(state.get("turns", 0))
         if turns >= max_turns:
             _log_info(f"[HYBRID_ROUTER] max_turns_reached={max_turns}")
@@ -264,29 +267,33 @@ def run_llm_router_graph(
         completed = list(state.get("completed_dialog_ids") or [])
         has_repeat_prompt = _dialog_has_repeat_prompt(d)
 
-        if has_repeat_prompt and did in completed:
-            repeat_moves = list(getattr(d, "repeat_moves", []) or [])
-            prompt_dialog = MiniDialog(f"{did}__repeat_prompt", repeat_moves)
-            _hist_len = len(session_history)
-            prompt_dialog.run(
-                conversation_agent,
-                session_history,
-                topics_of_interest,
-                user_model,
-            )
-            if _user_confirmed_repeat(session_history[_hist_len:]):
-                d.run(conversation_agent, session_history, topics_of_interest, user_model)
+        try:
+            if has_repeat_prompt and did in completed:
+                repeat_moves = list(getattr(d, "repeat_moves", []) or [])
+                prompt_dialog = MiniDialog(f"{did}__repeat_prompt", repeat_moves)
+                _hist_len = len(session_history)
+                prompt_dialog.run(
+                    conversation_agent,
+                    session_history,
+                    topics_of_interest,
+                    user_model,
+                )
+                if _user_confirmed_repeat(session_history[_hist_len:]):
+                    d.run(conversation_agent, session_history, topics_of_interest, user_model)
+                else:
+                    _log_debug(f"[HYBRID_ROUTER] repeat_declined dialog_id={did!r}")
             else:
-                _log_debug(f"[HYBRID_ROUTER] repeat_declined dialog_id={did!r}")
-        else:
-            d.run(conversation_agent, session_history, topics_of_interest, user_model)
-            if has_repeat_prompt and did not in completed:
-                completed.append(did)
-                _log_debug(f"[HYBRID_ROUTER] marked_once_played={did!r} (repeat_prompt path)")
+                d.run(conversation_agent, session_history, topics_of_interest, user_model)
+                if has_repeat_prompt and did not in completed:
+                    completed.append(did)
+                    _log_debug(f"[HYBRID_ROUTER] marked_once_played={did!r} (repeat_prompt path)")
 
-        if not bool(getattr(d, "repeatable", False)) and did not in completed:
-            completed.append(did)
-            _log_debug(f"[HYBRID_ROUTER] marked_completed={did}")
+            if not bool(getattr(d, "repeatable", False)) and did not in completed:
+                completed.append(did)
+                _log_debug(f"[HYBRID_ROUTER] marked_completed={did}")
+        except ConversationStdinEOF:
+            _log_info("[HYBRID_ROUTER] stdin EOF (Ctrl+D) during structured dialog; ending router loop")
+            return {"done": True, "completed_dialog_ids": completed}
         return {"completed_dialog_ids": completed}
 
     def improvise_node(state: HybridRouterState) -> HybridRouterState:

@@ -113,6 +113,10 @@ def find_project_root(start: Path) -> Path:
     raise FileNotFoundError("Could not find 'conf' directory")
 
 
+class ConversationStdinEOF(Exception):
+    """Keyboard stdin closed (Ctrl+D); exit the current conversation block."""
+
+
 class InteractionConfig:
     """
     Configuration class for managing interaction settings,

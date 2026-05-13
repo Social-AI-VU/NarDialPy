@@ -10,6 +10,7 @@ from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
 from nardial.mini_dialogs import IntentRouterDialog
+from nardial.interaction_orchestrator import ConversationStdinEOF
 from nardial.utils import normalize_text
 
 
@@ -196,14 +197,19 @@ class SessionManager:
 
         self.conversation_state.add_dialog_id(self.session_id, dialog.dialog_id)
         self._log_dialog_start(session_history, dialog)
-        dialog.run(
-            self.agent,
-            session_history,
-            self.conversation_state.topics_of_interest,
-            self.conversation_state.user_model
-        )
-        self._log_dialog_end(session_history, dialog)
-        self.conversation_state.completed_dialogs.append(dialog.dialog_id)
+        completed_ok = False
+        try:
+            dialog.run(
+                self.agent,
+                session_history,
+                self.conversation_state.topics_of_interest,
+                self.conversation_state.user_model
+            )
+            completed_ok = True
+        finally:
+            self._log_dialog_end(session_history, dialog)
+        if completed_ok:
+            self.conversation_state.completed_dialogs.append(dialog.dialog_id)
         return True
 
     def run(self):
@@ -220,7 +226,11 @@ class SessionManager:
         for agenda_item in self.session_block:
             if isinstance(agenda_item, IntentRouterDialog):
                 agenda_item.bind_session_manager(self)
-            self._run_single_dialog(agenda_item, session_history)
+            try:
+                self._run_single_dialog(agenda_item, session_history)
+            except ConversationStdinEOF:
+                print("[SESSION] stdin EOF (Ctrl+D); stopping session agenda early")
+                break
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

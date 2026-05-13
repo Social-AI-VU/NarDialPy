@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional, List, cast
 
+from nardial.interaction_orchestrator import ConversationStdinEOF
 from nardial.utils import normalize_text
 import re
 from time import monotonic
@@ -24,6 +25,14 @@ class DialogType(Enum):
 
 
 MAX_LLM_TURNS = 5
+
+
+def _listen_until_stdin_eof(agent: Any) -> None:
+    """After the LLM or user signals "end", wait until Ctrl+D (stdin EOF) before exiting."""
+    while True:
+        _, meta = agent.orchestrator.listen(detect_intent=False)
+        if meta == "__stdin_eof__":
+            raise ConversationStdinEOF
 
 
 class MiniDialog:
@@ -337,7 +346,9 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            reply, _ = agent.orchestrator.listen(timeout=timeout or 10)
+            reply, meta = agent.orchestrator.listen(timeout=timeout or 10)
+            if meta == "__stdin_eof__":
+                raise ConversationStdinEOF
             user_input = reply or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
@@ -358,7 +369,7 @@ class MiniDialog:
 
             # If the LLM embeds a quit signal, speak any remaining content and stop
             if quit_signal and quit_signal in llm_text:
-                print(f"[LLM] quit_signal_detected={quit_signal!r}")
+                print(f"[LLM] quit_signal_detected={quit_signal!r}; waiting for Ctrl+D (stdin EOF) to exit block")
                 clean = llm_text.replace(quit_signal, "").strip()
                 if clean:
                     agent.say(clean)
@@ -367,6 +378,7 @@ class MiniDialog:
                         clean,
                         token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
                     )
+                _listen_until_stdin_eof(agent)
                 return
 
             # Ask the user the LLM's text and listen for reply
@@ -374,7 +386,9 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            user_input, _ = agent.orchestrator.listen(timeout=timeout or 10)
+            user_input, meta = agent.orchestrator.listen(timeout=timeout or 10)
+            if meta == "__stdin_eof__":
+                raise ConversationStdinEOF
             if not user_input:
                 user_input = ""
 
@@ -390,7 +404,7 @@ class MiniDialog:
             if set_variable and user_input:
                 self.user_model[set_variable] = self.extract_open_value(user_input)
 
-            # If the user said a configured quit phrase, stop early
+            # Quit phrases no longer end the block; require Ctrl+D (stdin EOF).
             quit_happened = False
             for qp in (quit_phrases or []):
                 if not qp:
@@ -399,6 +413,8 @@ class MiniDialog:
                     quit_happened = True
                     break
             if quit_happened:
+                print("[LLM] quit_phrase matched; waiting for Ctrl+D (stdin EOF) to exit block")
+                _listen_until_stdin_eof(agent)
                 return
 
             dialog_history.append(user_input)
@@ -544,6 +560,9 @@ class IntentRouterDialog(MiniDialog):
 
         while remaining:
             utterance, intent = agent.orchestrator.listen()
+            if intent == "__stdin_eof__":
+                print("[ROUTER] stdin EOF (Ctrl+D); ending intent router block")
+                break
             intent_norm = normalize_text(intent)
             utterance_norm = normalize_text(utterance)
             if utterance:
@@ -555,10 +574,10 @@ class IntentRouterDialog(MiniDialog):
 
             if intent_norm in self.block_exit_intents or utterance_norm in self.block_exit_intents:
                 print(
-                    f"[ROUTER] Exiting block via exit intent/utterance: "
+                    f"[ROUTER] Exit intent/utterance ignored (use Ctrl+D / stdin EOF to leave this block): "
                     f"intent={intent_norm!r}, utterance={utterance_norm!r}"
                 )
-                break
+                continue
 
             target_id = self.intent_routing.get(intent_norm)
             target = block_map.get(target_id) if target_id else None
@@ -575,21 +594,29 @@ class IntentRouterDialog(MiniDialog):
             if not target or target.dialog_id not in remaining:
                 if fallback:
                     print("[ROUTER] No valid target; running fallback dialog.")
-                    sm._run_single_dialog(
-                        fallback,
-                        self.session_history,
-                        allow_repeatable_rerun=bool(getattr(fallback, "repeatable", False)),
-                    )
+                    try:
+                        sm._run_single_dialog(
+                            fallback,
+                            self.session_history,
+                            allow_repeatable_rerun=bool(getattr(fallback, "repeatable", False)),
+                        )
+                    except ConversationStdinEOF:
+                        print("[ROUTER] stdin EOF (Ctrl+D) during fallback dialog; ending intent router block")
+                        break
                 else:
                     agent.say("I am not sure how to respond to that. Please ask in a different way.")
                 continue
 
             is_repeatable = bool(getattr(target, "repeatable", False))
-            ran = sm._run_single_dialog(
-                target,
-                self.session_history,
-                allow_repeatable_rerun=is_repeatable,
-            )
+            try:
+                ran = sm._run_single_dialog(
+                    target,
+                    self.session_history,
+                    allow_repeatable_rerun=is_repeatable,
+                )
+            except ConversationStdinEOF:
+                print("[ROUTER] stdin EOF (Ctrl+D) during child dialog; ending intent router block")
+                break
             print(f"[ROUTER] ran dialog={target.dialog_id!r}, repeatable={is_repeatable}, ran={ran}")
             if not is_repeatable and target.dialog_id in remaining and (
                     ran or target.dialog_id in sm.conversation_state.completed_dialogs):

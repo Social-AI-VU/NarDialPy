@@ -21,7 +21,8 @@ maintainers = [
 ]
 
 dependencies = [
-  "social-interaction-cloud[dialogflow,google-tts,openai-gpt]"
+  "social-interaction-cloud[dialogflow,google-tts,openai-gpt]",
+  "websockets>=13.0",
 ]
 
 [tool.setuptools]

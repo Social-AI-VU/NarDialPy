@@ -223,14 +223,24 @@ class SessionManager:
         - Persisting session results
         """
         session_history = []
-        for agenda_item in self.session_block:
-            if isinstance(agenda_item, IntentRouterDialog):
-                agenda_item.bind_session_manager(self)
+        orch = self.agent.orchestrator
+        orch.transcript_append = session_history.append
+        try:
+            for agenda_item in self.session_block:
+                if isinstance(agenda_item, IntentRouterDialog):
+                    agenda_item.bind_session_manager(self)
+                try:
+                    self._run_single_dialog(agenda_item, session_history)
+                except ConversationStdinEOF:
+                    print("[SESSION] stdin EOF (Ctrl+D); stopping session agenda early")
+                    break
+        finally:
+            orch.transcript_append = None
             try:
-                self._run_single_dialog(agenda_item, session_history)
-            except ConversationStdinEOF:
-                print("[SESSION] stdin EOF (Ctrl+D); stopping session agenda early")
-                break
+                orch.stop_spacebar_pause_aux()
+                orch._maybe_start_stdin_space_aux_thread()
+            except Exception:
+                pass
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

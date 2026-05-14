@@ -3,9 +3,14 @@ import json
 from json import load
 import queue
 import re
+import sys
+import os
 import wave
 import logging
+import threading
+import select
 from enum import Enum
+from datetime import datetime, timezone
 from os import environ, fsync
 from os.path import exists, abspath, join
 from pathlib import Path
@@ -52,7 +57,7 @@ from sic_framework.services.datastore.redis_datastore import (
     VectorDBResultsMessage,
 )
 from dotenv import load_dotenv
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
@@ -130,7 +135,7 @@ class InteractionConfig:
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
-                 langgraph: bool = False):
+                 langgraph: bool = False, spacebar_pause: bool = True):
         """
         Initialize interaction configuration.
 
@@ -148,6 +153,10 @@ class InteractionConfig:
                 (timing metrics and full user/robot events).
             langgraph (bool): If True, route LLM calls through LangChain ChatOpenAI
                 (LangSmith tracing compatible) instead of the SIC GPT service.
+            spacebar_pause (bool): If True, Space toggles pause (after the current robot
+                output finishes); while paused, mic recognition can be discarded and
+                keyboard input restarts fresh. Logs ``interaction_pause`` /
+                ``interaction_unpause`` to the transcript sink when configured.
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -189,6 +198,7 @@ class InteractionConfig:
         self.log_level = log_level
         self.detailed_transcript = bool(detailed_transcript)
         self.langgraph = bool(langgraph)
+        self.spacebar_pause = bool(spacebar_pause)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -288,6 +298,15 @@ class InteractionOrchestrator:
         # Interaction configuration
         self.interaction_conf = int_config
 
+        # Spacebar pause / transcript sink (set by SessionManager.run on session_history)
+        self.transcript_append = None
+        self._pause_lock = threading.Lock()
+        self._paused = False
+        self._mic_listen_discard_pending = False
+        self._aux_stdin_shutdown = threading.Event()
+        self._aux_stdin_thread = None
+        self._keyboard_line_read_active = False
+
         # Background loop
         self.background_loop = asyncio.new_event_loop()
         self.background_thread = Thread(target=self._start_loop, daemon=True)
@@ -373,6 +392,203 @@ class InteractionOrchestrator:
             print("Complete and ready for interaction!")
         else:
             print("Skipped (dialogflow disabled in InteractionConfig).")
+
+        self._maybe_start_stdin_space_aux_thread()
+
+    def stop_spacebar_pause_aux(self):
+        """Stop the optional stdin space listener thread (mic + TTY mode)."""
+        self._aux_stdin_shutdown.set()
+        t = self._aux_stdin_thread
+        if t is not None and t.is_alive():
+            t.join(timeout=1.5)
+        self._aux_stdin_thread = None
+
+    def _append_interaction_transcript(self, type_name: str, text: str, **extra):
+        fn = getattr(self, "transcript_append", None)
+        if not callable(fn):
+            return
+        fn({
+            "role": "system",
+            "type": type_name,
+            "text": text,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": monotonic(),
+            **extra,
+        })
+
+    def _maybe_start_stdin_space_aux_thread(self):
+        if not getattr(self.interaction_conf, "spacebar_pause", False):
+            return
+        try:
+            if not sys.stdin.isatty():
+                return
+        except Exception:
+            return
+        t = self._aux_stdin_thread
+        if t is not None and t.is_alive():
+            return
+        self._aux_stdin_shutdown.clear()
+        self._aux_stdin_thread = Thread(target=self._aux_stdin_space_loop, daemon=True, name="nardial-space-pause-stdin")
+        self._aux_stdin_thread.start()
+
+    def _aux_stdin_space_loop(self):
+        while not self._aux_stdin_shutdown.is_set():
+            try:
+                if self.interaction_conf.keyboard_input and self._keyboard_line_read_active:
+                    sleep(0.05)
+                    continue
+                if sys.platform == "win32":
+                    import msvcrt
+                    if msvcrt.kbhit():
+                        ch = msvcrt.getwch()
+                        if ch == " ":
+                            self._toggle_pause_from_aux_stdin()
+                    else:
+                        sleep(0.05)
+                    continue
+                r, _, _ = select.select([sys.stdin], [], [], 0.25)
+                if not r:
+                    continue
+                data = os.read(sys.stdin.fileno(), 1)
+                if data == b" ":
+                    self._toggle_pause_from_aux_stdin()
+            except Exception as e:
+                self.logger.debug("stdin space aux: %s", e)
+                sleep(0.3)
+
+    def _toggle_pause_from_aux_stdin(self):
+        became_paused = False
+        with self._pause_lock:
+            self._paused = not self._paused
+            became_paused = self._paused
+        if became_paused:
+            self._append_interaction_transcript(
+                "interaction_pause",
+                "Spacebar pause.",
+                source="spacebar",
+            )
+            if (
+                not self.interaction_conf.keyboard_input
+                and self.interaction_conf.dialogflow
+                and self.dialogflow is not None
+            ):
+                self._mic_listen_discard_pending = True
+                try:
+                    from sic_framework.services.dialogflow.dialogflow import StopListeningMessage
+
+                    self.dialogflow.send_message(StopListeningMessage(self.request_id))
+                except Exception as e:
+                    self.logger.warning("StopListeningMessage on spacebar pause failed: %s", e)
+        else:
+            self._append_interaction_transcript(
+                "interaction_unpause",
+                "Spacebar resume.",
+                source="spacebar",
+            )
+
+    def _wait_until_unpaused(self):
+        if not getattr(self.interaction_conf, "spacebar_pause", False):
+            return
+        while True:
+            with self._pause_lock:
+                if not self._paused:
+                    return
+            sleep(0.05)
+
+    def _spacebar_pause_wait_after_output(self):
+        if not getattr(self.interaction_conf, "spacebar_pause", False):
+            return
+        self._wait_until_unpaused()
+
+    def _read_one_tty_char(self) -> Optional[str]:
+        if sys.platform == "win32":
+            import msvcrt
+            ch = msvcrt.getwch()
+            if ch in ("\x00", "\xe0"):
+                msvcrt.getwch()
+                return ""
+            return ch
+        fd = sys.stdin.fileno()
+        import termios
+        import tty
+
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            data = os.read(fd, 1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        if not data:
+            return None
+        return chr(data[0])
+
+    def _read_keyboard_reply_line(self, prompt: str = "Your reply: ") -> tuple[Optional[str], Optional[str]]:
+        """Read a line from the terminal; leading Space toggles pause/unpause. Returns (text, meta)."""
+        self._keyboard_line_read_active = True
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        buf: List[str] = []
+        try:
+            while True:
+                self._wait_until_unpaused()
+                try:
+                    ch = self._read_one_tty_char()
+                except EOFError:
+                    raise
+                except Exception as e:
+                    self.logger.warning("Terminal read failed: %s", e)
+                    sleep(0.05)
+                    continue
+                if ch is None:
+                    return None, "__stdin_eof__"
+                if ch == "":
+                    continue
+                if ch == "\x04":
+                    return None, "__stdin_eof__"
+                if ch in ("\r", "\n"):
+                    line = "".join(buf).strip()
+                    return line, None
+                if ch in ("\x7f", "\x08"):
+                    if buf:
+                        buf.pop()
+                        sys.stdout.write("\b \b")
+                        sys.stdout.flush()
+                    continue
+                if ch == " " and not buf:
+                    with self._pause_lock:
+                        self._paused = True
+                    self._append_interaction_transcript(
+                        "interaction_pause",
+                        "Spacebar pause (keyboard listen); partial line discarded.",
+                        source="spacebar",
+                    )
+                    while True:
+                        with self._pause_lock:
+                            if not self._paused:
+                                break
+                        try:
+                            ch2 = self._read_one_tty_char()
+                        except EOFError:
+                            raise
+                        if ch2 is None:
+                            return None, "__stdin_eof__"
+                        if ch2 == "\x04":
+                            return None, "__stdin_eof__"
+                        if ch2 == " ":
+                            with self._pause_lock:
+                                self._paused = False
+                            self._append_interaction_transcript(
+                                "interaction_unpause",
+                                "Spacebar resume (keyboard listen).",
+                                source="spacebar",
+                            )
+                            break
+                    continue
+                buf.append(ch)
+                sys.stdout.write(ch)
+                sys.stdout.flush()
+        finally:
+            self._keyboard_line_read_active = False
 
     def _detect_intent_from_text(self, text, context=None):
         if not text:
@@ -519,6 +735,7 @@ class InteractionOrchestrator:
             self.elevenlabs_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
         else:
             raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+        self._spacebar_pause_wait_after_output()
 
 
     def naoqi_say(self, text, post_speech_delay=None, animated=False):
@@ -620,45 +837,87 @@ class InteractionOrchestrator:
         turns) does not pay intent classification; use ``detect_intent=True`` for
         yes/no and other moves that need intents.
 
-        On keyboard input, Ctrl+D (EOF) raises ``EOFError`` from ``input``; that
-        is returned as the pair ``(None, "__stdin_eof__")`` so callers can exit loops
-        without treating it like an empty line (which returns ``(None, None)``).
+        On keyboard input, Ctrl+D (EOF) is returned as ``(None, "__stdin_eof__")``.
+        When :attr:`InteractionConfig.spacebar_pause` is True, a leading Space at
+        the start of a reply line toggles pause (partial line discarded); a second
+        Space resumes. Mic + TTY mode uses a background stdin reader for the same.
+        Pause/unpause is logged to ``transcript_append`` when set.
         """
 
+        listening_started = False
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
-        if self.interaction_conf.keyboard_input:
-            try:
-                line = input("Your reply: ").strip()
-            except EOFError:
-                return None, "__stdin_eof__"
-            if not line:
-                return None, None
-            self.log_utterance(speaker="child", text=line)
-            intent = None
-            if self.interaction_conf.dialogflow and detect_intent:
-                intent = self._detect_intent_from_text(line, context=context)
-                print("The detected intent:", intent)
-            return line, intent
-        else:
+            listening_started = True
+        try:
+            self._wait_until_unpaused()
+            if self.interaction_conf.keyboard_input:
+                if getattr(self.interaction_conf, "spacebar_pause", False):
+                    try:
+                        line, meta = self._read_keyboard_reply_line("Your reply: ")
+                    except EOFError:
+                        return None, "__stdin_eof__"
+                    if meta == "__stdin_eof__":
+                        return None, "__stdin_eof__"
+                    if not line:
+                        return None, None
+                    self.log_utterance(speaker="child", text=line)
+                    intent = None
+                    if self.interaction_conf.dialogflow and detect_intent:
+                        intent = self._detect_intent_from_text(line, context=context)
+                        print("The detected intent:", intent)
+                    return line, intent
+                try:
+                    line = input("Your reply: ").strip()
+                except EOFError:
+                    return None, "__stdin_eof__"
+                if not line:
+                    return None, None
+                self.log_utterance(speaker="child", text=line)
+                intent = None
+                if self.interaction_conf.dialogflow and detect_intent:
+                    intent = self._detect_intent_from_text(line, context=context)
+                    print("The detected intent:", intent)
+                return line, intent
+
             if not self.interaction_conf.dialogflow or self.dialogflow is None:
                 self.logger.warning("listen() called with keyboard_input=False while dialogflow is disabled")
                 return None, None
-            try:
-                reply = self.dialogflow.request(GetIntentRequest(self.request_id, context), timeout=timeout)
-                print("The detected intent:", reply.intent)
-                intent = reply.intent if reply.intent else None
+
+            while True:
+                self._wait_until_unpaused()
+                try:
+                    reply = self.dialogflow.request(
+                        GetIntentRequest(self.request_id, context), timeout=timeout
+                    )
+                except TimeoutError as e:
+                    print("Error:", e)
+                    return None, None
+
+                if self._mic_listen_discard_pending:
+                    self._append_interaction_transcript(
+                        "interaction_listen_discarded",
+                        "Recognition discarded due to spacebar pause (mic).",
+                        source="spacebar",
+                    )
+                    self._mic_listen_discard_pending = False
+                    continue
+
+                print("The detected intent:", getattr(reply, "intent", None))
+                intent = reply.intent if getattr(reply, "intent", None) else None
                 if not detect_intent:
                     intent = None
-                if reply.response.query_result.query_text:
-                    return reply.response.query_result.query_text, intent
+                qtext = ""
+                try:
+                    if reply.response and reply.response.query_result:
+                        qtext = reply.response.query_result.query_text or ""
+                except Exception:
+                    qtext = ""
+                if qtext:
+                    return qtext, intent
                 return None, intent
-            except TimeoutError as e:
-                print("Error:", e)
-        if self.interaction_conf.signal_listening_behavior:
-            self.signal_listening_behavior(start=False)
-
-        return response, intent
+        finally:
+            if listening_started:
+                self.signal_listening_behavior(start=False)
 
     def play_audio(self, audio_file, amplified=False, log=True):
         if not exists(audio_file):
@@ -681,6 +940,8 @@ class InteractionOrchestrator:
             self.speaker.request(AudioRequest(audio, framerate))
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+        if log:
+            self._spacebar_pause_wait_after_output()
 
     def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
                          rag_enabled=None, rag_index_name=None):
@@ -856,6 +1117,9 @@ class InteractionOrchestrator:
             self.device_manager.motion.request(NaoqiAnimationRequest(animation), block=block)
         except Exception as e:
             self.logger.error(f"Failed to play pepper animation: {animation}", exc_info=e)
+        else:
+            if block:
+                self._spacebar_pause_wait_after_output()
 
     def animate_naoqi_leds(self, r=0, g=0, b=0, name="FaceLeds"):
         if isinstance(self.device_manager, Pepper):
@@ -972,6 +1236,8 @@ class InteractionOrchestrator:
             self.device_manager.motion_record.request(PlayRecording(recording))
         except Exception as e:
             self.logger.error(f"Exception: {e}")
+        else:
+            self._spacebar_pause_wait_after_output()
 
     @staticmethod
     def random_alphamini_speaking_act():

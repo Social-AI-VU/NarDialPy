@@ -140,6 +140,8 @@ class DialogFactory:
         elif t == "chitchat":
             if not isinstance(doc.get("theme"), str):
                 errs.append("theme must be string for chitchat dialogs")
+            if "description" in doc and not isinstance(doc.get("description"), str):
+                errs.append("description must be string for chitchat dialogs")
             topics = doc.get("topics")
             if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
                 errs.append("topics must be a list of strings for chitchat dialogs")
@@ -253,6 +255,7 @@ class DialogFactory:
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                description=str(doc.get("description") or ""),
             )
             setattr(dialog, "repeatable", bool(doc.get("repeatable", False)))
             setattr(
@@ -351,6 +354,9 @@ class DialogFactory:
                 "theme": getattr(d, "theme", ""),
                 "topics": list(getattr(d, "topics", []) or []),
             })
+            desc = getattr(d, "description", "") or ""
+            if desc:
+                base["description"] = desc
             rm = list(getattr(d, "repeat_moves", []) or [])
             if rm:
                 base["repeat_moves"] = rm

@@ -227,9 +227,9 @@ class MiniDialog:
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
-        context_messages = [
-            entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
-        ]
+        context_messages = self.conversation_agent.orchestrator.reconstruct_conversation(
+            self.session_history
+        )
         llm_text = self.conversation_agent.ask_llm(
             user_prompt=user_answer,
             context_messages=context_messages,
@@ -335,7 +335,6 @@ class MiniDialog:
                           speak_first: bool = True, duration: Optional[float] = None,
                           rag_enabled: bool = False, rag_index_name: Optional[str] = None,
                           llm_call_purpose: str = "llm_dialog"):
-        dialog_history = []
         user_input = ""
         start_time = monotonic()
 
@@ -361,7 +360,7 @@ class MiniDialog:
                 return
             llm_text = agent.ask_llm(
                 user_prompt=user_input,
-                context_messages=dialog_history,
+                context_messages=agent.orchestrator.reconstruct_conversation(self.session_history),
                 system_prompt=prompt,
                 rag_enabled=rag_enabled,
                 rag_index_name=rag_index_name,
@@ -421,8 +420,6 @@ class MiniDialog:
                 _listen_until_stdin_eof(agent)
                 return
 
-            dialog_history.append(user_input)
-
 
 class FunctionalType(Enum):
     GREETING = "greeting"
@@ -451,11 +448,21 @@ class NarrativeDialog(MiniDialog):
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
+    def __init__(
+            self,
+            dialog_id,
+            moves,
+            theme,
+            topics=None,
+            dependencies=None,
+            variable_dependencies=None,
+            description: str = "",
+    ):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies)
         self.theme = theme
         self.topics = topics or []
+        self.description = description or ""
 
 
 class LLMDialog(MiniDialog):

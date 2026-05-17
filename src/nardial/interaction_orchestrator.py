@@ -57,7 +57,9 @@ from sic_framework.services.datastore.redis_datastore import (
     VectorDBResultsMessage,
 )
 from dotenv import load_dotenv
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
+TranscriptPromptField = Union[str, List[str]]
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
@@ -135,7 +137,7 @@ class InteractionConfig:
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
-                 langgraph: bool = False, spacebar_pause: bool = True):
+                 langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True):
         """
         Initialize interaction configuration.
 
@@ -151,7 +153,8 @@ class InteractionConfig:
                 ``None`` defaults to DEBUG (matches prior hard-coded behavior).
             detailed_transcript (bool): When True, store detailed session transcript metadata
                 (timing metrics and full user/robot events), and append ``llm_prompt`` system
-                events with full system/user/context payloads for every LLM call.
+                events with full system/user/context payloads for every LLM call (multi-line
+                prompts are stored as JSON arrays of lines).
             langgraph (bool): If True, route LLM calls through LangChain ChatOpenAI
                 (LangSmith tracing compatible) instead of the SIC GPT service.
             spacebar_pause (bool): If True, Space toggles pause (after the current robot
@@ -195,7 +198,7 @@ class InteractionConfig:
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
-        self.chunk_audio = True
+        self.chunk_audio = False
         self.log_level = log_level
         self.detailed_transcript = bool(detailed_transcript)
         self.langgraph = bool(langgraph)
@@ -417,6 +420,16 @@ class InteractionOrchestrator:
             **extra,
         })
 
+    @staticmethod
+    def _transcript_prompt_field(value: Optional[str]) -> TranscriptPromptField:
+        """Store a prompt as a list of lines when it contains newlines, else a plain string."""
+        if value is None:
+            return ""
+        text = str(value)
+        if "\n" not in text:
+            return text
+        return text.splitlines()
+
     def _log_llm_prompt_transcript(
             self,
             *,
@@ -432,7 +445,11 @@ class InteractionOrchestrator:
         if not getattr(self.interaction_conf, "detailed_transcript", False):
             return
         purpose = (llm_call_purpose or "llm_request").strip() or "llm_request"
-        ctx = [str(m) for m in (context_messages or []) if m is not None]
+        ctx: List[TranscriptPromptField] = [
+            self._transcript_prompt_field(str(m))
+            for m in (context_messages or [])
+            if m is not None
+        ]
         flags = []
         if json_response:
             flags.append("json_response")
@@ -443,13 +460,44 @@ class InteractionOrchestrator:
             "llm_prompt",
             f"LLM call: {purpose}{flag_suffix}",
             llm_call_purpose=purpose,
-            system_prompt=system_prompt or "",
-            user_prompt="" if user_prompt is None else str(user_prompt),
+            system_prompt=self._transcript_prompt_field(system_prompt),
+            user_prompt=self._transcript_prompt_field(
+                "" if user_prompt is None else str(user_prompt)
+            ),
             context_messages=ctx,
             json_response=bool(json_response),
             rag_enabled=bool(rag_enabled),
             rag_index_name=rag_index_name,
         )
+
+    def reconstruct_conversation(
+            self,
+            session_history: Optional[List[Dict[str, Any]]],
+            max_items: int = 12,
+    ) -> List[str]:
+        """Build LLM context lines from transcript user/robot turns only.
+
+        System events (routing, pause, dialog boundaries) are omitted. Robot
+        lines are labeled ``you`` so the model reads them as its own prior speech.
+        """
+        if not session_history:
+            return []
+        lines: List[str] = []
+        for item in session_history:
+            role = item.get("role")
+            if role not in ("user", "robot"):
+                continue
+            txt = item.get("text")
+            if txt is None:
+                continue
+            text = str(txt).strip()
+            if not text:
+                continue
+            label = "you" if role == "robot" else "user"
+            lines.append(f"{label}: {text}")
+        if max_items and max_items > 0:
+            lines = lines[-max_items:]
+        return lines
 
     def _maybe_start_stdin_space_aux_thread(self):
         if not getattr(self.interaction_conf, "spacebar_pause", False):

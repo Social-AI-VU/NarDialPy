@@ -149,10 +149,10 @@ class ElevenLabsTTS:
 
     async def ping_connection(self):
         """
-                Check whether the current WebSocket connection is still alive.
+        Check whether the current WebSocket connection is still alive.
 
-                Returns:
-                    bool: True if the connection is active, False otherwise.
+        Returns:
+            bool: True if the connection is active, False otherwise.
         """
         if not self.websocket:
             return False
@@ -162,69 +162,94 @@ class ElevenLabsTTS:
         except Exception:
             return False
 
+    async def _ensure_connected(self) -> None:
+        """Open or reopen the stream-input socket (ElevenLabs often closes it after each utterance)."""
+        if self.websocket and await self.ping_connection():
+            return
+        if self.websocket:
+            try:
+                await self.websocket.close()
+            except Exception:
+                pass
+            self.websocket = None
+        self.logger.debug("[TTS] Connecting to ElevenLabs stream-input websocket.")
+        await self.connect()
+
+    def _release_connection_after_utterance(self) -> None:
+        """Drop the socket after a completed utterance so the next speak starts clean."""
+        self.websocket = None
+
     async def drain_socket(self):
         """
-                Clear any pending messages from the WebSocket buffer.
+        Clear any pending messages from the WebSocket buffer.
 
-                This prevents stale audio data from interfering with new requests.
+        This prevents stale data from a prior utterance interfering with the next request.
         """
+        drained = 0
         try:
             while True:
                 await asyncio.wait_for(self.websocket.recv(), timeout=0.2)
-                self.logger.warning("[TTS] Had to drain the websocket.")
+                drained += 1
         except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
             pass
+        if drained:
+            self.logger.debug("[TTS] Drained %s stale websocket message(s).", drained)
 
-    async def speak(self, text):
+    async def speak(self, text, recv_timeout_s: float = 30.0):
         """
-                Send text to the ElevenLabs API and receive synthesized audio.
+        Send text to the ElevenLabs stream-input API and return full PCM audio.
 
-                Args:
-                    text (str): Input text to synthesize.
+        The API streams many JSON messages per utterance: zero or more with an
+        ``audio`` field (base64 PCM fragments), then one with ``isFinal: true``.
+        All audio chunks are collected before returning so playback is not cut off.
 
-                Returns:
-                    Optional[bytes]: Raw PCM audio bytes if successful, otherwise None.
+        Args:
+            text (str): Input text to synthesize.
+            recv_timeout_s (float): Per-message receive timeout while waiting for chunks.
+
+        Returns:
+            Optional[bytes]: Concatenated raw PCM bytes, or None on failure / empty audio.
         """
-        # Reconnect if no active connection.
-        if not self.websocket:
-            self.logger.warning("[TTS] Websocket not connected. Initiating reconnect.")
-            await self.connect()
-        elif not await self.ping_connection():
-            self.logger.warning("[TTS] Websocket not connected. Initiating reconnect.")
-            await self.connect()
+        await self._ensure_connected()
 
         await self.drain_socket()
-        # Send sentence
-        await self.websocket.send(dumps({"text": text, "flush": True}))
+        await self.websocket.send(dumps({"text": text}))
+        await self.websocket.send(dumps({"text": ""}))  # EOS — triggers isFinal
 
-        while True:
-            try:
-                message = await asyncio.wait_for(self.websocket.recv(), timeout=5.0)
-                data = loads(message)
+        chunks = []
+        try:
+            while True:
+                try:
+                    message = await asyncio.wait_for(self.websocket.recv(), timeout=recv_timeout_s)
+                    data = loads(message)
 
-                if data.get("audio"):
-                    return base64.b64decode(data["audio"])
-                if data.get("isFinal"):
+                    audio_b64 = data.get("audio")
+                    if audio_b64:
+                        chunks.append(base64.b64decode(audio_b64))
+
+                    if data.get("isFinal") or data.get("is_final"):
+                        break
+                except asyncio.TimeoutError:
+                    self.logger.error("[TTS] Timed out waiting for ElevenLabs audio (isFinal not received).")
                     return None
-            except asyncio.TimeoutError:
-                self.logger.error('[TTS] No audio received from Elevenlabs')
-                self.websocket = None
-                return None
-            except websockets.exceptions.ConnectionClosedOK:
-                # Normal closure (1000), nothing to worry about
-                self.logger.warning("[TTS] WebSocket closed cleanly by server.")
-                self.websocket = None
-                return None
-            except websockets.exceptions.ConnectionClosedError as e:
-                # Abnormal closure
-                self.logger.error(f"[TTS] WebSocket closed with error: {e}")
-                self.websocket = None
-                return None
-            except Exception as e:
-                # Catch-all for JSON parsing or other issues
-                self.logger.error(f"[TTS] Other failure in elevenlabs tts: {e}")
-                self.websocket = None
-                return None
+                except websockets.exceptions.ConnectionClosedOK:
+                    # Server often closes the socket right after isFinal; keep any audio collected.
+                    break
+                except websockets.exceptions.ConnectionClosedError as e:
+                    self.logger.error(f"[TTS] WebSocket closed with error: {e}")
+                    return b"".join(chunks) if chunks else None
+                except Exception as e:
+                    self.logger.error(f"[TTS] Other failure in elevenlabs tts: {e}")
+                    return b"".join(chunks) if chunks else None
+        finally:
+            # Next speak() opens a new connection; avoids stale/dead socket + ping warnings.
+            self._release_connection_after_utterance()
+
+        pcm = b"".join(chunks)
+        if not pcm:
+            self.logger.error("[TTS] ElevenLabs returned isFinal with no audio.")
+            return None
+        return pcm
 
 
 class TTSCacher:

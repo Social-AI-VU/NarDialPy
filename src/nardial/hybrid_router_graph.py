@@ -22,16 +22,6 @@ class HybridRouterState(TypedDict, total=False):
     completed_dialog_ids: List[str]
 
 
-def _recent_context(session_history: List[Dict[str, Any]], max_items: int = 12) -> List[str]:
-    lines: List[str] = []
-    for item in session_history[-max_items:]:
-        role = item.get("role")
-        txt = item.get("text")
-        if role and txt:
-            lines.append(f"{role}: {txt}")
-    return lines
-
-
 def _safe_json_loads(value: Any) -> Dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -185,9 +175,10 @@ def run_llm_router_graph(
         for d in dialogs:
             if not _is_dialog_eligible(d, completed_ids, user_model, dialogs):
                 continue
+            route_desc = str(getattr(d, "description", "") or "").strip()
             available.append({
                 "id": d.dialog_id,
-                "description": str(getattr(d, "description", "") or getattr(d, "theme", "") or d.dialog_id),
+                "description": route_desc or d.dialog_id,
             })
 
         available_ids = [a["id"] for a in available]
@@ -217,7 +208,7 @@ def run_llm_router_graph(
 
         routed = conversation_agent.orchestrator.request_from_gpt(
             user_prompt=state.get("last_user_input", ""),
-            context_messages=_recent_context(session_history),
+            context_messages=conversation_agent.orchestrator.reconstruct_conversation(session_history),
             system_prompt=router_prompt,
             json_response=True,
             rag_enabled=False,
@@ -304,7 +295,7 @@ def run_llm_router_graph(
         _log_info("[HYBRID_ROUTER] improvising_with_rag_llm")
         text = conversation_agent.ask_llm(
             user_prompt=user_text,
-            context_messages=_recent_context(session_history),
+            context_messages=conversation_agent.orchestrator.reconstruct_conversation(session_history),
             system_prompt=base_prompt,
             rag_enabled=rag_enabled,
             rag_index_name=rag_index_name,

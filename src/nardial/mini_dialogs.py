@@ -234,6 +234,7 @@ class MiniDialog:
             user_prompt=user_answer,
             context_messages=context_messages,
             system_prompt=system_prompt,
+            llm_call_purpose="llm_followup",
         )
         print(f"[LLM] followup_response={llm_text!r}")
         if llm_text:
@@ -326,12 +327,14 @@ class MiniDialog:
             set_variable=move.set_variable,
             quit_phrases=move.quit_phrases,
             quit_signal=move.quit_signal,
+            llm_call_purpose="ask_llm_move",
         )
 
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
-                          rag_enabled: bool = False, rag_index_name: Optional[str] = None):
+                          rag_enabled: bool = False, rag_index_name: Optional[str] = None,
+                          llm_call_purpose: str = "llm_dialog"):
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -362,6 +365,7 @@ class MiniDialog:
                 system_prompt=prompt,
                 rag_enabled=rag_enabled,
                 rag_index_name=rag_index_name,
+                llm_call_purpose=llm_call_purpose,
             )
             print(f"[LLM] response={llm_text!r}")
             if llm_text is None:
@@ -483,6 +487,7 @@ class LLMDialog(MiniDialog):
             duration=self.duration,
             rag_enabled=self.rag_enabled,
             rag_index_name=self.rag_index_name,
+            llm_call_purpose="llm_based_dialog",
         )
 
 

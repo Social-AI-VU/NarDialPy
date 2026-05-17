@@ -257,7 +257,10 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.orchestrator.request_from_gpt(system_prompt=prompt)
+            data = self.orchestrator.request_from_gpt(
+                system_prompt=prompt,
+                llm_call_purpose="topic_condensation",
+            )
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -272,7 +275,15 @@ class ConversationAgent:
         except Exception:
             return _heuristic(raw_topics)
 
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled=None, rag_index_name=None):
+    def ask_llm(
+            self,
+            user_prompt,
+            context_messages,
+            system_prompt,
+            rag_enabled=None,
+            rag_index_name=None,
+            llm_call_purpose=None,
+    ):
         """
         Send a request to the configured LLM (e.g., GPT) and return the response.
 
@@ -296,4 +307,5 @@ class ConversationAgent:
             system_prompt,
             rag_enabled=rag_enabled,
             rag_index_name=rag_index_name,
+            llm_call_purpose=llm_call_purpose,
         )

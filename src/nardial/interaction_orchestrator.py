@@ -57,7 +57,7 @@ from sic_framework.services.datastore.redis_datastore import (
     VectorDBResultsMessage,
 )
 from dotenv import load_dotenv
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
@@ -150,7 +150,8 @@ class InteractionConfig:
             log_level (str | int | None): SIC / app log level name (e.g. ``\"INFO\"``) or numeric level.
                 ``None`` defaults to DEBUG (matches prior hard-coded behavior).
             detailed_transcript (bool): When True, store detailed session transcript metadata
-                (timing metrics and full user/robot events).
+                (timing metrics and full user/robot events), and append ``llm_prompt`` system
+                events with full system/user/context payloads for every LLM call.
             langgraph (bool): If True, route LLM calls through LangChain ChatOpenAI
                 (LangSmith tracing compatible) instead of the SIC GPT service.
             spacebar_pause (bool): If True, Space toggles pause (after the current robot
@@ -415,6 +416,40 @@ class InteractionOrchestrator:
             "timestamp_monotonic": monotonic(),
             **extra,
         })
+
+    def _log_llm_prompt_transcript(
+            self,
+            *,
+            llm_call_purpose: Optional[str],
+            system_prompt: Optional[str],
+            user_prompt: Optional[str],
+            context_messages: Optional[List[Any]],
+            json_response: bool = False,
+            rag_enabled: bool = False,
+            rag_index_name: Optional[str] = None,
+    ) -> None:
+        """Record full LLM prompts in the session transcript when detailed_transcript is enabled."""
+        if not getattr(self.interaction_conf, "detailed_transcript", False):
+            return
+        purpose = (llm_call_purpose or "llm_request").strip() or "llm_request"
+        ctx = [str(m) for m in (context_messages or []) if m is not None]
+        flags = []
+        if json_response:
+            flags.append("json_response")
+        if rag_enabled:
+            flags.append("rag")
+        flag_suffix = f" ({', '.join(flags)})" if flags else ""
+        self._append_interaction_transcript(
+            "llm_prompt",
+            f"LLM call: {purpose}{flag_suffix}",
+            llm_call_purpose=purpose,
+            system_prompt=system_prompt or "",
+            user_prompt="" if user_prompt is None else str(user_prompt),
+            context_messages=ctx,
+            json_response=bool(json_response),
+            rag_enabled=bool(rag_enabled),
+            rag_index_name=rag_index_name,
+        )
 
     def _maybe_start_stdin_space_aux_thread(self):
         if not getattr(self.interaction_conf, "spacebar_pause", False):
@@ -943,8 +978,16 @@ class InteractionOrchestrator:
         if log:
             self._spacebar_pause_wait_after_output()
 
-    def request_from_gpt(self, user_prompt=None, context_messages=None, system_prompt=None, json_response=False,
-                         rag_enabled=None, rag_index_name=None):
+    def request_from_gpt(
+            self,
+            user_prompt=None,
+            context_messages=None,
+            system_prompt=None,
+            json_response=False,
+            rag_enabled=None,
+            rag_index_name=None,
+            llm_call_purpose: Optional[str] = None,
+    ):
         self.last_llm_usage = None
         use_rag = self.rag_enabled if rag_enabled is None else bool(rag_enabled)
         if use_rag and not rag_index_name and not self.interaction_conf.index_name:
@@ -966,6 +1009,16 @@ class InteractionOrchestrator:
                     system_prompt = f"{system_prompt}\n\n{rag_prefix}"
                 else:
                     system_prompt = rag_prefix
+
+        self._log_llm_prompt_transcript(
+            llm_call_purpose=llm_call_purpose,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            context_messages=context_messages,
+            json_response=json_response,
+            rag_enabled=use_rag,
+            rag_index_name=rag_index_name or self.interaction_conf.index_name,
+        )
         try:
             if self.interaction_conf.langgraph and self.langchain_chat is not None:
                 from langchain_core.messages import SystemMessage, HumanMessage

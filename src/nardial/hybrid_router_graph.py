@@ -221,6 +221,7 @@ def run_llm_router_graph(
             system_prompt=router_prompt,
             json_response=True,
             rag_enabled=False,
+            llm_call_purpose="hybrid_router",
         )
         # Snapshot immediately so a later LLM call (e.g. improvise) does not overwrite usage.
         router_token_usage = getattr(conversation_agent.orchestrator, "last_llm_usage", None)
@@ -307,6 +308,7 @@ def run_llm_router_graph(
             system_prompt=base_prompt,
             rag_enabled=rag_enabled,
             rag_index_name=rag_index_name,
+            llm_call_purpose="hybrid_improvise",
         )
         if text:
             conversation_agent.say(text)

@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, List, cast
 
 from nardial.interaction_orchestrator import ConversationStdinEOF
+from nardial.dialog_repeat import dialog_has_repeat_prompt, user_confirmed_repeat
 from nardial.utils import normalize_text
 import re
 from time import monotonic
@@ -551,6 +552,43 @@ class IntentRouterDialog(MiniDialog):
         scored.sort(key=lambda item: item[0], reverse=True)
         return scored[0][1]
 
+    def _run_child_with_repeat_prompt(
+            self,
+            sm: Any,
+            agent: Any,
+            target: "MiniDialog",
+            allow_repeatable_rerun: bool,
+    ) -> bool:
+        """Run a child dialog, using repeat_moves when it was already completed (hybrid parity)."""
+        did = target.dialog_id
+        completed = sm.conversation_state.completed_dialogs
+        if dialog_has_repeat_prompt(target) and did in completed:
+            repeat_moves = list(getattr(target, "repeat_moves", []) or [])
+            prompt_dialog = MiniDialog(f"{did}__repeat_prompt", repeat_moves)
+            hist_len = len(self.session_history)
+            print(f"[ROUTER] repeat_prompt for dialog={did!r}")
+            prompt_dialog.run(
+                agent,
+                self.session_history,
+                self.topics_of_interest,
+                self.user_model,
+            )
+            if user_confirmed_repeat(self.session_history[hist_len:]):
+                print(f"[ROUTER] repeat confirmed; re-running main moves for {did!r}")
+                return sm._run_single_dialog(
+                    target,
+                    self.session_history,
+                    allow_repeatable_rerun=allow_repeatable_rerun,
+                )
+            print(f"[ROUTER] repeat declined for {did!r}")
+            return False
+
+        return sm._run_single_dialog(
+            target,
+            self.session_history,
+            allow_repeatable_rerun=allow_repeatable_rerun,
+        )
+
     def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
         sm = self._session_manager
@@ -621,9 +659,10 @@ class IntentRouterDialog(MiniDialog):
 
             is_repeatable = bool(getattr(target, "repeatable", False))
             try:
-                ran = sm._run_single_dialog(
+                ran = self._run_child_with_repeat_prompt(
+                    sm,
+                    agent,
                     target,
-                    self.session_history,
                     allow_repeatable_rerun=is_repeatable,
                 )
             except ConversationStdinEOF:

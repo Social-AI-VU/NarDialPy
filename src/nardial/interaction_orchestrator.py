@@ -137,7 +137,9 @@ class InteractionConfig:
                  embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
                  override_existing: bool = False, force_recreate_index: bool = False,
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
-                 langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True):
+                 langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True,
+                 dialogflow_context: Optional[Union[str, Dict[str, int]]] = None,
+                 dialogflow_context_lifespan: int = 5):
         """
         Initialize interaction configuration.
 
@@ -161,6 +163,11 @@ class InteractionConfig:
                 output finishes); while paused, mic recognition can be discarded and
                 keyboard input restarts fresh. Logs ``interaction_pause`` /
                 ``interaction_unpause`` to the transcript sink when configured.
+            dialogflow_context (str | dict | None): Dialogflow input context(s) applied on
+                every intent request (keyboard text detect and mic ``listen``). A string
+                activates one context; a dict maps context names to lifespan counts.
+                Merged with per-call ``listen(context=...)`` (call-time keys override).
+            dialogflow_context_lifespan (int): Lifespan when ``dialogflow_context`` is a str.
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -203,6 +210,8 @@ class InteractionConfig:
         self.detailed_transcript = bool(detailed_transcript)
         self.langgraph = bool(langgraph)
         self.spacebar_pause = bool(spacebar_pause)
+        self.dialogflow_context = dialogflow_context
+        self.dialogflow_context_lifespan = int(dialogflow_context_lifespan)
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -673,6 +682,18 @@ class InteractionOrchestrator:
         finally:
             self._keyboard_line_read_active = False
 
+    def _dialogflow_contexts_dict(self, context=None) -> Dict[str, int]:
+        """Merge :attr:`InteractionConfig.dialogflow_context` with per-call overrides."""
+        merged: Dict[str, int] = {}
+        cfg = getattr(self.interaction_conf, "dialogflow_context", None)
+        if isinstance(cfg, str) and cfg:
+            merged[cfg] = int(getattr(self.interaction_conf, "dialogflow_context_lifespan", 5))
+        elif isinstance(cfg, dict):
+            merged.update(cfg)
+        if context:
+            merged.update(context)
+        return merged
+
     def _detect_intent_from_text(self, text, context=None):
         if not text:
             return None
@@ -691,7 +712,7 @@ class InteractionOrchestrator:
             )
 
             contexts = []
-            for context_name, lifespan in (context or {}).items():
+            for context_name, lifespan in self._dialogflow_contexts_dict(context).items():
                 context_id = f"projects/{project_id}/agent/sessions/{self.request_id}/contexts/{context_name}"
                 contexts.append(gdialogflow.Context(name=context_id, lifespan_count=lifespan))
             query_params = gdialogflow.QueryParameters(contexts=contexts) if contexts else None
@@ -925,9 +946,13 @@ class InteractionOrchestrator:
         the start of a reply line toggles pause (partial line discarded); a second
         Space resumes. Mic + TTY mode uses a background stdin reader for the same.
         Pause/unpause is logged to ``transcript_append`` when set.
+
+        Per-call ``context`` is merged with :attr:`InteractionConfig.dialogflow_context`
+        (config contexts first; call-time keys override on name collision).
         """
 
         listening_started = False
+        dialogflow_contexts = self._dialogflow_contexts_dict(context)
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
             listening_started = True
@@ -970,7 +995,11 @@ class InteractionOrchestrator:
                 self._wait_until_unpaused()
                 try:
                     reply = self.dialogflow.request(
-                        GetIntentRequest(self.request_id, context), timeout=timeout
+                        GetIntentRequest(
+                            self.request_id,
+                            dialogflow_contexts or None,
+                        ),
+                        timeout=timeout,
                     )
                 except TimeoutError as e:
                     print("Error:", e)

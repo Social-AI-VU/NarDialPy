@@ -37,10 +37,12 @@ from sic_framework.devices.common_naoqi.naoqi_motion_recorder import NaoqiMotion
 from sic_framework.devices.common_naoqi.naoqi_text_to_speech import NaoqiTextToSpeechRequest
 from sic_framework.devices.desktop import Desktop
 from sic_framework.devices.device import SICDeviceManager
+from sic_framework.core.utils import is_sic_instance
 from sic_framework.services.dialogflow.dialogflow import (
     Dialogflow,
     DialogflowConf,
     GetIntentRequest,
+    RecognitionResult,
 )
 from sic_framework.services.google_tts.google_tts import (
     GetSpeechRequest,
@@ -325,8 +327,15 @@ class InteractionOrchestrator:
         self._keyboard_line_read_active = False
         self._web_listen_start = threading.Event()
         self._web_listen_armed = False
+        self._web_compose_armed = False
+        self._web_action_event = threading.Event()
+        self._web_submit_event = threading.Event()
+        self._web_action_lock = threading.Lock()
+        self._web_action = None
+        self._web_pending_submit = None
         self._web_turn_lock = threading.Lock()
         self.web_turn_notifier = None
+        self.web_stt_notifier = None
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -437,27 +446,77 @@ class InteractionOrchestrator:
         self._web_listen_start.clear()
 
     def signal_web_listen_start(self):
-        """Unblock :meth:`listen` when the user presses record in the web UI."""
+        """User pressed the mic button to start speech-to-text."""
         with self._web_turn_lock:
-            if not self._web_listen_armed:
+            if not self._web_listen_armed or self._web_compose_armed:
                 self.logger.debug("Ignoring web listen start (not waiting for user).")
                 return
+        with self._web_action_lock:
+            self._web_action = ("mic", None)
+        self._web_action_event.set()
         self._web_listen_start.set()
 
+    def signal_web_submit_text(self, text: str) -> None:
+        """User pressed Done with text from the compose field (typed or edited STT)."""
+        with self._web_turn_lock:
+            compose = self._web_compose_armed
+            armed = self._web_listen_armed
+            if not compose and not armed:
+                self.logger.debug("Ignoring web submit (not waiting for user).")
+                return
+        with self._web_action_lock:
+            self._web_pending_submit = text
+            if compose:
+                self._web_submit_event.set()
+            else:
+                self._web_action = ("submit", text)
+                self._web_action_event.set()
+
     def _arm_web_user_turn(self) -> None:
-        """Wait for the user to press record; UI shows green Start speaking."""
+        """UI may record, type, or edit before pressing Done."""
         self._disarm_web_listen()
         with self._web_turn_lock:
             self._web_listen_armed = True
+            self._web_compose_armed = False
+        self._web_action_event.clear()
+        self._web_submit_event.clear()
+        with self._web_action_lock:
+            self._web_action = None
+            self._web_pending_submit = None
         self._notify_web_turn("user_ready")
 
-    def _wait_for_web_user_recording_start(self) -> None:
-        """Block until the user starts recording (mic button)."""
-        self._web_listen_start.wait()
-        self._web_listen_start.clear()
+    def _wait_for_web_user_action(self):
+        """Block until the user starts the mic or submits typed text."""
+        while True:
+            self._web_action_event.wait()
+            self._web_action_event.clear()
+            with self._web_action_lock:
+                action = self._web_action
+                self._web_action = None
+            if action is not None:
+                with self._web_turn_lock:
+                    self._web_listen_armed = False
+                return action
+
+    def _wait_for_web_submit(self) -> str:
+        """Block until the user confirms edited STT / compose text."""
+        self._web_submit_event.wait()
+        self._web_submit_event.clear()
+        with self._web_action_lock:
+            text = self._web_pending_submit
+            self._web_pending_submit = None
         with self._web_turn_lock:
-            self._web_listen_armed = False
-        self._notify_web_turn("user_recording")
+            self._web_compose_armed = False
+        return text if text is not None else ""
+
+    def _notify_web_stt(self, transcript: str, *, is_final: bool) -> None:
+        fn = getattr(self, "web_stt_notifier", None)
+        if not callable(fn):
+            return
+        try:
+            fn(transcript=transcript, is_final=is_final)
+        except Exception as e:
+            self.logger.warning("web_stt_notifier failed: %s", e)
 
     def stop_spacebar_pause_aux(self):
         """Stop the optional stdin space listener thread (mic + TTY mode)."""
@@ -1053,9 +1112,83 @@ class InteractionOrchestrator:
             web_audio = getattr(self.interaction_conf, "web_audio_input", False)
             if web_audio:
                 web_listen_active = True
-                self._arm_web_user_turn()
-                self._wait_for_web_user_recording_start()
                 timeout = max(int(timeout or 10), 120)
+
+                while True:
+                    self._wait_until_unpaused()
+                    self._arm_web_user_turn()
+                    action = self._wait_for_web_user_action()
+                    action_type = action[0] if action else None
+
+                    if action_type == "submit":
+                        user_text = (action[1] or "").strip()
+                        if not user_text:
+                            continue
+                        if self._mic_listen_discard_pending:
+                            self._mic_listen_discard_pending = False
+                            continue
+                        self.log_utterance(speaker="child", text=user_text)
+                        intent = None
+                        if detect_intent:
+                            intent = self._detect_intent_from_text(
+                                user_text, context=context
+                            )
+                            print("The detected intent:", intent)
+                        return user_text, intent
+
+                    if action_type != "mic":
+                        continue
+
+                    self._notify_web_turn("user_recording")
+                    try:
+                        reply = self.dialogflow.request(
+                            GetIntentRequest(
+                                self.request_id,
+                                dialogflow_contexts or None,
+                            ),
+                            timeout=timeout,
+                        )
+                    except TimeoutError as e:
+                        print("Error:", e)
+                        continue
+
+                    if self._mic_listen_discard_pending:
+                        self._append_interaction_transcript(
+                            "interaction_listen_discarded",
+                            "Recognition discarded due to spacebar pause (mic).",
+                            source="spacebar",
+                        )
+                        self._mic_listen_discard_pending = False
+                        continue
+
+                    draft = ""
+                    try:
+                        if reply.response and reply.response.query_result:
+                            draft = reply.response.query_result.query_text or ""
+                    except Exception:
+                        draft = ""
+                    draft = draft.strip()
+                    if draft:
+                        self._notify_web_stt(draft, is_final=True)
+
+                    with self._web_turn_lock:
+                        self._web_compose_armed = True
+                    self._notify_web_turn("user_ready")
+
+                    user_text = self._wait_for_web_submit().strip()
+                    if self._mic_listen_discard_pending:
+                        self._mic_listen_discard_pending = False
+                        continue
+                    if not user_text:
+                        continue
+                    self.log_utterance(speaker="child", text=user_text)
+                    intent = None
+                    if detect_intent:
+                        intent = self._detect_intent_from_text(
+                            user_text, context=context
+                        )
+                        print("The detected intent:", intent)
+                    return user_text, intent
 
             while True:
                 self._wait_until_unpaused()
@@ -1383,11 +1516,24 @@ class InteractionOrchestrator:
         self.background_thread.join()
 
     def _on_dialog(self, message):
-        if message.response:
-            transcript = message.response.recognition_result.transcript
+        if not getattr(message, "response", None):
+            return
+        recognition = getattr(message.response, "recognition_result", None)
+        if recognition is None:
+            return
+        transcript = getattr(recognition, "transcript", None) or ""
+        is_final = bool(getattr(recognition, "is_final", False))
+        if transcript:
             print("Transcript:", transcript)
-            if message.response.recognition_result.is_final:
-                self.log_utterance(speaker='child', text=transcript)
+        if getattr(self.interaction_conf, "web_audio_input", False) and transcript:
+            self._notify_web_stt(transcript, is_final=is_final)
+        if (
+            is_final
+            and transcript
+            and is_sic_instance(message, RecognitionResult)
+            and not getattr(self.interaction_conf, "web_audio_input", False)
+        ):
+            self.log_utterance(speaker="child", text=transcript)
 
     def _start_loop(self):
         asyncio.set_event_loop(self.background_loop)

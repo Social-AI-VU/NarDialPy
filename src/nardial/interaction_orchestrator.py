@@ -139,7 +139,7 @@ class InteractionConfig:
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
                  langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True,
                  dialogflow_context: Optional[Union[str, Dict[str, int]]] = None,
-                 dialogflow_context_lifespan: int = 5):
+                 dialogflow_context_lifespan: int = 5, web_audio_input: bool = False):
         """
         Initialize interaction configuration.
 
@@ -168,10 +168,14 @@ class InteractionConfig:
                 activates one context; a dict maps context names to lifespan counts.
                 Merged with per-call ``listen(context=...)`` (call-time keys override).
             dialogflow_context_lifespan (int): Lifespan when ``dialogflow_context`` is a str.
+            web_audio_input (bool): If True, Dialogflow STT receives audio from the browser
+                (via the host app) instead of the device microphone. ``listen()`` blocks until
+                :meth:`InteractionOrchestrator.signal_web_listen_start` is called.
         """
         self.language = language
         self.keyboard_input = keyboard_input
         self.dialogflow = bool(dialogflow)
+        self.web_audio_input = bool(web_audio_input)
 
         self.tts_conf = tts_conf
         if not tts_conf:
@@ -319,6 +323,7 @@ class InteractionOrchestrator:
         self._aux_stdin_shutdown = threading.Event()
         self._aux_stdin_thread = None
         self._keyboard_line_read_active = False
+        self._web_listen_start = threading.Event()
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -399,7 +404,11 @@ class InteractionOrchestrator:
         self.dialogflow = None
         self._dialogflow_text_client = None
         if self.interaction_conf.dialogflow:
-            df_input = None if self.interaction_conf.keyboard_input else getattr(self, 'mic', None)
+            use_external_audio = (
+                self.interaction_conf.keyboard_input
+                or getattr(self.interaction_conf, "web_audio_input", False)
+            )
+            df_input = None if use_external_audio else getattr(self, 'mic', None)
             self.dialogflow = Dialogflow(ip="localhost", conf=self.interaction_conf.dialogflow_conf, input_source=df_input)
             self.dialogflow.register_callback(self._on_dialog)
             print("Complete and ready for interaction!")
@@ -407,6 +416,10 @@ class InteractionOrchestrator:
             print("Skipped (dialogflow disabled in InteractionConfig).")
 
         self._maybe_start_stdin_space_aux_thread()
+
+    def signal_web_listen_start(self):
+        """Unblock :meth:`listen` when using browser-fed Dialogflow audio."""
+        self._web_listen_start.set()
 
     def stop_spacebar_pause_aux(self):
         """Stop the optional stdin space listener thread (mic + TTY mode)."""
@@ -990,6 +1003,10 @@ class InteractionOrchestrator:
             if not self.interaction_conf.dialogflow or self.dialogflow is None:
                 self.logger.warning("listen() called with keyboard_input=False while dialogflow is disabled")
                 return None, None
+
+            if getattr(self.interaction_conf, "web_audio_input", False):
+                self._web_listen_start.wait()
+                self._web_listen_start.clear()
 
             while True:
                 self._wait_until_unpaused()

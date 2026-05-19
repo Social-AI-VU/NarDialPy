@@ -324,6 +324,9 @@ class InteractionOrchestrator:
         self._aux_stdin_thread = None
         self._keyboard_line_read_active = False
         self._web_listen_start = threading.Event()
+        self._web_listen_armed = False
+        self._web_turn_lock = threading.Lock()
+        self.web_turn_notifier = None
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -417,9 +420,44 @@ class InteractionOrchestrator:
 
         self._maybe_start_stdin_space_aux_thread()
 
+    def _notify_web_turn(self, phase: str) -> None:
+        """Notify host app of mic UI phase: user_ready, user_recording, processing, agent_speaking."""
+        if not getattr(self.interaction_conf, "web_audio_input", False):
+            return
+        fn = getattr(self, "web_turn_notifier", None)
+        if callable(fn):
+            try:
+                fn(phase=phase)
+            except Exception as e:
+                self.logger.warning("web_turn_notifier failed: %s", e)
+
+    def _disarm_web_listen(self) -> None:
+        with self._web_turn_lock:
+            self._web_listen_armed = False
+        self._web_listen_start.clear()
+
     def signal_web_listen_start(self):
-        """Unblock :meth:`listen` when using browser-fed Dialogflow audio."""
+        """Unblock :meth:`listen` when the user presses record in the web UI."""
+        with self._web_turn_lock:
+            if not self._web_listen_armed:
+                self.logger.debug("Ignoring web listen start (not waiting for user).")
+                return
         self._web_listen_start.set()
+
+    def _arm_web_user_turn(self) -> None:
+        """Wait for the user to press record; UI shows green Start speaking."""
+        self._disarm_web_listen()
+        with self._web_turn_lock:
+            self._web_listen_armed = True
+        self._notify_web_turn("user_ready")
+
+    def _wait_for_web_user_recording_start(self) -> None:
+        """Block until the user starts recording (mic button)."""
+        self._web_listen_start.wait()
+        self._web_listen_start.clear()
+        with self._web_turn_lock:
+            self._web_listen_armed = False
+        self._notify_web_turn("user_recording")
 
     def stop_spacebar_pause_aux(self):
         """Stop the optional stdin space listener thread (mic + TTY mode)."""
@@ -841,18 +879,25 @@ class InteractionOrchestrator:
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         self.last_robot_speech_start_monotonic = monotonic()
-        if animated:
-            self.animation()
+        if getattr(self.interaction_conf, "web_audio_input", False):
+            self._disarm_web_listen()
+            self._notify_web_turn("agent_speaking")
+        try:
+            if animated:
+                self.animation()
 
-        if isinstance(self.tts_conf, NaoqiTTSConf):
-            self.naoqi_say(text, post_speech_delay=post_speech_delay, animated=animated)
-        elif isinstance(self.tts_conf, GoogleTTSConf):
-            self.google_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate)
-        elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
-        else:
-            raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
-        self._spacebar_pause_wait_after_output()
+            if isinstance(self.tts_conf, NaoqiTTSConf):
+                self.naoqi_say(text, post_speech_delay=post_speech_delay, animated=animated)
+            elif isinstance(self.tts_conf, GoogleTTSConf):
+                self.google_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate)
+            elif isinstance(self.tts_conf, ElevenLabsTTSConf):
+                self.elevenlabs_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
+            else:
+                raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+            self._spacebar_pause_wait_after_output()
+        finally:
+            if getattr(self.interaction_conf, "web_audio_input", False):
+                self._notify_web_turn("processing")
 
 
     def naoqi_say(self, text, post_speech_delay=None, animated=False):
@@ -965,6 +1010,7 @@ class InteractionOrchestrator:
         """
 
         listening_started = False
+        web_listen_active = False
         dialogflow_contexts = self._dialogflow_contexts_dict(context)
         if self.interaction_conf.signal_listening_behavior:
             self.signal_listening_behavior(start=True)
@@ -1004,9 +1050,12 @@ class InteractionOrchestrator:
                 self.logger.warning("listen() called with keyboard_input=False while dialogflow is disabled")
                 return None, None
 
-            if getattr(self.interaction_conf, "web_audio_input", False):
-                self._web_listen_start.wait()
-                self._web_listen_start.clear()
+            web_audio = getattr(self.interaction_conf, "web_audio_input", False)
+            if web_audio:
+                web_listen_active = True
+                self._arm_web_user_turn()
+                self._wait_for_web_user_recording_start()
+                timeout = max(int(timeout or 10), 120)
 
             while True:
                 self._wait_until_unpaused()
@@ -1047,6 +1096,8 @@ class InteractionOrchestrator:
         finally:
             if listening_started:
                 self.signal_listening_behavior(start=False)
+            if web_listen_active:
+                self._notify_web_turn("processing")
 
     def play_audio(self, audio_file, amplified=False, log=True):
         if not exists(audio_file):

@@ -385,7 +385,12 @@ class MiniDialog:
                 _listen_until_stdin_eof(agent)
                 return
 
-            # Ask the user the LLM's text and listen for reply
+            # Speak the LLM reply, then listen; publish robot line when speech starts.
+            self._record_robot(
+                MOVE_ASK_LLM,
+                llm_text,
+                token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
+            )
             agent.say(llm_text)
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
@@ -396,12 +401,6 @@ class MiniDialog:
             if not user_input:
                 user_input = ""
 
-            # Record the exchange using the provided record types
-            self._record_robot(
-                MOVE_ASK_LLM,
-                llm_text,
-                token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
-            )
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
             # Optionally store a variable from user's answer

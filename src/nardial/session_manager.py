@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -11,6 +12,7 @@ from nardial.dialog_logic import DialogLogic
 from nardial.authoring import load_dialogs
 from nardial.mini_dialogs import IntentRouterDialog
 from nardial.interaction_orchestrator import ConversationStdinEOF
+from nardial.transcript import ObservableTranscript
 from nardial.utils import normalize_text
 
 
@@ -212,7 +214,7 @@ class SessionManager:
             self.conversation_state.completed_dialogs.append(dialog.dialog_id)
         return True
 
-    def run(self):
+    def run(self, transcript_listener: Optional[Callable[[dict], None]] = None):
         """
         Execute the session by running each dialog in sequence.
 
@@ -221,8 +223,14 @@ class SessionManager:
         - Session history tracking
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
+
+        :param transcript_listener: Optional callback invoked for each transcript entry
+            appended during the session (user, robot, and system events).
         """
-        session_history = []
+        if transcript_listener is not None:
+            session_history = ObservableTranscript(on_append=transcript_listener)
+        else:
+            session_history = []
         orch = self.agent.orchestrator
         orch.transcript_append = session_history.append
         try:

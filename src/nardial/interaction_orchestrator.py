@@ -63,6 +63,7 @@ from typing import Any, Dict, List, Optional, Union
 
 TranscriptPromptField = Union[str, List[str]]
 
+from nardial.rag_config import RagConfig
 from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
 from elevenlabs import ElevenLabs
 
@@ -142,9 +143,7 @@ class InteractionConfig:
     def __init__(self, language="en", tts_conf: TTSConf = None, microphone_device=None, google_keyfile_path=None,
                  env_file_path=None, post_speech_delay=None, signal_listening_behavior=True, keyboard_input=False,
                  dialogflow: bool = True,
-                 rag: bool = False, ingest_docs: bool = False, input_path: str = "", index_name: str = "",
-                 embedding_model: str = "", chunk_chars: int = 1200, chunk_overlap: int = 150,
-                 override_existing: bool = False, force_recreate_index: bool = False,
+                 rag_conf: Optional[RagConfig] = None,
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
                  langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True,
                  dialogflow_context: Optional[Union[str, Dict[str, int]]] = None,
@@ -184,6 +183,8 @@ class InteractionConfig:
             web_audio_output (bool): If True, TTS audio is sent to the browser for playback
                 instead of the device speakers. Requires ``web_tts_notifier`` on the orchestrator
                 and :meth:`InteractionOrchestrator.signal_web_playback_done` when playback finishes.
+            rag_conf (RagConfig, optional): RAG ingestion and retrieval settings. Defaults to
+                a disabled :class:`RagConfig`.
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -211,15 +212,7 @@ class InteractionConfig:
 
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior  # if True, the robot will show a visual behavior when it is listening for user input
-        self.rag = rag
-        self.ingest_docs = ingest_docs
-        self.input_path = input_path
-        self.index_name = index_name
-        self.embedding_model = embedding_model
-        self.chunk_chars = chunk_chars
-        self.chunk_overlap = chunk_overlap
-        self.override_existing = override_existing
-        self.force_recreate_index = force_recreate_index
+        self.rag_conf = rag_conf if rag_conf is not None else RagConfig()
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False  # if True, the TTS audio will always be regenerated instead of loading from cache
@@ -239,32 +232,82 @@ class InteractionConfig:
         )
 
     def _validate_rag_config(self):
-        if not self.rag:
-            return
-        if not isinstance(self.ingest_docs, bool):
-            raise ValueError("InteractionConfig.ingest_docs must be a bool when rag=True")
-        if not self.embedding_model:
-            raise ValueError("InteractionConfig.embedding_model is required when rag=True")
-        if self.ingest_docs:
-            required_fields = {
-                "input_path": self.input_path,
-                "index_name": self.index_name,
-                "embedding_model": self.embedding_model,
-            }
-            missing = [k for k, v in required_fields.items() if not v]
-            if missing:
-                raise ValueError(
-                    "Missing required InteractionConfig fields when rag=True and ingest_docs=True: "
-                    + ", ".join(missing)
-                )
-            if not isinstance(self.chunk_chars, int) or self.chunk_chars <= 0:
-                raise ValueError("InteractionConfig.chunk_chars must be a positive int when ingest_docs=True")
-            if not isinstance(self.chunk_overlap, int) or self.chunk_overlap < 0:
-                raise ValueError("InteractionConfig.chunk_overlap must be a non-negative int when ingest_docs=True")
-            if not isinstance(self.override_existing, bool):
-                raise ValueError("InteractionConfig.override_existing must be bool when ingest_docs=True")
-            if not isinstance(self.force_recreate_index, bool):
-                raise ValueError("InteractionConfig.force_recreate_index must be bool when ingest_docs=True")
+        self.rag_conf.validate()
+
+    @property
+    def rag(self) -> bool:
+        return self.rag_conf.enabled
+
+    @rag.setter
+    def rag(self, value: bool) -> None:
+        self.rag_conf.enabled = bool(value)
+
+    @property
+    def ingest_docs(self) -> bool:
+        return self.rag_conf.ingest_docs
+
+    @ingest_docs.setter
+    def ingest_docs(self, value: bool) -> None:
+        self.rag_conf.ingest_docs = bool(value)
+
+    @property
+    def input_path(self) -> str:
+        return self.rag_conf.input_path
+
+    @input_path.setter
+    def input_path(self, value: str) -> None:
+        self.rag_conf.input_path = value
+
+    @property
+    def index_name(self) -> str:
+        return self.rag_conf.index_name
+
+    @index_name.setter
+    def index_name(self, value: str) -> None:
+        self.rag_conf.index_name = value
+
+    @property
+    def embedding_model(self) -> str:
+        return self.rag_conf.embedding_model
+
+    @embedding_model.setter
+    def embedding_model(self, value: str) -> None:
+        self.rag_conf.embedding_model = value
+
+    @property
+    def chunk_chars(self) -> int:
+        return self.rag_conf.chunk_chars
+
+    @chunk_chars.setter
+    def chunk_chars(self, value: int) -> None:
+        self.rag_conf.chunk_chars = int(value)
+
+    @property
+    def chunk_overlap(self) -> int:
+        return self.rag_conf.chunk_overlap
+
+    @chunk_overlap.setter
+    def chunk_overlap(self, value: int) -> None:
+        self.rag_conf.chunk_overlap = int(value)
+
+    @property
+    def override_existing(self) -> bool:
+        return self.rag_conf.override_existing
+
+    @override_existing.setter
+    def override_existing(self, value: bool) -> None:
+        self.rag_conf.override_existing = bool(value)
+
+    @property
+    def force_recreate_index(self) -> bool:
+        return self.rag_conf.force_recreate_index
+
+    @force_recreate_index.setter
+    def force_recreate_index(self, value: bool) -> None:
+        self.rag_conf.force_recreate_index = bool(value)
+
+    def uses_web_only_audio(self) -> bool:
+        return self.web_audio_input and self.web_audio_output
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
@@ -307,7 +350,11 @@ class InteractionConfig:
 
 
 class InteractionOrchestrator:
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig):
+    def __init__(
+        self,
+        int_config: InteractionConfig,
+        device_manager: Optional[SICDeviceManager] = None,
+    ):
 
         print("\n SETTING UP BASIC PROCESSING")
         # Development Logging
@@ -408,23 +455,32 @@ class InteractionOrchestrator:
 
         print("\n SETTING UP DEVICE MANAGER")
         self.device_manager = device_manager
-        self.mic = self.device_manager.mic
+        self.mic = None
         self.speaker = None
         self.mini_api = None
         self.animation_futures = []
-        if self.interaction_conf.microphone_device:
-            print("\n Additional Microphone Device Detected")
-            self.mic = self.interaction_conf.microphone_device.mic
-        if isinstance(self.device_manager, Alphamini):
-            self.setup_alphamini()
-        elif isinstance(self.device_manager, Pepper):
-            self.setup_pepper()
-        elif isinstance(self.device_manager, Nao):
-            self.setup_nao()
-        elif isinstance(self.device_manager, Desktop):
-            self.setup_desktop()
+        if device_manager is None:
+            if not int_config.uses_web_only_audio():
+                raise ValueError(
+                    "device_manager is required unless both web_audio_input and "
+                    "web_audio_output are True in InteractionConfig"
+                )
+            print("Skipped (web-only audio I/O)")
         else:
-            raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
+            self.mic = self.device_manager.mic
+            if self.interaction_conf.microphone_device:
+                print("\n Additional Microphone Device Detected")
+                self.mic = self.interaction_conf.microphone_device.mic
+            if isinstance(self.device_manager, Alphamini):
+                self.setup_alphamini()
+            elif isinstance(self.device_manager, Pepper):
+                self.setup_pepper()
+            elif isinstance(self.device_manager, Nao):
+                self.setup_nao()
+            elif isinstance(self.device_manager, Desktop):
+                self.setup_desktop()
+            else:
+                raise ValueError(f"DeviceManager {self.device_manager} is currently not supported")
         print("Complete")
 
         print("\n SETTING UP DIALOGFLOW")
@@ -1534,6 +1590,8 @@ class InteractionOrchestrator:
             future.result()
 
     def animate_naoqi(self, animation: str, block=True):
+        if self.device_manager is None:
+            return
         try:
             self.device_manager.motion.request(NaoqiAnimationRequest(animation), block=block)
         except Exception as e:

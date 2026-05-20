@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Optional
 
 from sic_framework.devices import Nao, Pepper
 from sic_framework.devices.device import SICDeviceManager
@@ -22,8 +23,10 @@ class ConversationAgent:
 
     Parameters
     ----------
-    device_manager : SICDeviceManager
+    device_manager : SICDeviceManager, optional
         The device interface (e.g., Desktop, Pepper, Nao) that handles I/O.
+        Omit when ``InteractionConfig`` uses both ``web_audio_input`` and
+        ``web_audio_output`` (browser-only audio).
     int_config : InteractionConfig, optional
         Configuration for language, TTS, APIs, and interaction behavior.
         If not provided, a default configuration is used.
@@ -38,10 +41,17 @@ class ConversationAgent:
     Ensure required services are running before using this class.
     """
 
-    def __init__(self, device_manager: SICDeviceManager, int_config: InteractionConfig = None):
+    def __init__(
+        self,
+        device_manager: Optional[SICDeviceManager] = None,
+        int_config: InteractionConfig = None,
+    ):
         if int_config is None:
             int_config = InteractionConfig()
-        self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
+        self.orchestrator = InteractionOrchestrator(
+            int_config=int_config,
+            device_manager=device_manager,
+        )
         self.device = device_manager
 
     def say(self, text):

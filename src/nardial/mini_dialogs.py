@@ -1,6 +1,10 @@
 from typing import Any, Dict, Optional, List, cast
 
-from nardial.interaction_orchestrator import ConversationStdinEOF
+from nardial.interaction_orchestrator import (
+    ConversationStdinEOF,
+    ConversationWebEnd,
+    WEB_END_CONVERSATION_META,
+)
 from nardial.dialog_repeat import dialog_has_repeat_prompt, user_confirmed_repeat
 from nardial.utils import normalize_text
 import re
@@ -28,12 +32,18 @@ class DialogType(Enum):
 MAX_LLM_TURNS = 5
 
 
-def _listen_until_stdin_eof(agent: Any) -> None:
-    """After the LLM or user signals "end", wait until Ctrl+D (stdin EOF) before exiting."""
+def _raise_if_conversation_end_meta(meta) -> None:
+    if meta == "__stdin_eof__":
+        raise ConversationStdinEOF
+    if meta == WEB_END_CONVERSATION_META:
+        raise ConversationWebEnd
+
+
+def _listen_until_user_end(agent: Any) -> None:
+    """Wait until the user ends the session (web End button or Ctrl+D on keyboard)."""
     while True:
         _, meta = agent.orchestrator.listen(detect_intent=False)
-        if meta == "__stdin_eof__":
-            raise ConversationStdinEOF
+        _raise_if_conversation_end_meta(meta)
 
 
 class MiniDialog:
@@ -345,13 +355,23 @@ class MiniDialog:
             return max(0.0, duration - (monotonic() - start_time))
 
         agent = cast(Any, self.conversation_agent)
+        use_web_end = bool(
+            getattr(getattr(agent, "orchestrator", None), "interaction_conf", None)
+            and getattr(agent.orchestrator.interaction_conf, "web_audio_input", False)
+        )
+        if not use_web_end:
+            effective_quit_phrases = quit_phrases
+            effective_quit_signal = quit_signal
+        else:
+            effective_quit_phrases = None
+            effective_quit_signal = None
+
         if not speak_first:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
             reply, meta = agent.orchestrator.listen(timeout=timeout or 10)
-            if meta == "__stdin_eof__":
-                raise ConversationStdinEOF
+            _raise_if_conversation_end_meta(meta)
             user_input = reply or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
@@ -371,10 +391,9 @@ class MiniDialog:
             if llm_text is None:
                 continue
 
-            # If the LLM embeds a quit signal, speak any remaining content and stop
-            if quit_signal and quit_signal in llm_text:
-                print(f"[LLM] quit_signal_detected={quit_signal!r}; waiting for Ctrl+D (stdin EOF) to exit block")
-                clean = llm_text.replace(quit_signal, "").strip()
+            if effective_quit_signal and effective_quit_signal in llm_text:
+                print(f"[LLM] quit_signal_detected={effective_quit_signal!r}; waiting for explicit end")
+                clean = llm_text.replace(effective_quit_signal, "").strip()
                 if clean:
                     agent.say(clean)
                     self._record_robot(
@@ -382,8 +401,13 @@ class MiniDialog:
                         clean,
                         token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
                     )
-                _listen_until_stdin_eof(agent)
+                _listen_until_user_end(agent)
                 return
+
+            if use_web_end and quit_signal and quit_signal in llm_text:
+                llm_text = llm_text.replace(quit_signal, "").strip()
+                if not llm_text:
+                    continue
 
             # Speak the LLM reply, then listen; publish robot line when speech starts.
             self._record_robot(
@@ -396,8 +420,7 @@ class MiniDialog:
             if timeout is not None and timeout <= 0:
                 return
             user_input, meta = agent.orchestrator.listen(timeout=timeout or 10)
-            if meta == "__stdin_eof__":
-                raise ConversationStdinEOF
+            _raise_if_conversation_end_meta(meta)
             if not user_input:
                 user_input = ""
 
@@ -407,18 +430,18 @@ class MiniDialog:
             if set_variable and user_input:
                 self.user_model[set_variable] = self.extract_open_value(user_input)
 
-            # Quit phrases no longer end the block; require Ctrl+D (stdin EOF).
-            quit_happened = False
-            for qp in (quit_phrases or []):
-                if not qp:
-                    continue
-                if qp.lower() in user_input.lower():
-                    quit_happened = True
-                    break
-            if quit_happened:
-                print("[LLM] quit_phrase matched; waiting for Ctrl+D (stdin EOF) to exit block")
-                _listen_until_stdin_eof(agent)
-                return
+            if not use_web_end:
+                quit_happened = False
+                for qp in (effective_quit_phrases or []):
+                    if not qp:
+                        continue
+                    if qp.lower() in user_input.lower():
+                        quit_happened = True
+                        break
+                if quit_happened:
+                    print("[LLM] quit_phrase matched; waiting for explicit end")
+                    _listen_until_user_end(agent)
+                    return
 
 
 class FunctionalType(Enum):
@@ -609,9 +632,7 @@ class IntentRouterDialog(MiniDialog):
 
         while remaining:
             utterance, intent = agent.orchestrator.listen()
-            if intent == "__stdin_eof__":
-                print("[ROUTER] stdin EOF (Ctrl+D); ending intent router block")
-                break
+            _raise_if_conversation_end_meta(intent)
             intent_norm = normalize_text(intent)
             utterance_norm = normalize_text(utterance)
             if utterance:
@@ -652,6 +673,9 @@ class IntentRouterDialog(MiniDialog):
                     except ConversationStdinEOF:
                         print("[ROUTER] stdin EOF (Ctrl+D) during fallback dialog; ending intent router block")
                         break
+                    except ConversationWebEnd:
+                        print("[ROUTER] Web end during fallback dialog; ending intent router block")
+                        raise
                 else:
                     agent.say("I am not sure how to respond to that. Please ask in a different way.")
                 continue
@@ -667,6 +691,9 @@ class IntentRouterDialog(MiniDialog):
             except ConversationStdinEOF:
                 print("[ROUTER] stdin EOF (Ctrl+D) during child dialog; ending intent router block")
                 break
+            except ConversationWebEnd:
+                print("[ROUTER] Web end during child dialog; ending intent router block")
+                raise
             print(f"[ROUTER] ran dialog={target.dialog_id!r}, repeatable={is_repeatable}, ran={ran}")
             if not is_repeatable and target.dialog_id in remaining and (
                     ran or target.dialog_id in sm.conversation_state.completed_dialogs):

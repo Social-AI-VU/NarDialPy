@@ -10,7 +10,7 @@ from langgraph.graph import END, StateGraph
 from nardial.utils import normalize_text
 from nardial.mini_dialogs import MiniDialog
 from nardial.dialog_repeat import dialog_has_repeat_prompt, user_confirmed_repeat
-from nardial.interaction_orchestrator import ConversationStdinEOF
+from nardial.interaction_orchestrator import ConversationStdinEOF, ConversationWebEnd, WEB_END_CONVERSATION_META
 
 
 class HybridRouterState(TypedDict, total=False):
@@ -105,6 +105,9 @@ def run_llm_router_graph(
         reply, listen_meta = conversation_agent.orchestrator.listen(detect_intent=False)
         if listen_meta == "__stdin_eof__":
             _log_info("[HYBRID_ROUTER] stdin EOF (Ctrl+D); ending hybrid router loop")
+            return {"last_user_input": "", "done": True, "turns": turns + 1}
+        if listen_meta == WEB_END_CONVERSATION_META:
+            _log_info("[HYBRID_ROUTER] Web end button; ending hybrid router loop")
             return {"last_user_input": "", "done": True, "turns": turns + 1}
 
         user_text = (reply or "").strip()
@@ -266,6 +269,9 @@ def run_llm_router_graph(
                 _log_debug(f"[HYBRID_ROUTER] marked_completed={did}")
         except ConversationStdinEOF:
             _log_info("[HYBRID_ROUTER] stdin EOF (Ctrl+D) during structured dialog; ending router loop")
+            return {"done": True, "completed_dialog_ids": completed}
+        except ConversationWebEnd:
+            _log_info("[HYBRID_ROUTER] Web end during structured dialog; ending router loop")
             return {"done": True, "completed_dialog_ids": completed}
         return {"completed_dialog_ids": completed}
 

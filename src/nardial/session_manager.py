@@ -11,7 +11,7 @@ from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
 from nardial.mini_dialogs import IntentRouterDialog
-from nardial.interaction_orchestrator import ConversationStdinEOF
+from nardial.interaction_orchestrator import ConversationStdinEOF, ConversationWebEnd
 from nardial.transcript import ObservableTranscript
 from nardial.utils import normalize_text
 
@@ -242,6 +242,8 @@ class SessionManager:
                 except ConversationStdinEOF:
                     print("[SESSION] stdin EOF (Ctrl+D); stopping session agenda early")
                     break
+                except ConversationWebEnd:
+                    print("[SESSION] User ended conversation via web UI; continuing to remaining agenda")
         finally:
             orch.transcript_append = None
             try:

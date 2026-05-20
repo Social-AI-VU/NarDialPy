@@ -126,6 +126,13 @@ class ConversationStdinEOF(Exception):
     """Keyboard stdin closed (Ctrl+D); exit the current conversation block."""
 
 
+class ConversationWebEnd(Exception):
+    """User ended the conversation via the web UI."""
+
+
+WEB_END_CONVERSATION_META = "__web_end_conversation__"
+
+
 class InteractionConfig:
     """
     Configuration class for managing interaction settings,
@@ -333,6 +340,8 @@ class InteractionOrchestrator:
         self._web_action_lock = threading.Lock()
         self._web_action = None
         self._web_pending_submit = None
+        self._web_end_lock = threading.Lock()
+        self._web_end_requested = False
         self._web_turn_lock = threading.Lock()
         self.web_turn_notifier = None
         self.web_stt_notifier = None
@@ -472,6 +481,26 @@ class InteractionOrchestrator:
                 self._web_action = ("submit", text)
                 self._web_action_event.set()
 
+    def signal_web_end_conversation(self) -> None:
+        """User pressed End conversation in the web UI."""
+        with self._web_end_lock:
+            self._web_end_requested = True
+        self._web_action_event.set()
+        self._web_submit_event.set()
+        self._notify_web_turn("session_ended")
+
+    def _consume_web_end_request(self) -> bool:
+        with self._web_end_lock:
+            if not self._web_end_requested:
+                return False
+            self._web_end_requested = False
+            return True
+
+    def _web_end_listen_result(self):
+        if self._consume_web_end_request():
+            return None, WEB_END_CONVERSATION_META
+        return None
+
     def _arm_web_user_turn(self) -> None:
         """UI may record, type, or edit before pressing Done."""
         self._disarm_web_listen()
@@ -486,28 +515,35 @@ class InteractionOrchestrator:
         self._notify_web_turn("user_ready")
 
     def _wait_for_web_user_action(self):
-        """Block until the user starts the mic or submits typed text."""
+        """Block until the user starts the mic, submits typed text, or ends the conversation."""
         while True:
-            self._web_action_event.wait()
-            self._web_action_event.clear()
-            with self._web_action_lock:
-                action = self._web_action
-                self._web_action = None
-            if action is not None:
-                with self._web_turn_lock:
-                    self._web_listen_armed = False
-                return action
+            end_result = self._web_end_listen_result()
+            if end_result is not None:
+                return ("end", None)
+            if self._web_action_event.wait(timeout=0.2):
+                self._web_action_event.clear()
+                with self._web_action_lock:
+                    action = self._web_action
+                    self._web_action = None
+                if action is not None:
+                    with self._web_turn_lock:
+                        self._web_listen_armed = False
+                    return action
 
     def _wait_for_web_submit(self) -> str:
         """Block until the user confirms edited STT / compose text."""
-        self._web_submit_event.wait()
-        self._web_submit_event.clear()
-        with self._web_action_lock:
-            text = self._web_pending_submit
-            self._web_pending_submit = None
-        with self._web_turn_lock:
-            self._web_compose_armed = False
-        return text if text is not None else ""
+        while True:
+            end_result = self._web_end_listen_result()
+            if end_result is not None:
+                return WEB_END_CONVERSATION_META
+            if self._web_submit_event.wait(timeout=0.2):
+                self._web_submit_event.clear()
+                with self._web_action_lock:
+                    text = self._web_pending_submit
+                    self._web_pending_submit = None
+                with self._web_turn_lock:
+                    self._web_compose_armed = False
+                return text if text is not None else ""
 
     def _notify_web_stt(self, transcript: str, *, is_final: bool) -> None:
         fn = getattr(self, "web_stt_notifier", None)
@@ -1076,6 +1112,9 @@ class InteractionOrchestrator:
             listening_started = True
         try:
             self._wait_until_unpaused()
+            end_result = self._web_end_listen_result()
+            if end_result is not None:
+                return end_result
             if self.interaction_conf.keyboard_input:
                 if getattr(self.interaction_conf, "spacebar_pause", False):
                     try:
@@ -1116,8 +1155,13 @@ class InteractionOrchestrator:
 
                 while True:
                     self._wait_until_unpaused()
+                    end_result = self._web_end_listen_result()
+                    if end_result is not None:
+                        return end_result
                     self._arm_web_user_turn()
                     action = self._wait_for_web_user_action()
+                    if action[0] == "end":
+                        return None, WEB_END_CONVERSATION_META
                     action_type = action[0] if action else None
 
                     if action_type == "submit":
@@ -1176,6 +1220,8 @@ class InteractionOrchestrator:
                     self._notify_web_turn("user_ready")
 
                     user_text = self._wait_for_web_submit().strip()
+                    if user_text == WEB_END_CONVERSATION_META:
+                        return None, WEB_END_CONVERSATION_META
                     if self._mic_listen_discard_pending:
                         self._mic_listen_discard_pending = False
                         continue

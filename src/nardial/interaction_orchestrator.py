@@ -148,7 +148,8 @@ class InteractionConfig:
                  log_level: Optional[Union[str, int]] = None, detailed_transcript: bool = False,
                  langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True,
                  dialogflow_context: Optional[Union[str, Dict[str, int]]] = None,
-                 dialogflow_context_lifespan: int = 5, web_audio_input: bool = False):
+                 dialogflow_context_lifespan: int = 5, web_audio_input: bool = False,
+                 web_audio_output: bool = False):
         """
         Initialize interaction configuration.
 
@@ -180,11 +181,15 @@ class InteractionConfig:
             web_audio_input (bool): If True, Dialogflow STT receives audio from the browser
                 (via the host app) instead of the device microphone. ``listen()`` blocks until
                 :meth:`InteractionOrchestrator.signal_web_listen_start` is called.
+            web_audio_output (bool): If True, TTS audio is sent to the browser for playback
+                instead of the device speakers. Requires ``web_tts_notifier`` on the orchestrator
+                and :meth:`InteractionOrchestrator.signal_web_playback_done` when playback finishes.
         """
         self.language = language
         self.keyboard_input = keyboard_input
         self.dialogflow = bool(dialogflow)
         self.web_audio_input = bool(web_audio_input)
+        self.web_audio_output = bool(web_audio_output)
 
         self.tts_conf = tts_conf
         if not tts_conf:
@@ -345,6 +350,8 @@ class InteractionOrchestrator:
         self._web_turn_lock = threading.Lock()
         self.web_turn_notifier = None
         self.web_stt_notifier = None
+        self.web_tts_notifier = None
+        self._web_playback_done = threading.Event()
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -440,7 +447,10 @@ class InteractionOrchestrator:
 
     def _notify_web_turn(self, phase: str) -> None:
         """Notify host app of mic UI phase: user_ready, user_recording, processing, agent_speaking."""
-        if not getattr(self.interaction_conf, "web_audio_input", False):
+        if not (
+            getattr(self.interaction_conf, "web_audio_input", False)
+            or getattr(self.interaction_conf, "web_audio_output", False)
+        ):
             return
         fn = getattr(self, "web_turn_notifier", None)
         if callable(fn):
@@ -969,12 +979,46 @@ class InteractionOrchestrator:
 
     def setup_desktop(self):
         print("\n Device is COMPUTER")
-        self.speaker = self.device_manager.speakers
+        if getattr(self.interaction_conf, "web_audio_output", False):
+            print("Using browser speakers (web_audio_output=True)")
+            self.speaker = None
+        else:
+            self.speaker = self.device_manager.speakers
+
+    def _uses_web_audio_output(self) -> bool:
+        return getattr(self.interaction_conf, "web_audio_output", False)
+
+    def _request_playback(self, audio_bytes: bytes, sample_rate: int) -> None:
+        if self._uses_web_audio_output():
+            self._play_web_audio(audio_bytes, sample_rate)
+            return
+        if not self.speaker:
+            self.logger.error("No local speaker available for playback")
+            return
+        self.speaker.request(AudioRequest(audio_bytes, sample_rate))
+
+    def _play_web_audio(self, audio_bytes: bytes, sample_rate: int, timeout: float = 120.0) -> None:
+        self._web_playback_done.clear()
+        fn = getattr(self, "web_tts_notifier", None)
+        if not callable(fn):
+            self.logger.warning("web_audio_output enabled but web_tts_notifier is not set")
+            return
+        try:
+            fn(audio=audio_bytes, sample_rate=sample_rate)
+        except Exception as e:
+            self.logger.warning("web_tts_notifier failed: %s", e)
+            return
+        if not self._web_playback_done.wait(timeout=timeout):
+            self.logger.warning("Timed out waiting for browser playback_done")
+
+    def signal_web_playback_done(self) -> None:
+        """Browser finished playing a TTS audio chunk."""
+        self._web_playback_done.set()
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
         self.last_robot_speech_start_monotonic = monotonic()
-        if getattr(self.interaction_conf, "web_audio_input", False):
+        if getattr(self.interaction_conf, "web_audio_input", False) or self._uses_web_audio_output():
             self._disarm_web_listen()
             self._notify_web_turn("agent_speaking")
         try:
@@ -991,7 +1035,7 @@ class InteractionOrchestrator:
                 raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
             self._spacebar_pause_wait_after_output()
         finally:
-            if getattr(self.interaction_conf, "web_audio_input", False):
+            if getattr(self.interaction_conf, "web_audio_input", False) or self._uses_web_audio_output():
                 self._notify_web_turn("processing")
 
 
@@ -1028,7 +1072,7 @@ class InteractionOrchestrator:
                 audio_bytes = self._amplify_audio(audio_bytes)
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, sample_rate))
+            self._request_playback(audio_bytes, sample_rate)
             self.log_utterance(speaker='robot', text=text)
 
             # Save to cache file
@@ -1062,7 +1106,7 @@ class InteractionOrchestrator:
                 continue
 
             # Play audio
-            self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
+            self._request_playback(audio_bytes, self.sample_rate)
             self.log_utterance(speaker='robot', text=f'{chunk}')
 
             # Sleep if requested
@@ -1296,7 +1340,7 @@ class InteractionOrchestrator:
             if amplified:
                 audio = self._amplify_audio(audio)
 
-            self.speaker.request(AudioRequest(audio, framerate))
+            self._request_playback(audio, framerate)
             if log:
                 self.log_utterance(speaker='robot', text=f'plays {audio_file}')
         if log:

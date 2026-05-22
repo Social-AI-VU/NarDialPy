@@ -141,6 +141,13 @@ class ConversationWebEnd(Exception):
 
 WEB_END_CONVERSATION_META = "__web_end_conversation__"
 
+_CONVERSATION_SUMMARY_SYSTEM = (
+    "You summarize dialogue between a user and an assistant for use as compact context. "
+    "Preserve who said what, key facts, decisions, preferences, commitments, and unresolved questions. "
+    "Write neutral third-person past tense, under 200 words. "
+    "When a prior summary is provided, merge in new information without repeating verbatim."
+)
+
 
 class InteractionConfig:
     """
@@ -156,7 +163,8 @@ class InteractionConfig:
                  langgraph: bool = False, spacebar_pause: bool = True, chunk_audio: bool = True,
                  dialogflow_context: Optional[Union[str, Dict[str, int]]] = None,
                  dialogflow_context_lifespan: int = 5, web_audio_input: bool = False,
-                 web_audio_output: bool = False):
+                 web_audio_output: bool = False,
+                 summarize_every_n_exchanges: Optional[int] = None):
         """
         Initialize interaction configuration.
 
@@ -193,6 +201,9 @@ class InteractionConfig:
                 and :meth:`InteractionOrchestrator.signal_web_playback_done` when playback finishes.
             rag_conf (RagConfig, optional): RAG ingestion and retrieval settings. Defaults to
                 a disabled :class:`RagConfig`.
+            summarize_every_n_exchanges (int | None): When set (e.g. 10), every N user turns
+                in :meth:`InteractionOrchestrator.reconstruct_conversation` roll earlier
+                dialogue into a rolling LLM summary; recent unsummarized turns stay verbatim.
         """
         self.language = language
         self.keyboard_input = keyboard_input
@@ -231,6 +242,7 @@ class InteractionConfig:
         self.spacebar_pause = bool(spacebar_pause)
         self.dialogflow_context = dialogflow_context
         self.dialogflow_context_lifespan = int(dialogflow_context_lifespan)
+        self.summarize_every_n_exchanges = summarize_every_n_exchanges
         self._validate_rag_config()
 
         self.dialogflow_conf = self.dialogflow_conf = DialogflowConf(
@@ -407,6 +419,9 @@ class InteractionOrchestrator:
         self.web_stt_notifier = None
         self.web_tts_notifier = None
         self._web_playback_done = threading.Event()
+
+        self._rolling_conversation_summary = ""
+        self._summarized_through_exchange = 0
 
         # Background loop
         self.background_loop = asyncio.new_event_loop()
@@ -699,6 +714,106 @@ class InteractionOrchestrator:
             rag_index_name=rag_index_name,
         )
 
+    def reset_rolling_conversation_summary(self) -> None:
+        """Clear rolling summary state (call at the start of each interview)."""
+        self._rolling_conversation_summary = ""
+        self._summarized_through_exchange = 0
+
+    @staticmethod
+    def _count_user_exchanges(session_history: Optional[List[Dict[str, Any]]]) -> int:
+        if not session_history:
+            return 0
+        count = 0
+        for item in session_history:
+            if item.get("role") != "user":
+                continue
+            if str(item.get("text") or "").strip():
+                count += 1
+        return count
+
+    @staticmethod
+    def _exchange_indexed_dialogue_lines(
+            session_history: Optional[List[Dict[str, Any]]],
+    ) -> List[tuple]:
+        """Return ``(exchange_index, line)`` pairs for user/robot transcript turns.
+
+        ``exchange_index`` increments on each non-empty user turn; robot replies
+        are tagged with the index of the user turn they follow (0 before the first user).
+        """
+        if not session_history:
+            return []
+        indexed: List[tuple] = []
+        exchange = 0
+        for item in session_history:
+            role = item.get("role")
+            if role not in ("user", "robot"):
+                continue
+            txt = item.get("text")
+            if txt is None:
+                continue
+            text = str(txt).strip()
+            if not text:
+                continue
+            if role == "user":
+                exchange += 1
+            label = "you" if role == "robot" else "user"
+            indexed.append((exchange, f"{label}: {text}"))
+        return indexed
+
+    def _summarize_conversation_chunk(
+            self,
+            chunk_lines: List[str],
+            prior_summary: str,
+    ) -> str:
+        blob = "\n".join(chunk_lines)
+        if prior_summary:
+            user_prompt = (
+                f"Prior summary:\n{prior_summary}\n\n"
+                f"New transcript lines:\n{blob}"
+            )
+        else:
+            user_prompt = f"Transcript lines:\n{blob}"
+        summary = self.request_from_gpt(
+            user_prompt=user_prompt,
+            system_prompt=_CONVERSATION_SUMMARY_SYSTEM,
+            rag_enabled=False,
+            llm_call_purpose="conversation_summary",
+        )
+        if summary:
+            return str(summary).strip()
+        return prior_summary
+
+    def _maybe_update_rolling_conversation_summary(
+            self,
+            session_history: Optional[List[Dict[str, Any]]],
+    ) -> None:
+        interval = getattr(self.interaction_conf, "summarize_every_n_exchanges", None)
+        if not interval or interval < 1:
+            return
+        user_count = self._count_user_exchanges(session_history)
+        indexed = self._exchange_indexed_dialogue_lines(session_history)
+        while user_count >= self._summarized_through_exchange + interval:
+            end_exchange = self._summarized_through_exchange + interval
+            chunk = [
+                line
+                for ex, line in indexed
+                if self._summarized_through_exchange < ex <= end_exchange
+            ]
+            if not chunk:
+                self._summarized_through_exchange = end_exchange
+                continue
+            self._rolling_conversation_summary = self._summarize_conversation_chunk(
+                chunk,
+                self._rolling_conversation_summary,
+            )
+            self._summarized_through_exchange = end_exchange
+            self._append_interaction_transcript(
+                "conversation_summary",
+                self._rolling_conversation_summary,
+                summarized_through_exchange=end_exchange,
+                chunk_user_exchanges=interval,
+            )
+
     def reconstruct_conversation(
             self,
             session_history: Optional[List[Dict[str, Any]]],
@@ -708,9 +823,31 @@ class InteractionOrchestrator:
 
         System events (routing, pause, dialog boundaries) are omitted. Robot
         lines are labeled ``you`` so the model reads them as its own prior speech.
+
+        When :attr:`InteractionConfig.summarize_every_n_exchanges` is set, every
+        N user turns are rolled into a rolling summary; only unsummarized turns
+        are kept verbatim (capped by ``max_items``).
         """
         if not session_history:
             return []
+        self._maybe_update_rolling_conversation_summary(session_history)
+        interval = getattr(self.interaction_conf, "summarize_every_n_exchanges", None)
+        if interval and interval >= 1 and self._summarized_through_exchange > 0:
+            recent = [
+                line
+                for ex, line in self._exchange_indexed_dialogue_lines(session_history)
+                if ex > self._summarized_through_exchange
+            ]
+            if max_items and max_items > 0 and len(recent) > max_items:
+                recent = recent[-max_items:]
+            out: List[str] = []
+            if self._rolling_conversation_summary:
+                out.append(
+                    "system: [Summary of earlier conversation] "
+                    f"{self._rolling_conversation_summary}"
+                )
+            return out + recent
+
         lines: List[str] = []
         for item in session_history:
             role = item.get("role")
@@ -1001,6 +1138,7 @@ class InteractionOrchestrator:
         print('Google TTS activated')
 
     def activate_elevenlabs_tts(self):
+        """Start ElevenLabs streaming TTS client (connects on first ``say()``)."""
         if "ELEVENLABS_API_KEY" not in environ:
             raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable to initialize")
         self.sample_rate = 22050
@@ -1009,16 +1147,49 @@ class InteractionOrchestrator:
             voice_id=self.tts_conf.voice_id,
             model_id=self.tts_conf.model_id,
             sample_rate=self.sample_rate,
-            speaking_rate=self.tts_conf.speaking_rate
+            speaking_rate=self.tts_conf.speaking_rate,
         )
-        connect_to_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.connect(), self.background_loop)
         try:
-            connect_to_elevenlabs_future.result()
-            asyncio.run_coroutine_threadsafe(self.tts.speak("Initializing text to speech"), self.background_loop).result()
-            self.elevenlabs = ElevenLabs(api_key=environ["ELEVENLABS_API_KEY"])
-            print('Elevenlabs TTS activated')
+            if self.elevenlabs is None:
+                self.elevenlabs = ElevenLabs(api_key=environ["ELEVENLABS_API_KEY"])
+            print("Elevenlabs TTS activated")
         except Exception as e:
-            self.logger.error("Failed to connect to elevenlabs", exc_info=e)
+            self.logger.error("Failed to initialize elevenlabs client", exc_info=e)
+
+    def set_elevenlabs_voice(
+            self,
+            voice_id: str,
+            *,
+            model_id: Optional[str] = None,
+            speaking_rate: Optional[float] = None,
+    ) -> None:
+        """Switch character voice without tearing down the ElevenLabs client."""
+        if not isinstance(self.tts_conf, ElevenLabsTTSConf):
+            self.tts_conf = ElevenLabsTTSConf(
+                voice_id=voice_id,
+                model_id=model_id or "eleven_flash_v2_5",
+                speaking_rate=speaking_rate if speaking_rate is not None else 1.0,
+            )
+        else:
+            self.tts_conf.voice_id = voice_id
+            if model_id:
+                self.tts_conf.model_id = model_id
+            if speaking_rate is not None:
+                self.tts_conf.speaking_rate = speaking_rate
+        self.interaction_conf.tts_conf = self.tts_conf
+
+        if not isinstance(self.tts, ElevenLabsTTS):
+            self.activate_elevenlabs_tts()
+            return
+
+        voice_changed = self.tts.voice_id != voice_id
+        if model_id:
+            self.tts.model_id = model_id
+        if speaking_rate is not None:
+            self.tts.speaking_rate = speaking_rate
+        self.tts.voice_id = voice_id
+        if voice_changed:
+            self.tts.websocket = None
 
     def setup_alphamini(self):
         print("\n Device is ALPHAMINI")

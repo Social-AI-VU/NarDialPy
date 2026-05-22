@@ -173,7 +173,7 @@ class ElevenLabsTTS:
             "auto_mode": False,
             "xi_api_key": self.elevenlabs_key,
         }))
-        await self._discard_incoming_messages(max_wait_s=1.5)
+        await self._discard_incoming_messages(max_wait_s=1.0)
 
     async def disconnect(self):
         """
@@ -203,9 +203,23 @@ class ElevenLabsTTS:
         except Exception:
             return False
 
+    def _socket_is_open(self) -> bool:
+        ws = self.websocket
+        if ws is None:
+            return False
+        closed = getattr(ws, "closed", None)
+        if closed is True:
+            return False
+        if callable(closed):
+            try:
+                return not closed()
+            except Exception:
+                return False
+        return True
+
     async def _ensure_connected(self) -> None:
-        """Open or reopen the stream-input socket (ElevenLabs often closes it after each utterance)."""
-        if self.websocket and await self.ping_connection():
+        """Open the stream-input socket if needed."""
+        if self._socket_is_open():
             return
         if self.websocket:
             try:
@@ -215,10 +229,6 @@ class ElevenLabsTTS:
             self.websocket = None
         self.logger.debug("[TTS] Connecting to ElevenLabs stream-input websocket.")
         await self.connect()
-
-    def _release_connection_after_utterance(self) -> None:
-        """Drop the socket after a completed utterance so the next speak starts clean."""
-        self.websocket = None
 
     async def _discard_incoming_messages(self, max_wait_s: float = 0.5) -> None:
         """Drop websocket messages (e.g. priming audio) without collecting them."""
@@ -237,67 +247,61 @@ class ElevenLabsTTS:
         if discarded:
             self.logger.debug("[TTS] Discarded %s websocket message(s).", discarded)
 
-    async def speak(self, text, recv_timeout_s: float = 30.0):
+    async def speak(self, text, recv_timeout_s: float = 20.0, _attempt: int = 0):
         """
         Send text to the ElevenLabs stream-input API and return full PCM audio.
 
-        The API streams many JSON messages per utterance: zero or more with an
-        ``audio`` field (base64 PCM fragments), then one with ``isFinal: true``.
-        All audio chunks are collected before returning so playback is not cut off.
-
-        Args:
-            text (str): Input text to synthesize.
-            recv_timeout_s (float): Per-message receive timeout while waiting for chunks.
-
-        Returns:
-            Optional[bytes]: Concatenated raw PCM bytes, or None on failure / empty audio.
+        Uses the same stream lifecycle as SIC's ElevenLabsWSClient: send text,
+        end with ``{"text": ""}``, collect chunks until ``isFinal``, one socket
+        per utterance.
         """
         text = (text or "").strip()
         if not text:
             return None
 
         await self._ensure_connected()
-        await self._discard_incoming_messages(max_wait_s=0.4)
-
-        utterance = text if text.endswith(" ") else f"{text} "
+        ws = self.websocket
+        self.websocket = None
 
         chunks = []
         try:
-            await self.websocket.send(dumps({"text": utterance}))
-            # Flush buffered text (required for lines shorter than chunk_length_schedule).
-            await self.websocket.send(dumps({"text": " ", "flush": True}))
+            await ws.send(dumps({"text": text}))
+            await ws.send(dumps({"text": ""}))
 
             while True:
-                try:
-                    message = await asyncio.wait_for(self.websocket.recv(), timeout=recv_timeout_s)
-                    data = loads(message)
+                message = await asyncio.wait_for(ws.recv(), timeout=recv_timeout_s)
+                data = loads(message)
 
-                    audio_b64 = data.get("audio")
-                    if audio_b64:
-                        chunks.append(base64.b64decode(audio_b64))
+                audio_b64 = data.get("audio")
+                if audio_b64:
+                    chunks.append(base64.b64decode(audio_b64))
 
-                    if data.get("isFinal") or data.get("is_final"):
-                        await self._discard_incoming_messages(max_wait_s=0.25)
-                        break
-                except asyncio.TimeoutError:
-                    self.logger.error("[TTS] Timed out waiting for ElevenLabs audio (isFinal not received).")
-                    return None
-                except websockets.exceptions.ConnectionClosedOK:
+                if data.get("isFinal") or data.get("is_final"):
                     break
-                except websockets.exceptions.ConnectionClosedError as e:
-                    self.logger.error(f"[TTS] WebSocket closed with error: {e}")
-                    return self._postprocess_pcm(b"".join(chunks)) if chunks else None
-                except Exception as e:
-                    self.logger.error(f"[TTS] Other failure in elevenlabs tts: {e}")
-                    return self._postprocess_pcm(b"".join(chunks)) if chunks else None
+        except asyncio.TimeoutError:
+            self.logger.error("[TTS] Timed out waiting for ElevenLabs audio (isFinal not received).")
+        except websockets.exceptions.ConnectionClosedOK:
+            pass
+        except websockets.exceptions.ConnectionClosedError as e:
+            self.logger.error("[TTS] WebSocket closed with error: %s", e)
+        except Exception as e:
+            self.logger.error("[TTS] Other failure in elevenlabs tts: %s", e)
         finally:
-            self._release_connection_after_utterance()
+            try:
+                await ws.close()
+            except Exception:
+                pass
 
         pcm = b"".join(chunks)
-        if not pcm:
-            self.logger.error("[TTS] ElevenLabs returned isFinal with no audio.")
-            return None
-        return self._postprocess_pcm(pcm)
+        if pcm:
+            return self._postprocess_pcm(pcm)
+
+        if _attempt < 1:
+            self.logger.warning("[TTS] Retrying ElevenLabs synthesis after empty/failed response.")
+            return await self.speak(text, recv_timeout_s=recv_timeout_s, _attempt=_attempt + 1)
+
+        self.logger.error("[TTS] ElevenLabs returned no audio for utterance.")
+        return None
 
     def _postprocess_pcm(self, pcm: bytes) -> bytes:
         return postprocess_elevenlabs_pcm(pcm, self.sample_rate)

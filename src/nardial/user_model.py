@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import json
+import os
 
 # Attempt to import the SIC Redis datastore message classes and client used by the demo.
 # The proxy will hide these details and gracefully fall back to in-memory behavior when unavailable.
@@ -32,6 +33,30 @@ _KEY_COMPLETED_DIALOGS = "_completed_dialogs"
 _KEY_TOPICS_OF_INTEREST = "_topics_of_interest"
 _KEY_LAST_UPDATED = "_last_updated"
 
+_USERMODEL_DATASTORE = None
+
+
+def _shared_usermodel_datastore():
+    """Reuse one SIC Redis client — creating a new component per session is slow."""
+    global _USERMODEL_DATASTORE
+    if _USERMODEL_DATASTORE is not None:
+        return _USERMODEL_DATASTORE
+    if not _HAS_REDIS_DS or not RedisDatastoreConf or not RedisDatastore:
+        return None
+    try:
+        conf = RedisDatastoreConf(
+            host="127.0.0.1",
+            port=6379,
+            password="changemeplease",
+            namespace="usermodel",
+            version="v1",
+            developer_id=0,
+        )
+        _USERMODEL_DATASTORE = RedisDatastore(conf=conf)
+    except Exception:
+        _USERMODEL_DATASTORE = None
+    return _USERMODEL_DATASTORE
+
 
 class UserModel:
     """
@@ -48,21 +73,10 @@ class UserModel:
         self._pid = participant_id
         self._datastore = None
 
-        # Attempt to create a default RedisDatastore.
-        if _HAS_REDIS_DS and RedisDatastoreConf and RedisDatastore:
-            try:
-                conf = RedisDatastoreConf(
-                    host="127.0.0.1",
-                    port=6379,
-                    password="changemeplease",
-                    namespace="usermodel",
-                    version="v1",
-                    developer_id=0,
-                )
-                self._datastore = RedisDatastore(conf=conf)
-            except Exception:
-                # If any error occurs, fall back to in-memory only.
-                self._datastore = None
+        if os.environ.get("NARDIAL_USERMODEL_REDIS", "1").strip().lower() in ("0", "false", "no"):
+            self._datastore = None
+        else:
+            self._datastore = _shared_usermodel_datastore()
 
     def set_participant(self, participant_id: Optional[str]):
         self._pid = participant_id

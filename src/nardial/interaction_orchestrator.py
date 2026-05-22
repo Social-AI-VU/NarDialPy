@@ -64,7 +64,15 @@ from typing import Any, Dict, List, Optional, Union
 TranscriptPromptField = Union[str, List[str]]
 
 from nardial.rag_config import RagConfig
-from nardial.tts_manager import NaoqiTTSConf, TTSConf, GoogleTTSConf, ElevenLabsTTSConf, ElevenLabsTTS, TTSCacher
+from nardial.tts_manager import (
+    NaoqiTTSConf,
+    TTSConf,
+    GoogleTTSConf,
+    ElevenLabsTTSConf,
+    ElevenLabsTTS,
+    TTSCacher,
+    postprocess_elevenlabs_pcm,
+)
 from elevenlabs import ElevenLabs
 
 
@@ -1149,10 +1157,18 @@ class InteractionOrchestrator:
             tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf)
 
             if not always_regenerate:
-                audio_file = self.tts_cacher.load_audio_file(tts_key)
-                if audio_file:
-                    self.log_utterance(speaker='robot', text=f'{chunk} (cache)')
-                    self.play_audio(audio_file, log=False)
+                audio_path = self.tts_cacher.load_audio_file(tts_key)
+                if audio_path:
+                    with wave.open(audio_path, "rb") as wf:
+                        if wf.getsampwidth() != 2:
+                            raise ValueError(
+                                f"Cached WAV is not 16-bit audio: {audio_path}"
+                            )
+                        framerate = wf.getframerate()
+                        audio_bytes = wf.readframes(wf.getnframes())
+                    audio_bytes = postprocess_elevenlabs_pcm(audio_bytes, framerate)
+                    self.log_utterance(speaker="robot", text=f"{chunk} (cache)")
+                    self._request_playback(audio_bytes, framerate)
                     continue
 
             # Generate new audio

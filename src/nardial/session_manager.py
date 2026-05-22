@@ -1,7 +1,8 @@
 import json
 import os
+from time import monotonic
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 
@@ -125,6 +126,7 @@ class SessionManager:
             "type": "dialog_start",
             "dialog_id": dialog.dialog_id,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": monotonic(),
         })
 
     def _log_dialog_end(self, session_history, dialog):
@@ -133,12 +135,83 @@ class SessionManager:
             "type": "dialog_end",
             "dialog_id": dialog.dialog_id,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "timestamp_monotonic": monotonic(),
         })
 
     @staticmethod
+    def _utc_epoch_seconds(ev: dict) -> Optional[float]:
+        raw = ev.get("timestamp_utc")
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _event_epoch(ev: dict) -> Optional[float]:
+        """Comparable epoch seconds for ordering (prefer UTC so dialog markers align with speech events)."""
+        utc = SessionManager._utc_epoch_seconds(ev)
+        if utc is not None:
+            return utc
+        mono = ev.get("timestamp_monotonic")
+        if isinstance(mono, (int, float)):
+            return float(mono)
+        return None
+
+    @staticmethod
+    def _dialog_time_bounds(session_history, dialog_id: str) -> Tuple[Optional[float], Optional[float]]:
+        """Return (start, end) epoch bounds for a dialog block."""
+        start_ts = None
+        end_ts = None
+        for ev in session_history:
+            if ev.get("type") == "dialog_start" and ev.get("dialog_id") == dialog_id:
+                start_ts = SessionManager._event_epoch(ev)
+            elif ev.get("type") == "dialog_end" and ev.get("dialog_id") == dialog_id:
+                end_ts = SessionManager._event_epoch(ev)
+        return start_ts, end_ts
+
+    @staticmethod
+    def _thinking_latency_seconds(user_ev: dict, robot_ev: dict) -> Optional[float]:
+        """User message -> agent speech start; fall back to UTC if monotonic is out of order."""
+        u_mono = user_ev.get("timestamp_monotonic")
+        r_mono = robot_ev.get("timestamp_monotonic")
+        if isinstance(u_mono, (int, float)) and isinstance(r_mono, (int, float)):
+            delta = float(r_mono) - float(u_mono)
+            if delta >= 0:
+                return delta
+
+        u_utc = SessionManager._utc_epoch_seconds(user_ev)
+        r_utc = SessionManager._utc_epoch_seconds(robot_ev)
+        if u_utc is not None and r_utc is not None:
+            delta = r_utc - u_utc
+            if delta >= 0:
+                return delta
+        return None
+
+    @staticmethod
     def _compute_detailed_transcript_summary(session_history):
-        robot_events = [ev for ev in session_history if ev.get("role") == "robot" and isinstance(ev.get("timestamp_monotonic"), (int, float))]
-        user_events = [ev for ev in session_history if ev.get("role") == "user" and isinstance(ev.get("timestamp_monotonic"), (int, float))]
+        robot_events = [
+            ev for ev in session_history
+            if ev.get("role") == "robot" and isinstance(ev.get("timestamp_monotonic"), (int, float))
+        ]
+        user_events = [
+            ev for ev in session_history
+            if ev.get("role") == "user" and isinstance(ev.get("timestamp_monotonic"), (int, float))
+        ]
+
+        interview_start, interview_end = SessionManager._dialog_time_bounds(session_history, "interview")
+        if interview_start is not None:
+            user_events = [
+                ev for ev in user_events
+                if (ts := SessionManager._event_epoch(ev)) is not None and ts >= interview_start
+            ]
+            robot_events = [
+                ev for ev in robot_events
+                if (ts := SessionManager._event_epoch(ev)) is not None
+                and ts >= interview_start
+                and (interview_end is None or ts <= interview_end)
+            ]
 
         total_interaction_duration_seconds = None
         if robot_events:
@@ -147,7 +220,6 @@ class SessionManager:
                 3,
             )
 
-        # Exchange count: number of user utterances that occur after robot starts speaking.
         exchanges = 0
         if robot_events:
             first_robot_ts = float(robot_events[0]["timestamp_monotonic"])
@@ -157,19 +229,14 @@ class SessionManager:
 
         agent_thinking_latency_per_exchange_seconds = []
         for user_ev in user_events:
-            user_ts = float(user_ev["timestamp_monotonic"])
-            next_robot = next(
-                (
-                    ev for ev in robot_events
-                    if float(ev["timestamp_monotonic"]) >= user_ts
-                ),
-                None
-            )
-            if not next_robot:
+            latencies = []
+            for robot_ev in robot_events:
+                latency = SessionManager._thinking_latency_seconds(user_ev, robot_ev)
+                if latency is not None:
+                    latencies.append(latency)
+            if not latencies:
                 continue
-            agent_thinking_latency_per_exchange_seconds.append(
-                round(float(next_robot["timestamp_monotonic"]) - user_ts, 3)
-            )
+            agent_thinking_latency_per_exchange_seconds.append(round(min(latencies), 3))
 
         return {
             "total_interaction_duration_seconds": total_interaction_duration_seconds,

@@ -3,12 +3,50 @@ import base64
 import logging
 import os
 import hashlib
+import struct
+import time
 import wave
 import websockets
 from enum import Enum
 from json import dumps, loads, load, dump
 
 from nardial.utils import normalize_text_for_cache_key
+
+
+def _trim_trailing_pcm(pcm: bytes, *, threshold: int = 500, pad_samples: int = 220) -> bytes:
+    """Drop trailing near-silence from 16-bit mono PCM (reduces end-of-utterance glitches)."""
+    sample_count = len(pcm) // 2
+    if sample_count <= 0:
+        return pcm
+    samples = struct.unpack(f"<{sample_count}h", pcm[: sample_count * 2])
+    last = sample_count - 1
+    while last >= 0 and abs(samples[last]) < threshold:
+        last -= 1
+    if last < 0:
+        return pcm
+    end = min(sample_count, last + 1 + pad_samples)
+    return struct.pack(f"<{end}h", *samples[:end])
+
+
+def postprocess_elevenlabs_pcm(pcm: bytes, sample_rate: int) -> bytes:
+    """Trim near-silent tail and fade out — use for playback and cached audio."""
+    if not pcm:
+        return pcm
+    return _fade_out_pcm_tail(_trim_trailing_pcm(pcm), sample_rate)
+
+
+def _fade_out_pcm_tail(pcm: bytes, sample_rate: int, fade_ms: int = 12) -> bytes:
+    """Short linear fade on the last few milliseconds to avoid an abrupt PCM cutoff."""
+    sample_count = len(pcm) // 2
+    if sample_count <= 0:
+        return pcm
+    fade_samples = min(sample_count, max(1, int(sample_rate * fade_ms / 1000)))
+    samples = list(struct.unpack(f"<{sample_count}h", pcm[: sample_count * 2]))
+    start = sample_count - fade_samples
+    for i in range(fade_samples):
+        factor = 1.0 - (i / fade_samples)
+        samples[start + i] = int(samples[start + i] * factor)
+    return struct.pack(f"<{sample_count}h", *samples)
 
 
 class TTSService(Enum):
@@ -119,20 +157,23 @@ class ElevenLabsTTS:
         self.websocket = await websockets.connect(uri)
 
         voice_settings = {
-                "stability": self.stability,
-                "similarity_boost": 0.8,
-                "use_speaker_boost": False,
-                "chunk_length_schedule": [120, 160, 250, 290]}
+            "stability": self.stability,
+            "similarity_boost": 0.8,
+            "use_speaker_boost": False,
+            # Lower thresholds than ElevenLabs default so short interview lines flush cleanly.
+            "chunk_length_schedule": [80, 120, 200, 260],
+        }
         if self.speaking_rate is not None:
             voice_settings["speed"] = self.speaking_rate
 
-        # Send initial config once
+        # Required priming message (API); audio from this is discarded before each utterance.
         await self.websocket.send(dumps({
             "text": " ",
             "voice_settings": voice_settings,
-            "auto_mode": True,
+            "auto_mode": False,
             "xi_api_key": self.elevenlabs_key,
         }))
+        await self._discard_incoming_messages(max_wait_s=1.5)
 
     async def disconnect(self):
         """
@@ -179,21 +220,22 @@ class ElevenLabsTTS:
         """Drop the socket after a completed utterance so the next speak starts clean."""
         self.websocket = None
 
-    async def drain_socket(self):
-        """
-        Clear any pending messages from the WebSocket buffer.
-
-        This prevents stale data from a prior utterance interfering with the next request.
-        """
-        drained = 0
-        try:
-            while True:
-                await asyncio.wait_for(self.websocket.recv(), timeout=0.2)
-                drained += 1
-        except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
-            pass
-        if drained:
-            self.logger.debug("[TTS] Drained %s stale websocket message(s).", drained)
+    async def _discard_incoming_messages(self, max_wait_s: float = 0.5) -> None:
+        """Drop websocket messages (e.g. priming audio) without collecting them."""
+        if not self.websocket:
+            return
+        deadline = time.monotonic() + max_wait_s
+        discarded = 0
+        while time.monotonic() < deadline:
+            try:
+                await asyncio.wait_for(self.websocket.recv(), timeout=0.12)
+                discarded += 1
+            except asyncio.TimeoutError:
+                break
+            except websockets.exceptions.ConnectionClosed:
+                break
+        if discarded:
+            self.logger.debug("[TTS] Discarded %s websocket message(s).", discarded)
 
     async def speak(self, text, recv_timeout_s: float = 30.0):
         """
@@ -210,14 +252,21 @@ class ElevenLabsTTS:
         Returns:
             Optional[bytes]: Concatenated raw PCM bytes, or None on failure / empty audio.
         """
-        await self._ensure_connected()
+        text = (text or "").strip()
+        if not text:
+            return None
 
-        await self.drain_socket()
-        await self.websocket.send(dumps({"text": text}))
-        await self.websocket.send(dumps({"text": ""}))  # EOS — triggers isFinal
+        await self._ensure_connected()
+        await self._discard_incoming_messages(max_wait_s=0.4)
+
+        utterance = text if text.endswith(" ") else f"{text} "
 
         chunks = []
         try:
+            await self.websocket.send(dumps({"text": utterance}))
+            # Flush buffered text (required for lines shorter than chunk_length_schedule).
+            await self.websocket.send(dumps({"text": " ", "flush": True}))
+
             while True:
                 try:
                     message = await asyncio.wait_for(self.websocket.recv(), timeout=recv_timeout_s)
@@ -228,28 +277,30 @@ class ElevenLabsTTS:
                         chunks.append(base64.b64decode(audio_b64))
 
                     if data.get("isFinal") or data.get("is_final"):
+                        await self._discard_incoming_messages(max_wait_s=0.25)
                         break
                 except asyncio.TimeoutError:
                     self.logger.error("[TTS] Timed out waiting for ElevenLabs audio (isFinal not received).")
                     return None
                 except websockets.exceptions.ConnectionClosedOK:
-                    # Server often closes the socket right after isFinal; keep any audio collected.
                     break
                 except websockets.exceptions.ConnectionClosedError as e:
                     self.logger.error(f"[TTS] WebSocket closed with error: {e}")
-                    return b"".join(chunks) if chunks else None
+                    return self._postprocess_pcm(b"".join(chunks)) if chunks else None
                 except Exception as e:
                     self.logger.error(f"[TTS] Other failure in elevenlabs tts: {e}")
-                    return b"".join(chunks) if chunks else None
+                    return self._postprocess_pcm(b"".join(chunks)) if chunks else None
         finally:
-            # Next speak() opens a new connection; avoids stale/dead socket + ping warnings.
             self._release_connection_after_utterance()
 
         pcm = b"".join(chunks)
         if not pcm:
             self.logger.error("[TTS] ElevenLabs returned isFinal with no audio.")
             return None
-        return pcm
+        return self._postprocess_pcm(pcm)
+
+    def _postprocess_pcm(self, pcm: bytes) -> bytes:
+        return postprocess_elevenlabs_pcm(pcm, self.sample_rate)
 
 
 class TTSCacher:

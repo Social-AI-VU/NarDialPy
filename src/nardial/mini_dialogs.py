@@ -409,13 +409,13 @@ class MiniDialog:
                 if not llm_text:
                     continue
 
-            # Speak the LLM reply, then listen; publish robot line when speech starts.
+            # Speak first so transcript timestamps match when TTS actually starts.
+            agent.say(llm_text)
             self._record_robot(
                 MOVE_ASK_LLM,
                 llm_text,
                 token_usage=getattr(agent.orchestrator, "last_llm_usage", None),
             )
-            agent.say(llm_text)
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return

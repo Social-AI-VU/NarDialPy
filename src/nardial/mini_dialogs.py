@@ -242,6 +242,10 @@ class MiniDialog:
 
         default_tts_type = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
         voice_tts_type = (voice_settings.get("tts_type") or "").strip().lower()
+        if voice_tts_type and not default_tts_type:
+            raise ValueError(
+                f"Character voice_settings.tts_type '{voice_tts_type}' requires a known default interaction tts_type"
+            )
         if voice_tts_type and default_tts_type and voice_tts_type != default_tts_type:
             raise ValueError(
                 f"Character voice_settings.tts_type '{voice_tts_type}' must match default interaction tts_type '{default_tts_type}'"

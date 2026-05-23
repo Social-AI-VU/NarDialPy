@@ -335,7 +335,13 @@ def test_move_character_switches_voice_and_falls_back_to_default(session_history
 
     class InteractionConf:
         def __init__(self):
-            self.tts_conf = Mock(voice_id="default_voice", model_id="eleven_flash_v2_5")
+            class ElevenLabsTTSConf:
+                def __init__(self):
+                    self.voice_id = "default_voice"
+                    self.model_id = "eleven_flash_v2_5"
+                    self.speaking_rate = 1.0
+
+            self.tts_conf = ElevenLabsTTSConf()
             self.language = "en"
 
     class Orchestrator:
@@ -372,7 +378,7 @@ def test_move_character_switches_voice_and_falls_back_to_default(session_history
     assert observed[1] == ("line 2", "default_voice", "en")
 
 
-def test_move_character_tts_type_must_match_default_interaction_tts(session_history, user_model, topics_of_interest):
+def test_character_tts_backend_mismatch(session_history, user_model, topics_of_interest):
     from unittest.mock import Mock
 
     agent = Mock()

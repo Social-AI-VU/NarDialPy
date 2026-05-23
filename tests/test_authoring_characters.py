@@ -60,3 +60,17 @@ def test_dialog_factory_rejects_character_on_move_when_characters_missing():
     }
     with pytest.raises(ValueError, match="references undefined character"):
         DialogFactory.from_json(doc)
+
+
+def test_dialog_factory_rejects_out_of_range_character_speaking_rate():
+    doc = {
+        "id": "d1",
+        "type": "functional",
+        "functional_type": "greeting",
+        "characters": {
+            "narrator": {"voice_settings": {"tts_type": "elevenlabs", "voice_id": "voice_a", "speaking_rate": 3.0}}
+        },
+        "moves": [{"type": "say", "character": "narrator", "text": "Hello"}],
+    }
+    with pytest.raises(ValueError, match="speaking_rate must be in the range"):
+        DialogFactory.from_json(doc)

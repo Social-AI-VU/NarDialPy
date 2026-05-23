@@ -177,6 +177,10 @@ class DialogFactory:
                         errs.append(f"characters.{cid}.voice_settings.language must be a string")
                     if "speaking_rate" in voice_settings and not isinstance(voice_settings.get("speaking_rate"), (int, float)):
                         errs.append(f"characters.{cid}.voice_settings.speaking_rate must be numeric")
+                    elif "speaking_rate" in voice_settings:
+                        speaking_rate = float(voice_settings["speaking_rate"])
+                        if speaking_rate <= 0 or speaking_rate > 2.0:
+                            errs.append(f"characters.{cid}.voice_settings.speaking_rate must be in the range (0.0, 2.0]")
 
         moves = doc.get("moves")
         if not isinstance(moves, list):

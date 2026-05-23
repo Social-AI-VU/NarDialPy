@@ -21,6 +21,7 @@ class DialogType(Enum):
 
 
 MAX_LLM_TURNS = 5
+# Default ElevenLabs values used when character voice settings omit voice/model details.
 DEFAULT_ELEVENLABS_VOICE_ID = "yO6w2xlECAQRFP6pX7Hw"
 DEFAULT_ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
 
@@ -236,6 +237,8 @@ class MiniDialog:
 
         speaking_rate = voice_settings.get("speaking_rate")
         voice_id = voice_settings.get("voice_id")
+        if voice_id is not None and not isinstance(voice_id, str):
+            raise ValueError("voice_settings.voice_id must be a string when provided")
 
         if tts_type == "elevenlabs":
             fallback_model_id = getattr(fallback_tts_conf, "model_id", DEFAULT_ELEVENLABS_MODEL_ID)

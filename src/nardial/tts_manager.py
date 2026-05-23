@@ -210,7 +210,7 @@ class ElevenLabsTTS:
                 if data.get("isFinal"):
                     return b"".join(audio_chunks) if audio_chunks else None
             except asyncio.TimeoutError:
-                self.logger.error('[TTS] No audio received from Elevenlabs')
+                self.logger.error('[TTS] No audio received from ElevenLabs')
                 self.websocket = None
                 return None
             except websockets.exceptions.ConnectionClosedOK:

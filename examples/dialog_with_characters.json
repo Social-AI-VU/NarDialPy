@@ -1,0 +1,19 @@
+{
+  "id": "scene_intro",
+  "type": "functional",
+  "functional_type": "greeting",
+  "default_tts": { "voice_name": "en-US-Standard-B", "gender": "FEMALE" },
+  "characters": {
+    "narrator": {
+      "voice_settings": {
+        "voice_name": "en-US-Standard-D",
+        "gender": "MALE",
+        "speaking_rate": 0.85
+      }
+    }
+  },
+  "moves": [
+    { "type": "say", "text": "It was a cold night.", "character": "narrator" },
+    { "type": "say", "text": "Let's continue." }
+  ]
+}

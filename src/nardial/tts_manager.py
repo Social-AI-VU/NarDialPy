@@ -196,15 +196,16 @@ class ElevenLabsTTS:
         # Send sentence
         await self.websocket.send(dumps({"text": text, "flush": True}))
 
+        audio_chunks = []
         while True:
             try:
                 message = await asyncio.wait_for(self.websocket.recv(), timeout=5.0)
                 data = loads(message)
 
                 if data.get("audio"):
-                    return base64.b64decode(data["audio"])
+                    audio_chunks.append(base64.b64decode(data["audio"]))
                 if data.get("isFinal"):
-                    return None
+                    return b"".join(audio_chunks) if audio_chunks else None
             except asyncio.TimeoutError:
                 self.logger.error('[TTS] No audio received from Elevenlabs')
                 self.websocket = None

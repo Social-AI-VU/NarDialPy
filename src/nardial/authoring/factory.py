@@ -57,6 +57,8 @@ class MoveFactory:
             errs.append(f"moves[{idx}].animation_name must be string for animation")
         if "set_variable" in move and not isinstance(move.get("set_variable"), str):
             errs.append(f"moves[{idx}].set_variable must be string if present")
+        if "character" in move and not isinstance(move.get("character"), str):
+            errs.append(f"moves[{idx}].character must be string if present")
         if mt == MOVE_BRANCH:
             on_val = move.get("on", "outcome")
             if not isinstance(on_val, str):
@@ -101,6 +103,24 @@ class DialogFactory:
         deps = doc.get("dependencies")
         if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
             errs.append("dependencies must be a list of strings")
+        characters = doc.get("characters")
+        if characters is not None:
+            if not isinstance(characters, dict):
+                errs.append("characters must be an object")
+            else:
+                for name, cfg in characters.items():
+                    if not isinstance(name, str):
+                        errs.append("characters keys must be strings")
+                        continue
+                    if not isinstance(cfg, dict):
+                        errs.append(f"characters.{name} must be an object")
+                        continue
+                    voice_settings = cfg.get("voice_settings")
+                    if not isinstance(voice_settings, dict):
+                        errs.append(f"characters.{name}.voice_settings must be an object")
+        default_tts = doc.get("default_tts")
+        if default_tts is not None and not isinstance(default_tts, dict):
+            errs.append("default_tts must be an object")
         # variable deps: allow list[str|obj]
         vdeps = doc.get("variable_dependencies")
         if vdeps is not None:
@@ -169,6 +189,8 @@ class DialogFactory:
         deps = list(doc.get("dependencies") or [])
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
+        characters = dict(doc.get("characters") or {})
+        default_tts = dict(doc.get("default_tts") or {})
 
         if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
@@ -178,6 +200,8 @@ class DialogFactory:
                 position=int(doc["position"]),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
+                default_tts=default_tts,
             )
         if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
@@ -187,6 +211,8 @@ class DialogFactory:
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
+                default_tts=default_tts,
             )
         if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
@@ -194,6 +220,8 @@ class DialogFactory:
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+                characters=characters,
+                default_tts=default_tts,
             )
         if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
@@ -209,8 +237,10 @@ class DialogFactory:
                 duration=doc.get("duration"),
                 rag_enabled=doc.get("rag_enabled", False),
                 rag_index_name=doc.get("index_name"),
+                characters=characters,
+                default_tts=default_tts,
             )
-        return MiniDialog(did, moves, deps, vdeps)
+        return MiniDialog(did, moves, deps, vdeps, characters=characters, default_tts=default_tts)
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -220,6 +250,12 @@ class DialogFactory:
             "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
             "moves": list(getattr(d, "moves", []) or []),
         }
+        characters = dict(getattr(d, "characters", {}) or {})
+        default_tts = dict(getattr(d, "default_tts", {}) or {})
+        if characters:
+            base["characters"] = characters
+        if default_tts:
+            base["default_tts"] = default_tts
         if isinstance(d, NarrativeDialog):
             base.update({
                 "type": "narrative",

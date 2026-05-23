@@ -58,11 +58,13 @@ class ElevenLabsTTSConf(TTSConf):
             voice_id (str): Voice identifier in ElevenLabs.
             model_id (str): Model identifier used for synthesis.
     """
-    def __init__(self, speaking_rate=None, voice_id='yO6w2xlECAQRFP6pX7Hw', model_id='eleven_flash_v2_5'):
+    def __init__(self, speaking_rate=None, voice_id='yO6w2xlECAQRFP6pX7Hw', model_id='eleven_flash_v2_5',
+                 language=None):
         super().__init__()
         self.speaking_rate = None if speaking_rate == 1.0 else speaking_rate
         self.voice_id = voice_id
         self.model_id = model_id
+        self.language = language
 
 
 class NaoqiTTSConf(TTSConf):
@@ -293,6 +295,7 @@ class TTSCacher:
                 "speaking_rate": voice_conf.speaking_rate,
                 "setting_1": voice_conf.model_id,
                 "setting_2": voice_conf.voice_id,
+                "setting_3": getattr(voice_conf, "language", None),
             }
         else:
             raise ValueError(f'Voice Conf {voice_conf} is not supported.')

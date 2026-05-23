@@ -1,5 +1,13 @@
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
+from nardial.authoring.factory import DialogFactory
+
+
+class GoogleTTSConf:
+    def __init__(self, speaking_rate=1.0, google_tts_voice_name="en-US-Standard-C", google_tts_voice_gender="FEMALE"):
+        self.speaking_rate = speaking_rate
+        self.google_tts_voice_name = google_tts_voice_name
+        self.google_tts_voice_gender = google_tts_voice_gender
 
 
 def test_extract_open_value_quotes_and_tokens():
@@ -318,3 +326,88 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
     assert "Cool answer!" in texts_spoken
     assert "No worries." not in texts_spoken
 
+
+def test_character_tts_is_passed_to_say_call(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    agent.orchestrator.tts_conf = GoogleTTSConf(
+        speaking_rate=1.0,
+        google_tts_voice_name="en-US-Standard-C",
+        google_tts_voice_gender="FEMALE",
+    )
+    moves = [{"type": "say", "text": "Narration line", "character": "narrator"}]
+    md = MiniDialog(
+        "test",
+        moves=moves,
+        characters={
+            "narrator": {
+                "voice_settings": {
+                    "voice_name": "en-US-Standard-D",
+                    "gender": "MALE",
+                    "speaking_rate": 0.8,
+                }
+            }
+        },
+    )
+
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert agent.say.call_count == 1
+    call_kwargs = agent.say.call_args.kwargs
+    assert "tts_conf" in call_kwargs
+    assert call_kwargs["tts_conf"].google_tts_voice_name == "en-US-Standard-D"
+    assert call_kwargs["tts_conf"].google_tts_voice_gender == "MALE"
+    assert call_kwargs["tts_conf"].speaking_rate == 0.8
+
+
+def test_missing_character_falls_back_to_default_tts(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    agent.orchestrator.tts_conf = GoogleTTSConf(
+        speaking_rate=1.0,
+        google_tts_voice_name="en-US-Standard-C",
+        google_tts_voice_gender="FEMALE",
+    )
+    moves = [{"type": "say", "text": "Fallback line", "character": "unknown"}]
+    md = MiniDialog(
+        "test",
+        moves=moves,
+        default_tts={"voice_name": "en-US-Standard-B", "gender": "MALE", "speaking_rate": 0.9},
+    )
+
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    call_kwargs = agent.say.call_args.kwargs
+    assert call_kwargs["tts_conf"].google_tts_voice_name == "en-US-Standard-B"
+    assert call_kwargs["tts_conf"].google_tts_voice_gender == "MALE"
+    assert call_kwargs["tts_conf"].speaking_rate == 0.9
+
+
+def test_invalid_character_voice_settings_falls_back_to_agent_default(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    agent.orchestrator.tts_conf = GoogleTTSConf()
+    moves = [{"type": "say", "text": "No override", "character": "narrator"}]
+    md = MiniDialog(
+        "test",
+        moves=moves,
+        characters={"narrator": {"voice_settings": {"voice_id": "not-google"}}},
+    )
+
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert "tts_conf" not in agent.say.call_args.kwargs
+
+
+def test_dialog_factory_roundtrip_characters_and_default_tts():
+    doc = {
+        "id": "d1",
+        "type": "functional",
+        "functional_type": "greeting",
+        "default_tts": {"voice_name": "en-US-Standard-B"},
+        "characters": {"narrator": {"voice_settings": {"voice_name": "en-US-Standard-D", "gender": "FEMALE"}}},
+        "moves": [{"type": "say", "text": "Hello", "character": "narrator"}],
+    }
+    dialog = DialogFactory.from_json(doc)
+    out = DialogFactory.to_json(dialog)
+
+    assert out["characters"]["narrator"]["voice_settings"]["voice_name"] == "en-US-Standard-D"
+    assert out["default_tts"]["voice_name"] == "en-US-Standard-B"
+    assert out["moves"][0]["character"] == "narrator"

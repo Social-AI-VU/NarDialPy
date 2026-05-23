@@ -405,32 +405,53 @@ class InteractionOrchestrator:
         self.speaker = self.device_manager.speakers
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
-    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
+            tts_conf=None):
         if animated:
             self.animation()
 
-        if isinstance(self.tts_conf, NaoqiTTSConf):
-            self.naoqi_say(text, post_speech_delay=post_speech_delay, animated=animated)
-        elif isinstance(self.tts_conf, GoogleTTSConf):
-            self.google_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate)
-        elif isinstance(self.tts_conf, ElevenLabsTTSConf):
-            self.elevenlabs_say(text, post_speech_delay=post_speech_delay, amplified=amplified, always_regenerate=always_regenerate, chunking=chunk_audio)
+        active_tts_conf = tts_conf or self.tts_conf
+
+        if isinstance(active_tts_conf, NaoqiTTSConf):
+            self.naoqi_say(text, post_speech_delay=post_speech_delay, animated=animated, tts_conf=active_tts_conf)
+        elif isinstance(active_tts_conf, GoogleTTSConf):
+            self.google_say(
+                text,
+                post_speech_delay=post_speech_delay,
+                amplified=amplified,
+                always_regenerate=always_regenerate,
+                tts_conf=active_tts_conf,
+            )
+        elif isinstance(active_tts_conf, ElevenLabsTTSConf):
+            self.elevenlabs_say(
+                text,
+                post_speech_delay=post_speech_delay,
+                amplified=amplified,
+                always_regenerate=always_regenerate,
+                chunking=chunk_audio,
+                tts_conf=active_tts_conf,
+            )
         else:
-            raise ValueError(f'Unsupported tts_conf type: {type(self.tts_conf)}')
+            raise ValueError(f'Unsupported tts_conf type: {type(active_tts_conf)}')
 
 
-    def naoqi_say(self, text, post_speech_delay=None, animated=False):
+    def naoqi_say(self, text, post_speech_delay=None, animated=False, tts_conf=None):
         if not isinstance(self.device_manager, Pepper) and not isinstance(self.device_manager, Nao):
             return
 
-        self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=self.interaction_conf.language))
+        active_tts_conf = tts_conf or self.tts_conf
+        language = self.interaction_conf.language
+        if isinstance(active_tts_conf, NaoqiTTSConf):
+            language = active_tts_conf.language
+        self.device_manager.tts.request(NaoqiTextToSpeechRequest(text, animated=animated, language=language))
 
         if post_speech_delay and post_speech_delay > 0:
             sleep(post_speech_delay)
 
-    def google_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False):
+    def google_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False, tts_conf=None):
+        active_tts_conf = tts_conf or self.tts_conf
         # Generate cache key and load cached speech audio if available.
-        tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
+        tts_key = self.tts_cacher.make_tts_key(text, active_tts_conf)
         audio_file = self.tts_cacher.load_audio_file(tts_key)
 
         # If requested and available play cached speech audio
@@ -440,9 +461,9 @@ class InteractionOrchestrator:
         else:  # Else generate new speech audio
             reply = self.tts.request(GetSpeechRequest(
                 text=text,
-                voice_name=self.tts_conf.google_tts_voice_name,
-                ssml_gender=self.tts_conf.google_tts_voice_gender,
-                speaking_rate=self.tts_conf.speaking_rate
+                voice_name=active_tts_conf.google_tts_voice_name,
+                ssml_gender=active_tts_conf.google_tts_voice_gender,
+                speaking_rate=active_tts_conf.speaking_rate
             ))
             audio_bytes = reply.waveform
             sample_rate = reply.sample_rate
@@ -462,15 +483,17 @@ class InteractionOrchestrator:
         if post_speech_delay and post_speech_delay > 0:
             sleep(post_speech_delay)
 
-    def elevenlabs_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False, chunking=True):
-        if not chunking or self.interaction_conf.tts_conf.model_id == 'eleven_v3':
+    def elevenlabs_say(self, text, post_speech_delay=None, amplified=False, always_regenerate=False, chunking=True,
+                       tts_conf=None):
+        active_tts_conf = tts_conf or self.tts_conf
+        if not chunking or active_tts_conf.model_id == 'eleven_v3':
             text_chunks = [text]
         else:
             text_chunks = self._split_text(text, max_len=80)
 
         for chunk in text_chunks:
             # Normalize and hash text
-            tts_key = self.tts_cacher.make_tts_key(chunk, self.tts_conf)
+            tts_key = self.tts_cacher.make_tts_key(chunk, active_tts_conf)
 
             if not always_regenerate:
                 audio_file = self.tts_cacher.load_audio_file(tts_key)
@@ -480,7 +503,7 @@ class InteractionOrchestrator:
                     continue
 
             # Generate new audio
-            audio_bytes = self.elevenlabs_generate_chunk_audio(chunk, amplified)
+            audio_bytes = self.elevenlabs_generate_chunk_audio(chunk, amplified, tts_conf=active_tts_conf)
 
             # Play audio
             self.speaker.request(AudioRequest(audio_bytes, self.sample_rate))
@@ -490,12 +513,36 @@ class InteractionOrchestrator:
             if post_speech_delay and post_speech_delay > 0:
                 sleep(post_speech_delay)
 
-    def elevenlabs_generate_chunk_audio(self, text, amplified=False):
+    def _elevenlabs_speak(self, text, tts_conf):
+        if (
+            isinstance(self.tts_conf, ElevenLabsTTSConf)
+            and tts_conf.voice_id == self.tts_conf.voice_id
+            and tts_conf.model_id == self.tts_conf.model_id
+            and tts_conf.speaking_rate == self.tts_conf.speaking_rate
+        ):
+            return asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
+
+        temp_tts = ElevenLabsTTS(
+            elevenlabs_key=environ["ELEVENLABS_API_KEY"],
+            voice_id=tts_conf.voice_id,
+            model_id=tts_conf.model_id,
+            sample_rate=self.sample_rate,
+            speaking_rate=tts_conf.speaking_rate,
+        )
+        connect_future = asyncio.run_coroutine_threadsafe(temp_tts.connect(), self.background_loop)
+        connect_future.result()
+        try:
+            return asyncio.run_coroutine_threadsafe(temp_tts.speak(text), self.background_loop).result()
+        finally:
+            asyncio.run_coroutine_threadsafe(temp_tts.disconnect(), self.background_loop).result()
+
+    def elevenlabs_generate_chunk_audio(self, text, amplified=False, tts_conf=None):
+        active_tts_conf = tts_conf or self.tts_conf
         # Normalize and hash text
-        tts_key = self.tts_cacher.make_tts_key(text, self.tts_conf)
+        tts_key = self.tts_cacher.make_tts_key(text, active_tts_conf)
 
         # ElevenLabs TTS returns bytes
-        audio_bytes = asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
+        audio_bytes = self._elevenlabs_speak(text, active_tts_conf)
 
         if audio_bytes and amplified:
             audio_bytes = self._amplify_audio(audio_bytes)

@@ -44,7 +44,7 @@ class ConversationAgent:
         self.orchestrator = InteractionOrchestrator(device_manager=device_manager, int_config=int_config)
         self.device = device_manager
 
-    def say(self, text):
+    def say(self, text, tts_conf=None):
         """
         Speak a piece of text using the configured TTS system.
 
@@ -53,7 +53,7 @@ class ConversationAgent:
         text : str
             The text to be spoken aloud.
         """
-        self.orchestrator.say(text)
+        self.orchestrator.say(text, tts_conf=tts_conf)
 
     def play_audio(self, audio_file):
         """
@@ -98,7 +98,7 @@ class ConversationAgent:
             except Exception as e:
                 print(f"Failed to play animation: {animation_name}", e)
 
-    def ask_yesno(self, question, max_attempts=1):
+    def ask_yesno(self, question, max_attempts=1, tts_conf=None):
         """
         Ask a yes/no question and interpret the response using intent recognition.
 
@@ -123,7 +123,7 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
+            self.say(question, tts_conf=tts_conf)
             reply, intent = self.orchestrator.listen()
 
             if intent:
@@ -138,7 +138,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
+    def ask_open(self, question, max_attempts=2, tts_conf=None):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -156,14 +156,14 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
+            self.say(question, tts_conf=tts_conf)
             reply, _ = self.orchestrator.listen()
             if reply:
                 return reply
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
+    def ask_options(self, question, options, max_attempts=2, tts_conf=None):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -185,7 +185,7 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts)
+        answer = self.ask_open(question, max_attempts=max_attempts, tts_conf=tts_conf)
         if answer:
             answer_lower = answer.lower()
             for opt in options:

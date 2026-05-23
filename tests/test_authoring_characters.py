@@ -6,7 +6,7 @@ from nardial.authoring.factory import DialogFactory
 from nardial.authoring.loader import load_dialogs
 
 
-def test_load_dialogs_supports_file_level_characters_with_dialogs_array(tmp_path):
+def test_file_level_characters_merged_into_dialogs(tmp_path):
     payload = {
         "characters": {
             "narrator": {

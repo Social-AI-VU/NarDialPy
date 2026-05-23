@@ -204,6 +204,17 @@ class MiniDialog:
     def _infer_tts_type_from_conf(tts_conf: Optional[Any]) -> Optional[str]:
         if tts_conf is None:
             return None
+        try:
+            from nardial.tts_manager import GoogleTTSConf, ElevenLabsTTSConf, NaoqiTTSConf
+            if isinstance(tts_conf, ElevenLabsTTSConf):
+                return "elevenlabs"
+            if isinstance(tts_conf, GoogleTTSConf):
+                return "google"
+            if isinstance(tts_conf, NaoqiTTSConf):
+                return "naoqi"
+        except ImportError:
+            pass
+
         class_name = type(tts_conf).__name__.lower()
         if "elevenlabs" in class_name:
             return "elevenlabs"
@@ -226,7 +237,7 @@ class MiniDialog:
             GoogleTTSConf = _GoogleTTSConf
             ElevenLabsTTSConf = _ElevenLabsTTSConf
             NaoqiTTSConf = _NaoqiTTSConf
-        except Exception:
+        except ImportError:
             pass
 
         tts_type = (voice_settings.get("tts_type") or "").strip().lower()
@@ -241,11 +252,11 @@ class MiniDialog:
             raise ValueError("voice_settings.voice_id must be a string when provided")
 
         if tts_type == "elevenlabs":
-            fallback_model_id = getattr(fallback_tts_conf, "model_id", DEFAULT_ELEVENLABS_MODEL_ID)
+            default_model_id = getattr(fallback_tts_conf, "model_id", DEFAULT_ELEVENLABS_MODEL_ID)
             payload = {
                 "speaking_rate": speaking_rate,
                 "voice_id": voice_id or getattr(fallback_tts_conf, "voice_id", DEFAULT_ELEVENLABS_VOICE_ID),
-                "model_id": voice_settings.get("model_id", fallback_model_id),
+                "model_id": voice_settings.get("model_id", default_model_id),
             }
             if ElevenLabsTTSConf is not None:
                 return ElevenLabsTTSConf(**payload)

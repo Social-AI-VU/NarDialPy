@@ -20,6 +20,7 @@ class DialogType(Enum):
 
 
 MAX_LLM_TURNS = 5
+DEFAULT_ELEVENLABS_VOICE_ID = "yO6w2xlECAQRFP6pX7Hw"
 
 
 class MiniDialog:
@@ -207,8 +208,6 @@ class MiniDialog:
             return "google"
         if "naoqi" in class_name:
             return "naoqi"
-        if hasattr(tts_conf, "language"):
-            return "naoqi"
         return None
 
     @staticmethod
@@ -238,7 +237,7 @@ class MiniDialog:
             fallback_model_id = getattr(fallback_tts_conf, "model_id", "eleven_flash_v2_5")
             payload = {
                 "speaking_rate": speaking_rate,
-                "voice_id": voice_id or getattr(fallback_tts_conf, "voice_id", 'yO6w2xlECAQRFP6pX7Hw'),
+                "voice_id": voice_id or getattr(fallback_tts_conf, "voice_id", DEFAULT_ELEVENLABS_VOICE_ID),
                 "model_id": voice_settings.get("model_id", fallback_model_id),
             }
             if ElevenLabsTTSConf is not None:

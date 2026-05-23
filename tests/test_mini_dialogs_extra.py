@@ -1,6 +1,6 @@
 import pytest
 
-from nardial.mini_dialogs import MiniDialog
+from nardial.mini_dialogs import DEFAULT_ELEVENLABS_MODEL_ID, MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
 
@@ -466,4 +466,4 @@ def test_character_tts_type_used_when_default_backend_unknown(session_history, u
     characters = {"narrator": {"voice_settings": {"tts_type": "elevenlabs", "voice_id": "narrator_voice"}}}
     md = MiniDialog("test", moves=moves, characters=characters)
     md.run(agent, session_history, topics_of_interest, user_model)
-    assert observed == [("line 1", "narrator_voice", "eleven_flash_v2_5", False)]
+    assert observed == [("line 1", "narrator_voice", DEFAULT_ELEVENLABS_MODEL_ID, False)]

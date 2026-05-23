@@ -3,6 +3,7 @@ import base64
 import json
 import sys
 import types
+from unittest.mock import AsyncMock
 
 if "websockets" not in sys.modules:
     websocket_exceptions = types.SimpleNamespace(
@@ -48,16 +49,9 @@ def test_elevenlabs_speak_collects_all_audio_chunks():
 
     tts = ElevenLabsTTS(elevenlabs_key="k", voice_id="v", model_id="m")
     tts.websocket = fake_ws
-    tts.connect = lambda: None
-
-    async def _noop():
-        return None
-
-    async def _always_true():
-        return True
-
-    tts.drain_socket = _noop
-    tts.ping_connection = _always_true
+    tts.connect = AsyncMock()
+    tts.drain_socket = AsyncMock()
+    tts.ping_connection = AsyncMock(return_value=True)
 
     audio = asyncio.run(tts.speak("test sentence"))
 

@@ -189,7 +189,10 @@ class MiniDialog:
 
     def _get_provider_tts_conf(self):
         orchestrator = getattr(self.conversation_agent, "orchestrator", None)
-        return getattr(orchestrator, "tts_conf", None)
+        tts_conf = getattr(orchestrator, "tts_conf", None)
+        if type(tts_conf).__name__ in {"GoogleTTSConf", "ElevenLabsTTSConf", "NaoqiTTSConf"}:
+            return tts_conf
+        return None
 
     @staticmethod
     def _coerce_float(value: Any) -> Optional[float]:
@@ -271,6 +274,7 @@ class MiniDialog:
         if self.conversation_agent is None:
             return None
 
+        provider_conf = self._get_provider_tts_conf()
         character = self._get(move, "character")
         if isinstance(character, str):
             char_conf = self.characters.get(character)
@@ -281,8 +285,10 @@ class MiniDialog:
                     return conf
 
         if isinstance(self.default_tts, dict) and self.default_tts:
-            return self._voice_settings_to_tts_conf(self.default_tts)
-        return None
+            default_conf = self._voice_settings_to_tts_conf(self.default_tts)
+            if default_conf is not None:
+                return default_conf
+        return provider_conf
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str, tts_conf=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""

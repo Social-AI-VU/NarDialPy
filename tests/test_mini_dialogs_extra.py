@@ -393,7 +393,35 @@ def test_invalid_character_voice_settings_falls_back_to_agent_default(session_hi
 
     md.run(agent, session_history, topics_of_interest, user_model)
 
-    assert "tts_conf" not in agent.say.call_args.kwargs
+    assert "tts_conf" in agent.say.call_args.kwargs
+    assert agent.say.call_args.kwargs["tts_conf"] is agent.orchestrator.tts_conf
+
+
+def test_move_without_character_uses_default_not_previous_character_config(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    agent.orchestrator.tts_conf = GoogleTTSConf(
+        speaking_rate=1.0,
+        google_tts_voice_name="en-US-Standard-C",
+        google_tts_voice_gender="FEMALE",
+    )
+    moves = [
+        {"type": "say", "text": "Character line", "character": "narrator"},
+        {"type": "say", "text": "Default line"},
+    ]
+    md = MiniDialog(
+        "test",
+        moves=moves,
+        default_tts={"voice_name": "en-US-Standard-B", "gender": "FEMALE", "speaking_rate": 1.05},
+        characters={"narrator": {"voice_settings": {"voice_name": "en-US-Standard-D", "gender": "MALE"}}},
+    )
+
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    first_conf = agent.say.call_args_list[0].kwargs["tts_conf"]
+    second_conf = agent.say.call_args_list[1].kwargs["tts_conf"]
+    assert first_conf.google_tts_voice_name == "en-US-Standard-D"
+    assert second_conf.google_tts_voice_name == "en-US-Standard-B"
+    assert second_conf.google_tts_voice_name != first_conf.google_tts_voice_name
 
 
 def test_dialog_factory_roundtrip_characters_and_default_tts():

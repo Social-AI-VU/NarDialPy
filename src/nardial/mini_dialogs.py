@@ -233,10 +233,10 @@ class MiniDialog:
         ElevenLabsTTSConf = None
         NaoqiTTSConf = None
         try:
-            from nardial.tts_manager import GoogleTTSConf as _GoogleTTSConf, ElevenLabsTTSConf as _ElevenLabsTTSConf, NaoqiTTSConf as _NaoqiTTSConf
-            GoogleTTSConf = _GoogleTTSConf
-            ElevenLabsTTSConf = _ElevenLabsTTSConf
-            NaoqiTTSConf = _NaoqiTTSConf
+            from nardial import tts_manager
+            GoogleTTSConf = tts_manager.GoogleTTSConf
+            ElevenLabsTTSConf = tts_manager.ElevenLabsTTSConf
+            NaoqiTTSConf = tts_manager.NaoqiTTSConf
         except ImportError:
             pass
 

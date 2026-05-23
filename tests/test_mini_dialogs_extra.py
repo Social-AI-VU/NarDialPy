@@ -424,7 +424,7 @@ def test_character_tts_backend_mismatch(session_history, user_model, topics_of_i
         md.run(agent, session_history, topics_of_interest, user_model)
 
 
-def test_character_tts_type_requires_known_default_backend(session_history, user_model, topics_of_interest):
+def test_character_tts_type_with_unknown_backend(session_history, user_model, topics_of_interest):
     from unittest.mock import Mock
 
     agent = Mock()

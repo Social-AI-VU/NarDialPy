@@ -2,34 +2,23 @@
   "id": "scene_intro_elevenlabs",
   "type": "functional",
   "functional_type": "greeting",
-  "default_tts": {
-    "voice_id": "9BWtsMINqrJLrRacOk9x",
-    "model_id": "eleven_flash_v2_5",
-    "language": "en"
-  },
   "characters": {
     "narrator": {
       "voice_settings": {
-        "voice_id": "pNInz6obpgDQGcFmaJgB",
-        "model_id": "eleven_flash_v2_5",
-        "language": "en",
-        "speaking_rate": 0.9
+        "voice_id": "KTPVrSVAEUSJRClDzBw7",
+        "language": "en"
       }
     },
     "guide": {
       "voice_settings": {
-        "voice_id": "21m00Tcm4TlvDq8ikWAM",
-        "model_id": "eleven_flash_v2_5",
-        "language": "en",
-        "speaking_rate": 1.05
+        "voice_id": "yO6w2xlECAQRFP6pX7Hw",
+        "language": "en"
       }
     },
     "friend": {
       "voice_settings": {
-        "voice_id": "XB0fDUnXU5powFXDhCwa",
-        "model_id": "eleven_flash_v2_5",
-        "language": "en",
-        "speaking_rate": 1.0
+        "voice_id": "EXAVITQu4vr4xnSDxMaL",
+        "language": "en"
       }
     }
   },

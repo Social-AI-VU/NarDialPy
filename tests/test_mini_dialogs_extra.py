@@ -324,6 +324,12 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
 def test_move_character_switches_voice_and_falls_back_to_default(session_history, user_model, topics_of_interest):
     from unittest.mock import Mock
 
+    class ElevenLabsTTSConf:
+        def __init__(self):
+            self.voice_id = "default_voice"
+            self.model_id = "eleven_flash_v2_5"
+            self.speaking_rate = 1.0
+
     agent = Mock()
     agent.play_audio = Mock()
     agent.play_motion_sequence = Mock()
@@ -335,12 +341,6 @@ def test_move_character_switches_voice_and_falls_back_to_default(session_history
 
     class InteractionConf:
         def __init__(self):
-            class ElevenLabsTTSConf:
-                def __init__(self):
-                    self.voice_id = "default_voice"
-                    self.model_id = "eleven_flash_v2_5"
-                    self.speaking_rate = 1.0
-
             self.tts_conf = ElevenLabsTTSConf()
             self.language = "en"
 

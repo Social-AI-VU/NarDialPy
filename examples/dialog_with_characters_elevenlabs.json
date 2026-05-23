@@ -1,0 +1,42 @@
+{
+  "id": "scene_intro_elevenlabs",
+  "type": "functional",
+  "functional_type": "greeting",
+  "default_tts": {
+    "voice_id": "9BWtsMINqrJLrRacOk9x",
+    "model_id": "eleven_flash_v2_5",
+    "language": "en"
+  },
+  "characters": {
+    "narrator": {
+      "voice_settings": {
+        "voice_id": "pNInz6obpgDQGcFmaJgB",
+        "model_id": "eleven_flash_v2_5",
+        "language": "en",
+        "speaking_rate": 0.9
+      }
+    },
+    "guide": {
+      "voice_settings": {
+        "voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "model_id": "eleven_flash_v2_5",
+        "language": "en",
+        "speaking_rate": 1.05
+      }
+    },
+    "friend": {
+      "voice_settings": {
+        "voice_id": "XB0fDUnXU5powFXDhCwa",
+        "model_id": "eleven_flash_v2_5",
+        "language": "en",
+        "speaking_rate": 1.0
+      }
+    }
+  },
+  "moves": [
+    { "type": "say", "text": "It was a windy evening in the city.", "character": "narrator" },
+    { "type": "say", "text": "Welcome! I can guide you through this story.", "character": "guide" },
+    { "type": "say", "text": "Hey there, I am happy to join this adventure.", "character": "friend" },
+    { "type": "say", "text": "This final line uses the dialog default ElevenLabs voice." }
+  ]
+}

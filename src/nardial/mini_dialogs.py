@@ -190,6 +190,14 @@ class MiniDialog:
     def _get_provider_tts_conf(self):
         orchestrator = getattr(self.conversation_agent, "orchestrator", None)
         tts_conf = getattr(orchestrator, "tts_conf", None)
+        if tts_conf is None:
+            return None
+        try:
+            from nardial.tts_manager import GoogleTTSConf, ElevenLabsTTSConf, NaoqiTTSConf
+            if isinstance(tts_conf, (GoogleTTSConf, ElevenLabsTTSConf, NaoqiTTSConf)):
+                return tts_conf
+        except (ImportError, ModuleNotFoundError):
+            pass
         if type(tts_conf).__name__ in {"GoogleTTSConf", "ElevenLabsTTSConf", "NaoqiTTSConf"}:
             return tts_conf
         return None

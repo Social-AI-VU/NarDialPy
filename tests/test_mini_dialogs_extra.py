@@ -421,7 +421,6 @@ def test_move_without_character_uses_default_not_previous_character_config(sessi
     second_conf = agent.say.call_args_list[1].kwargs["tts_conf"]
     assert first_conf.google_tts_voice_name == "en-US-Standard-D"
     assert second_conf.google_tts_voice_name == "en-US-Standard-B"
-    assert second_conf.google_tts_voice_name != first_conf.google_tts_voice_name
 
 
 def test_dialog_factory_roundtrip_characters_and_default_tts():

@@ -267,6 +267,7 @@ class InteractionOrchestrator:
         self.tts = None
         self.sample_rate = None
         self.elevenlabs = None
+        self._elevenlabs_override_tts = {}
         self.tts_conf = self.interaction_conf.tts_conf
         self.tts_cacher = TTSCacher()
         if isinstance(self.tts_conf, GoogleTTSConf):
@@ -526,22 +527,21 @@ class InteractionOrchestrator:
         ):
             return asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
 
-        temp_tts = ElevenLabsTTS(
-            elevenlabs_key=api_key,
-            voice_id=tts_conf.voice_id,
-            model_id=tts_conf.model_id,
-            sample_rate=self.sample_rate,
-            speaking_rate=tts_conf.speaking_rate,
-        )
-        connect_future = asyncio.run_coroutine_threadsafe(temp_tts.connect(), self.background_loop)
-        connect_future.result()
-        try:
-            return asyncio.run_coroutine_threadsafe(temp_tts.speak(text), self.background_loop).result()
-        finally:
-            try:
-                asyncio.run_coroutine_threadsafe(temp_tts.disconnect(), self.background_loop).result()
-            except Exception as disconnect_error:
-                self.logger.warning("Failed to disconnect temporary ElevenLabs TTS", exc_info=disconnect_error)
+        override_key = (tts_conf.voice_id, tts_conf.model_id, tts_conf.speaking_rate)
+        temp_tts = self._elevenlabs_override_tts.get(override_key)
+        if temp_tts is None:
+            temp_tts = ElevenLabsTTS(
+                elevenlabs_key=api_key,
+                voice_id=tts_conf.voice_id,
+                model_id=tts_conf.model_id,
+                sample_rate=self.sample_rate,
+                speaking_rate=tts_conf.speaking_rate,
+            )
+            connect_future = asyncio.run_coroutine_threadsafe(temp_tts.connect(), self.background_loop)
+            connect_future.result()
+            self._elevenlabs_override_tts[override_key] = temp_tts
+
+        return asyncio.run_coroutine_threadsafe(temp_tts.speak(text), self.background_loop).result()
 
     def elevenlabs_generate_chunk_audio(self, text, amplified=False, tts_conf=None):
         active_tts_conf = tts_conf or self.tts_conf

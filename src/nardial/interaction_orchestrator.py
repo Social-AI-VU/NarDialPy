@@ -514,6 +514,10 @@ class InteractionOrchestrator:
                 sleep(post_speech_delay)
 
     def _elevenlabs_speak(self, text, tts_conf):
+        api_key = environ.get("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable")
+
         if (
             isinstance(self.tts_conf, ElevenLabsTTSConf)
             and tts_conf.voice_id == self.tts_conf.voice_id
@@ -523,7 +527,7 @@ class InteractionOrchestrator:
             return asyncio.run_coroutine_threadsafe(self.tts.speak(text), self.background_loop).result()
 
         temp_tts = ElevenLabsTTS(
-            elevenlabs_key=environ["ELEVENLABS_API_KEY"],
+            elevenlabs_key=api_key,
             voice_id=tts_conf.voice_id,
             model_id=tts_conf.model_id,
             sample_rate=self.sample_rate,
@@ -534,7 +538,10 @@ class InteractionOrchestrator:
         try:
             return asyncio.run_coroutine_threadsafe(temp_tts.speak(text), self.background_loop).result()
         finally:
-            asyncio.run_coroutine_threadsafe(temp_tts.disconnect(), self.background_loop).result()
+            try:
+                asyncio.run_coroutine_threadsafe(temp_tts.disconnect(), self.background_loop).result()
+            except Exception as disconnect_error:
+                self.logger.warning("Failed to disconnect temporary ElevenLabs TTS", exc_info=disconnect_error)
 
     def elevenlabs_generate_chunk_audio(self, text, amplified=False, tts_conf=None):
         active_tts_conf = tts_conf or self.tts_conf

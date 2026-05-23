@@ -424,7 +424,7 @@ def test_character_tts_backend_mismatch(session_history, user_model, topics_of_i
         md.run(agent, session_history, topics_of_interest, user_model)
 
 
-def test_character_tts_type_with_unknown_backend(session_history, user_model, topics_of_interest):
+def test_character_tts_type_used_when_default_backend_unknown(session_history, user_model, topics_of_interest):
     from unittest.mock import Mock
 
     agent = Mock()
@@ -434,7 +434,7 @@ def test_character_tts_type_with_unknown_backend(session_history, user_model, to
     agent.ask_yesno = Mock(return_value="yes")
     agent.ask_open = Mock(return_value="hello")
     agent.ask_options = Mock(return_value="opt")
-    agent.say = Mock()
+    observed = []
 
     class UnknownTTSConf:
         pass
@@ -450,9 +450,13 @@ def test_character_tts_type_with_unknown_backend(session_history, user_model, to
             self.tts_conf = self.interaction_conf.tts_conf
 
     agent.orchestrator = Orchestrator()
+    def _say_side_effect(text):
+        conf = agent.orchestrator.tts_conf
+        observed.append((text, getattr(conf, "voice_id", None)))
+    agent.say = Mock(side_effect=_say_side_effect)
 
     moves = [{"type": "say", "character": "narrator", "text": "line 1"}]
     characters = {"narrator": {"voice_settings": {"tts_type": "elevenlabs", "voice_id": "narrator_voice"}}}
     md = MiniDialog("test", moves=moves, characters=characters)
-    with pytest.raises(ValueError, match="requires a known default interaction tts_type"):
-        md.run(agent, session_history, topics_of_interest, user_model)
+    md.run(agent, session_history, topics_of_interest, user_model)
+    assert observed == [("line 1", "narrator_voice")]

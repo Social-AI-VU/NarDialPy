@@ -450,13 +450,20 @@ def test_character_tts_type_used_when_default_backend_unknown(session_history, u
             self.tts_conf = self.interaction_conf.tts_conf
 
     agent.orchestrator = Orchestrator()
-    def say_side_effect(text):
+    def capture_say_call(text):
         conf = agent.orchestrator.tts_conf
-        observed.append((text, getattr(conf, "voice_id", None)))
-    agent.say = Mock(side_effect=say_side_effect)
+        observed.append(
+            (
+                text,
+                getattr(conf, "voice_id", None),
+                getattr(conf, "model_id", None),
+                hasattr(conf, "google_tts_voice_name"),
+            )
+        )
+    agent.say = Mock(side_effect=capture_say_call)
 
     moves = [{"type": "say", "character": "narrator", "text": "line 1"}]
     characters = {"narrator": {"voice_settings": {"tts_type": "elevenlabs", "voice_id": "narrator_voice"}}}
     md = MiniDialog("test", moves=moves, characters=characters)
     md.run(agent, session_history, topics_of_interest, user_model)
-    assert observed == [("line 1", "narrator_voice")]
+    assert observed == [("line 1", "narrator_voice", "eleven_flash_v2_5", False)]

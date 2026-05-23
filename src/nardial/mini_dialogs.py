@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any, Optional, List, cast, Dict
 import re
 from time import monotonic
@@ -203,9 +204,9 @@ class MiniDialog:
         if tts_conf is None:
             return None
         class_name = type(tts_conf).__name__.lower()
-        if "elevenlabs" in class_name or hasattr(tts_conf, "voice_id"):
+        if "elevenlabs" in class_name:
             return "elevenlabs"
-        if "google" in class_name or hasattr(tts_conf, "google_tts_voice_name"):
+        if "google" in class_name:
             return "google"
         if "naoqi" in class_name:
             return "naoqi"
@@ -245,7 +246,7 @@ class MiniDialog:
             }
             if ElevenLabsTTSConf is not None:
                 return ElevenLabsTTSConf(**payload)
-            return type("ElevenLabsTTSConf", (), payload)()
+            return SimpleNamespace(**payload)
         if tts_type == "google":
             payload = {
                 "speaking_rate": speaking_rate if speaking_rate is not None else getattr(fallback_tts_conf, "speaking_rate", 1.0),
@@ -254,12 +255,12 @@ class MiniDialog:
             }
             if GoogleTTSConf is not None:
                 return GoogleTTSConf(**payload)
-            return type("GoogleTTSConf", (), payload)()
+            return SimpleNamespace(**payload)
         if tts_type == "naoqi":
             language = voice_settings.get("language") or getattr(fallback_tts_conf, "language", "English")
             if NaoqiTTSConf is not None:
                 return NaoqiTTSConf(language=language)
-            return type("NaoqiTTSConf", (), {"language": language})()
+            return SimpleNamespace(language=language)
         return None
 
     @contextmanager
@@ -269,6 +270,7 @@ class MiniDialog:
             yield
             return
 
+        # Keep runtime checks for programmatically constructed dialogs that bypass authoring validation.
         if character_id not in self.characters:
             raise ValueError(f"Move references unknown character '{character_id}' in dialog '{self.dialog_id}'")
         character = self.characters.get(character_id)

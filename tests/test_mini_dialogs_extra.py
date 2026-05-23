@@ -318,3 +318,53 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
     assert "Cool answer!" in texts_spoken
     assert "No worries." not in texts_spoken
 
+
+def test_move_character_switches_voice_and_falls_back_to_default(session_history, user_model, topics_of_interest):
+    from unittest.mock import Mock
+
+    agent = Mock()
+    agent.play_audio = Mock()
+    agent.play_motion_sequence = Mock()
+    agent.play_animation = Mock()
+    agent.ask_yesno = Mock(return_value="yes")
+    agent.ask_open = Mock(return_value="hello")
+    agent.ask_options = Mock(return_value="opt")
+    observed = []
+
+    class InteractionConf:
+        def __init__(self):
+            self.tts_conf = type("ElevenLabsTTSConf", (), {"voice_id": "default_voice", "model_id": "eleven_flash_v2_5"})()
+            self.language = "en"
+
+    class Orchestrator:
+        def __init__(self):
+            self.interaction_conf = InteractionConf()
+            self.tts_conf = self.interaction_conf.tts_conf
+
+    agent.orchestrator = Orchestrator()
+
+    def _say_side_effect(text):
+        conf = agent.orchestrator.tts_conf
+        observed.append((text, getattr(conf, "voice_id", None), agent.orchestrator.interaction_conf.language))
+
+    agent.say = Mock(side_effect=_say_side_effect)
+
+    moves = [
+        {"type": "say", "character": "narrator", "text": "line 1"},
+        {"type": "say", "text": "line 2"},
+    ]
+    characters = {
+        "narrator": {
+            "voice_settings": {
+                "tts_type": "elevenlabs",
+                "voice_id": "narrator_voice",
+                "language": "nl",
+                "speaking_rate": 0.9,
+            }
+        }
+    }
+    md = MiniDialog("test", moves=moves, characters=characters)
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert observed[0] == ("line 1", "narrator_voice", "nl")
+    assert observed[1] == ("line 2", "default_voice", "en")

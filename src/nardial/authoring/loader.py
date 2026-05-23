@@ -12,6 +12,17 @@ def _load_json_file(path: str) -> List[Dict[str, Any]]:
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
+        if isinstance(data.get("dialogs"), list):
+            file_characters = data.get("characters")
+            docs: List[Dict[str, Any]] = []
+            for idx, dialog_doc in enumerate(data["dialogs"]):
+                if not isinstance(dialog_doc, dict):
+                    raise ValueError(f"dialogs[{idx}] must be an object")
+                merged = dict(dialog_doc)
+                if "characters" not in merged and file_characters is not None:
+                    merged["characters"] = file_characters
+                docs.append(merged)
+            return docs
         return [data]
     raise ValueError(f"Unsupported JSON root in {path}: {type(data)}")
 

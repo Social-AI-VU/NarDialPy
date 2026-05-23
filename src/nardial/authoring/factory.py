@@ -57,6 +57,8 @@ class MoveFactory:
             errs.append(f"moves[{idx}].animation_name must be string for animation")
         if "set_variable" in move and not isinstance(move.get("set_variable"), str):
             errs.append(f"moves[{idx}].set_variable must be string if present")
+        if "character" in move and not isinstance(move.get("character"), str):
+            errs.append(f"moves[{idx}].character must be string if present")
         if mt == MOVE_BRANCH:
             on_val = move.get("on", "outcome")
             if not isinstance(on_val, str):
@@ -150,12 +152,41 @@ class DialogFactory:
             if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
                 errs.append("quit_signal must be string for llm_based dialogs")
 
+        characters = doc.get("characters")
+        if characters is not None:
+            if not isinstance(characters, dict):
+                errs.append("characters must be an object mapping character ids to definitions")
+            else:
+                for cid, cdef in characters.items():
+                    if not isinstance(cid, str) or not cid:
+                        errs.append("characters keys must be non-empty strings")
+                        continue
+                    if not isinstance(cdef, dict):
+                        errs.append(f"characters.{cid} must be an object")
+                        continue
+                    voice_settings = cdef.get("voice_settings")
+                    if not isinstance(voice_settings, dict):
+                        errs.append(f"characters.{cid}.voice_settings must be an object")
+                        continue
+                    if "tts_type" in voice_settings and not isinstance(voice_settings.get("tts_type"), str):
+                        errs.append(f"characters.{cid}.voice_settings.tts_type must be a string")
+                    if "voice_id" in voice_settings and not isinstance(voice_settings.get("voice_id"), str):
+                        errs.append(f"characters.{cid}.voice_settings.voice_id must be a string")
+                    if "language" in voice_settings and not isinstance(voice_settings.get("language"), str):
+                        errs.append(f"characters.{cid}.voice_settings.language must be a string")
+                    if "speaking_rate" in voice_settings and not isinstance(voice_settings.get("speaking_rate"), (int, float)):
+                        errs.append(f"characters.{cid}.voice_settings.speaking_rate must be numeric")
+
         moves = doc.get("moves")
         if not isinstance(moves, list):
             errs.append("moves must be a list")
         else:
             for i, mv in enumerate(moves):
                 errs.extend(MoveFactory.validate(mv, idx=i))
+                move_character = mv.get("character") if isinstance(mv, dict) else None
+                if move_character is not None:
+                    if not isinstance(characters, dict) or move_character not in characters:
+                        errs.append(f"moves[{i}].character references undefined character '{move_character}'")
         return errs
 
     @staticmethod
@@ -169,6 +200,7 @@ class DialogFactory:
         deps = list(doc.get("dependencies") or [])
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
+        characters = dict(doc.get("characters") or {})
 
         if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
@@ -178,6 +210,7 @@ class DialogFactory:
                 position=int(doc["position"]),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
             )
         if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
@@ -187,6 +220,7 @@ class DialogFactory:
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
             )
         if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
@@ -194,6 +228,7 @@ class DialogFactory:
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+                characters=characters,
             )
         if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
@@ -209,8 +244,9 @@ class DialogFactory:
                 duration=doc.get("duration"),
                 rag_enabled=doc.get("rag_enabled", False),
                 rag_index_name=doc.get("index_name"),
+                characters=characters,
             )
-        return MiniDialog(did, moves, deps, vdeps)
+        return MiniDialog(did, moves, deps, vdeps, characters=characters)
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -220,6 +256,9 @@ class DialogFactory:
             "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
             "moves": list(getattr(d, "moves", []) or []),
         }
+        characters = dict(getattr(d, "characters", {}) or {})
+        if characters:
+            base["characters"] = characters
         if isinstance(d, NarrativeDialog):
             base.update({
                 "type": "narrative",

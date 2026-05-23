@@ -114,7 +114,10 @@ run-gpt
 
 ## Defining Dialogs in JSON
 
-All conversation content lives in a JSON file (or directory of JSON files). The file is a JSON array of dialog objects.
+All conversation content lives in a JSON file (or directory of JSON files). A file can be:
+- a JSON array of dialog objects,
+- a single dialog object,
+- or an object with optional file-level `characters` plus a `dialogs` array.
 
 ### Dialog Structure
 
@@ -125,6 +128,7 @@ Every dialog has the following shared fields:
 | `id` | string | ✅ | Unique identifier referenced in `session_agenda` and `dependencies` |
 | `type` | string | ✅ | Dialog type: `"functional"`, `"chitchat"`, `"narrative"`, or `"llm_based"` |
 | `moves` | array | ✅ | Ordered list of move objects the robot will perform |
+| `characters` | object | | Optional character definitions used by move-level `character` selection |
 | `dependencies` | array of strings | | Dialog IDs that must have been completed before this dialog may run |
 | `variable_dependencies` | array | | Variables that must exist in the user model before this dialog may run |
 
@@ -273,7 +277,8 @@ A fully LLM-driven dialog where the robot and user engage in a free-form multi-t
 
 ### Move Types
 
-Moves are the individual steps inside a dialog's `moves` array. The robot executes them in order.
+Moves are the individual steps inside a dialog's `moves` array. The robot executes them in order.  
+Any speaking/asking move can optionally include `character` to select a named character defined in `characters`.
 
 ---
 
@@ -285,6 +290,7 @@ Speaks a piece of text. Variable placeholders (`%variable_name%`) are replaced a
 |---|---|---|---|
 | `type` | string | ✅ | `"say"` |
 | `text` | string | ✅ | Text to speak. Use `%var%` to insert stored variables. |
+| `character` | string | | Optional character id from the dialog `characters` map |
 
 ```json
 { "type": "say", "text": "Nice to meet you, %first_name%!" }
@@ -305,6 +311,7 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
 | `default_outcome` | string | | Outcome label when no answer or no match is found |
 | `add_interest_from_answer` | boolean | | If `true`, adds the answer to the user's topics of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence after the user replies |
+| `character` | string | | Optional character id from the dialog `characters` map |
 
 ```json
 {
@@ -330,6 +337,7 @@ Asks a yes/no question. The detected intent (`"yes"`, `"no"`, `"dontknow"`) driv
 | `default_outcome` | string | | Outcome label used as fallback |
 | `add_interest` | string | | Topic added to interest list when the user answers `"yes"` |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `character` | string | | Optional character id from the dialog `characters` map |
 
 ```json
 {
@@ -358,6 +366,7 @@ Presents a multiple-choice question. The selected option drives branching and ca
 | `default_outcome` | string | | Outcome label when nothing matches |
 | `add_interest_from_variable` | string | | After storing, adds the named variable's value as a topic of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `character` | string | | Optional character id from the dialog `characters` map |
 
 ```json
 {

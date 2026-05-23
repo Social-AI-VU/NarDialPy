@@ -1,4 +1,5 @@
-from typing import Any, Optional, List, cast
+from contextlib import contextmanager
+from typing import Any, Optional, List, cast, Dict
 import re
 from time import monotonic
 
@@ -22,7 +23,7 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
@@ -32,18 +33,26 @@ class MiniDialog:
         self.moves = moves
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
+        self.characters = dict(characters or {})
 
         self.conversation_agent = None
         self.session_history = []
         self.topics_of_interest = []
         self.user_model = {}
         self.current_outcome = None
+        self._default_tts_conf = None
+        self._default_language = None
 
     def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
         self.conversation_agent = agent
         self.session_history = session_history if session_history is not None else []
         self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
         self.user_model = user_model if user_model is not None else {}
+        orchestrator = getattr(agent, "orchestrator", None)
+        if orchestrator is not None:
+            self._default_tts_conf = getattr(orchestrator, "tts_conf", None)
+            interaction_conf = getattr(orchestrator, "interaction_conf", None)
+            self._default_language = getattr(interaction_conf, "language", None) if interaction_conf is not None else None
 
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod
@@ -162,27 +171,135 @@ class MiniDialog:
     def _dispatch_move(self, move) -> None:
         """Execute a single move dict."""
         move_type = self._get(move, 'type')
-        if move_type == MOVE_SAY:
-            self.handle_move_say(move)
-        elif move_type == MOVE_ASK_YESNO:
-            answer = self.handle_move_ask_yesno(move)
-            self._resolve_outcome(move, answer)
-        elif move_type == MOVE_ASK_OPEN:
-            answer = self.handle_move_ask_open(move)
-            self._resolve_outcome(move, answer)
-        elif move_type == MOVE_ASK_OPTIONS:
-            answer = self.handle_move_ask_options(move)
-            self._resolve_outcome(move, answer)
-        elif move_type == MOVE_BRANCH:
+        if move_type == MOVE_BRANCH:
             self.handle_move_branch(move)
-        elif move_type == MOVE_PLAY_AUDIO:
-            self.handle_move_play_audio(move)
-        elif move_type == MOVE_MOTION_SEQUENCE:
-            self.handle_move_motion_sequence(move)
-        elif move_type == MOVE_ANIMATION:
-            self.handle_move_animation(move)
-        elif move_type == MOVE_ASK_LLM:
+            return
+
+        with self._character_voice_context(move):
+            if move_type == MOVE_SAY:
+                self.handle_move_say(move)
+            elif move_type == MOVE_ASK_YESNO:
+                answer = self.handle_move_ask_yesno(move)
+                self._resolve_outcome(move, answer)
+            elif move_type == MOVE_ASK_OPEN:
+                answer = self.handle_move_ask_open(move)
+                self._resolve_outcome(move, answer)
+            elif move_type == MOVE_ASK_OPTIONS:
+                answer = self.handle_move_ask_options(move)
+                self._resolve_outcome(move, answer)
+            elif move_type == MOVE_PLAY_AUDIO:
+                self.handle_move_play_audio(move)
+            elif move_type == MOVE_MOTION_SEQUENCE:
+                self.handle_move_motion_sequence(move)
+            elif move_type == MOVE_ANIMATION:
+                self.handle_move_animation(move)
+            elif move_type == MOVE_ASK_LLM:
                 self.handle_move_ask_llm(move)
+
+    @staticmethod
+    def _infer_tts_type_from_conf(tts_conf: Optional[Any]) -> Optional[str]:
+        if tts_conf is None:
+            return None
+        class_name = type(tts_conf).__name__.lower()
+        if "elevenlabs" in class_name or hasattr(tts_conf, "voice_id"):
+            return "elevenlabs"
+        if "google" in class_name or hasattr(tts_conf, "google_tts_voice_name"):
+            return "google"
+        if "naoqi" in class_name:
+            return "naoqi"
+        if hasattr(tts_conf, "language"):
+            return "naoqi"
+        return None
+
+    @staticmethod
+    def _map_voice_settings_to_tts_conf(voice_settings: Dict[str, Any], fallback_tts_conf: Optional[Any]) -> Optional[Any]:
+        if not isinstance(voice_settings, dict):
+            return None
+
+        GoogleTTSConf = ElevenLabsTTSConf = NaoqiTTSConf = None
+        try:
+            from nardial.tts_manager import GoogleTTSConf as _GoogleTTSConf, ElevenLabsTTSConf as _ElevenLabsTTSConf, NaoqiTTSConf as _NaoqiTTSConf
+            GoogleTTSConf = _GoogleTTSConf
+            ElevenLabsTTSConf = _ElevenLabsTTSConf
+            NaoqiTTSConf = _NaoqiTTSConf
+        except Exception:
+            pass
+
+        tts_type = (voice_settings.get("tts_type") or "").strip().lower()
+        if not tts_type:
+            inferred = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
+            if inferred:
+                tts_type = inferred
+
+        speaking_rate = voice_settings.get("speaking_rate")
+        voice_id = voice_settings.get("voice_id")
+
+        if tts_type == "elevenlabs":
+            fallback_model_id = getattr(fallback_tts_conf, "model_id", "eleven_flash_v2_5")
+            payload = {
+                "speaking_rate": speaking_rate,
+                "voice_id": voice_id or getattr(fallback_tts_conf, "voice_id", 'yO6w2xlECAQRFP6pX7Hw'),
+                "model_id": voice_settings.get("model_id", fallback_model_id),
+            }
+            if ElevenLabsTTSConf is not None:
+                return ElevenLabsTTSConf(**payload)
+            return type("ElevenLabsTTSConf", (), payload)()
+        if tts_type == "google":
+            payload = {
+                "speaking_rate": speaking_rate if speaking_rate is not None else getattr(fallback_tts_conf, "speaking_rate", 1.0),
+                "google_tts_voice_name": voice_id or getattr(fallback_tts_conf, "google_tts_voice_name", "en-US-Standard-C"),
+                "google_tts_voice_gender": voice_settings.get("voice_gender", getattr(fallback_tts_conf, "google_tts_voice_gender", "FEMALE")),
+            }
+            if GoogleTTSConf is not None:
+                return GoogleTTSConf(**payload)
+            return type("GoogleTTSConf", (), payload)()
+        if tts_type == "naoqi":
+            language = voice_settings.get("language") or getattr(fallback_tts_conf, "language", "English")
+            if NaoqiTTSConf is not None:
+                return NaoqiTTSConf(language=language)
+            return type("NaoqiTTSConf", (), {"language": language})()
+        return None
+
+    @contextmanager
+    def _character_voice_context(self, move):
+        character_id = self._get(move, "character")
+        if not character_id:
+            yield
+            return
+
+        character = self.characters.get(character_id)
+        if not isinstance(character, dict):
+            raise ValueError(f"Move references unknown character '{character_id}' in dialog '{self.dialog_id}'")
+        voice_settings = character.get("voice_settings")
+        if not isinstance(voice_settings, dict):
+            raise ValueError(f"Character '{character_id}' must define a voice_settings object")
+
+        orchestrator = getattr(self.conversation_agent, "orchestrator", None)
+        if orchestrator is None:
+            yield
+            return
+
+        interaction_conf = getattr(orchestrator, "interaction_conf", None)
+        original_tts_conf = getattr(orchestrator, "tts_conf", None)
+        original_interaction_tts = getattr(interaction_conf, "tts_conf", None) if interaction_conf is not None else None
+        original_language = getattr(interaction_conf, "language", None) if interaction_conf is not None else None
+
+        mapped_tts_conf = self._map_voice_settings_to_tts_conf(voice_settings, self._default_tts_conf or original_tts_conf)
+        if mapped_tts_conf is not None:
+            orchestrator.tts_conf = mapped_tts_conf
+            if interaction_conf is not None:
+                interaction_conf.tts_conf = mapped_tts_conf
+        language = voice_settings.get("language")
+        if interaction_conf is not None and language:
+            interaction_conf.language = language
+
+        try:
+            yield
+        finally:
+            orchestrator.tts_conf = original_tts_conf
+            if interaction_conf is not None:
+                interaction_conf.tts_conf = original_interaction_tts
+                interaction_conf.language = original_language
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
@@ -363,9 +480,9 @@ class FunctionalType(Enum):
 
 
 class FunctionalDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, type, dependencies=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, characters=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies)
+        super().__init__(dialog_id, moves, dependencies, characters=characters)
         self.type = type
 
     def is_greeting_dialog(self):
@@ -376,17 +493,17 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.thread = thread
         self.position = position
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.theme = theme
         self.topics = topics or []
 
@@ -395,8 +512,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, rag_index_name: Optional[str] = None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+                 rag_enabled: bool = False, rag_index_name: Optional[str] = None, characters=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first

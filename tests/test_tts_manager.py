@@ -47,7 +47,11 @@ def test_elevenlabs_speak_collects_all_audio_chunks():
         json.dumps({"isFinal": True}),
     ])
 
-    tts = ElevenLabsTTS(elevenlabs_key="k", voice_id="v", model_id="m")
+    tts = ElevenLabsTTS(
+        elevenlabs_key="test_key_not_real",
+        voice_id="test_voice_not_real",
+        model_id="test_model_not_real",
+    )
     tts.websocket = fake_ws
     tts.connect = AsyncMock()
     tts.drain_socket = AsyncMock()

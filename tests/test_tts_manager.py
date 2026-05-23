@@ -49,8 +49,15 @@ def test_elevenlabs_speak_collects_all_audio_chunks():
     tts = ElevenLabsTTS(elevenlabs_key="k", voice_id="v", model_id="m")
     tts.websocket = fake_ws
     tts.connect = lambda: None
-    tts.drain_socket = lambda: asyncio.sleep(0)
-    tts.ping_connection = lambda: asyncio.sleep(0, result=True)
+
+    async def _noop():
+        return None
+
+    async def _always_true():
+        return True
+
+    tts.drain_socket = _noop
+    tts.ping_connection = _always_true
 
     audio = asyncio.run(tts.speak("test sentence"))
 

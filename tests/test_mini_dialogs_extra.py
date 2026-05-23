@@ -467,3 +467,75 @@ def test_character_tts_type_used_when_default_backend_unknown(session_history, u
     md = MiniDialog("test", moves=moves, characters=characters)
     md.run(agent, session_history, topics_of_interest, user_model)
     assert observed == [("line 1", "narrator_voice", DEFAULT_ELEVENLABS_MODEL_ID, False)]
+
+
+def test_character_tts_type_overrides_implicit_default_google_backend(session_history, user_model, topics_of_interest):
+    from unittest.mock import Mock
+
+    agent = Mock()
+    agent.play_audio = Mock()
+    agent.play_motion_sequence = Mock()
+    agent.play_animation = Mock()
+    agent.ask_yesno = Mock(return_value="yes")
+    agent.ask_open = Mock(return_value="hello")
+    agent.ask_options = Mock(return_value="opt")
+    observed = []
+
+    class InteractionConf:
+        def __init__(self):
+            self.tts_conf = _GoogleTTSConfMock()
+            self.language = "en"
+            self._tts_conf_explicitly_provided = False
+
+    class Orchestrator:
+        def __init__(self):
+            self.interaction_conf = InteractionConf()
+            self.tts_conf = self.interaction_conf.tts_conf
+            self.tts = "google-runtime"
+            self.sample_rate = 16000
+            self.elevenlabs = None
+            self.activated_backends = []
+
+        def activate_elevenlabs_tts(self):
+            self.activated_backends.append("elevenlabs")
+            self.tts = "elevenlabs-runtime"
+            self.sample_rate = 22050
+            self.elevenlabs = object()
+
+    agent.orchestrator = Orchestrator()
+
+    def capture_say_call(text):
+        conf = agent.orchestrator.tts_conf
+        observed.append(
+            (
+                text,
+                getattr(conf, "voice_id", None),
+                hasattr(conf, "google_tts_voice_name"),
+            )
+        )
+
+    agent.say = Mock(side_effect=capture_say_call)
+
+    moves = [
+        {"type": "say", "character": "narrator", "text": "line 1"},
+        {"type": "say", "text": "line 2"},
+    ]
+    characters = {
+        "narrator": {
+            "voice_settings": {
+                "tts_type": "elevenlabs",
+                "voice_id": "narrator_voice",
+            }
+        }
+    }
+    md = MiniDialog("test", moves=moves, characters=characters)
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert observed == [
+        ("line 1", "narrator_voice", False),
+        ("line 2", None, True),
+    ]
+    assert agent.orchestrator.activated_backends == ["elevenlabs"]
+    assert agent.orchestrator.tts == "google-runtime"
+    assert isinstance(agent.orchestrator.tts_conf, _GoogleTTSConfMock)
+    assert isinstance(agent.orchestrator.interaction_conf.tts_conf, _GoogleTTSConfMock)

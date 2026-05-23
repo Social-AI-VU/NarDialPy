@@ -225,7 +225,27 @@ class MiniDialog:
         return None
 
     @staticmethod
-    def _map_voice_settings_to_tts_conf(voice_settings: Dict[str, Any], fallback_tts_conf: Optional[Any]) -> Optional[Any]:
+    def _resolve_tts_type(
+            voice_settings: Dict[str, Any],
+            fallback_tts_conf: Optional[Any],
+            allow_tts_type_override: bool = False
+    ) -> Optional[str]:
+        default_tts_type = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
+        voice_tts_type = (voice_settings.get("tts_type") or "").strip().lower()
+        if voice_tts_type and default_tts_type and voice_tts_type != default_tts_type and not allow_tts_type_override:
+            raise ValueError(
+                f"Character voice_settings.tts_type '{voice_tts_type}' must match default interaction tts_type '{default_tts_type}'"
+            )
+        if allow_tts_type_override and voice_tts_type:
+            return voice_tts_type
+        return default_tts_type or voice_tts_type
+
+    @staticmethod
+    def _map_voice_settings_to_tts_conf(
+            voice_settings: Dict[str, Any],
+            fallback_tts_conf: Optional[Any],
+            allow_tts_type_override: bool = False
+    ) -> Optional[Any]:
         if not isinstance(voice_settings, dict):
             return None
 
@@ -240,13 +260,11 @@ class MiniDialog:
         except ImportError:
             pass
 
-        default_tts_type = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
-        voice_tts_type = (voice_settings.get("tts_type") or "").strip().lower()
-        if voice_tts_type and default_tts_type and voice_tts_type != default_tts_type:
-            raise ValueError(
-                f"Character voice_settings.tts_type '{voice_tts_type}' must match default interaction tts_type '{default_tts_type}'"
-            )
-        tts_type = default_tts_type or voice_tts_type
+        tts_type = MiniDialog._resolve_tts_type(
+            voice_settings,
+            fallback_tts_conf,
+            allow_tts_type_override=allow_tts_type_override,
+        )
 
         speaking_rate = voice_settings.get("speaking_rate")
         voice_id = voice_settings.get("voice_id")
@@ -305,12 +323,44 @@ class MiniDialog:
         original_tts_conf = getattr(orchestrator, "tts_conf", None)
         original_interaction_tts = getattr(interaction_conf, "tts_conf", None) if interaction_conf is not None else None
         original_language = getattr(interaction_conf, "language", None) if interaction_conf is not None else None
+        original_tts_runtime = getattr(orchestrator, "tts", None)
+        original_sample_rate = getattr(orchestrator, "sample_rate", None)
+        original_elevenlabs = getattr(orchestrator, "elevenlabs", None)
+        original_tts_type = self._infer_tts_type_from_conf(original_tts_conf)
+        allow_tts_type_override = (
+                interaction_conf is not None
+                and getattr(interaction_conf, "_tts_conf_explicitly_provided", True) is False
+        )
 
-        mapped_tts_conf = self._map_voice_settings_to_tts_conf(voice_settings, self._default_tts_conf or original_tts_conf)
+        mapped_tts_conf = self._map_voice_settings_to_tts_conf(
+            voice_settings,
+            self._default_tts_conf or original_tts_conf,
+            allow_tts_type_override=allow_tts_type_override,
+        )
+        mapped_tts_type = self._resolve_tts_type(
+            voice_settings,
+            self._default_tts_conf or original_tts_conf,
+            allow_tts_type_override=allow_tts_type_override,
+        )
+        switched_tts_backend = False
         if mapped_tts_conf is not None:
             orchestrator.tts_conf = mapped_tts_conf
             if interaction_conf is not None:
                 interaction_conf.tts_conf = mapped_tts_conf
+            switched_tts_backend = (
+                    original_tts_type is not None
+                    and mapped_tts_type is not None
+                    and mapped_tts_type != original_tts_type
+            )
+            if switched_tts_backend:
+                activator_name = {
+                    "google": "activate_google_tts",
+                    "elevenlabs": "activate_elevenlabs_tts",
+                    "naoqi": None,
+                }.get(mapped_tts_type)
+                activator = getattr(orchestrator, activator_name, None) if activator_name else None
+                if callable(activator):
+                    activator()
         language = voice_settings.get("language")
         if interaction_conf is not None and language:
             interaction_conf.language = language
@@ -322,6 +372,13 @@ class MiniDialog:
             if interaction_conf is not None:
                 interaction_conf.tts_conf = original_interaction_tts
                 interaction_conf.language = original_language
+            if switched_tts_backend:
+                if hasattr(orchestrator, "tts"):
+                    orchestrator.tts = original_tts_runtime
+                if hasattr(orchestrator, "sample_rate"):
+                    orchestrator.sample_rate = original_sample_rate
+                if hasattr(orchestrator, "elevenlabs"):
+                    orchestrator.elevenlabs = original_elevenlabs
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""

@@ -116,6 +116,7 @@ class InteractionConfig:
         self.language = language
         self.keyboard_input = keyboard_input
 
+        self._tts_conf_explicitly_provided = tts_conf is not None
         self.tts_conf = tts_conf
         if not tts_conf:
             self.tts_conf = GoogleTTSConf(

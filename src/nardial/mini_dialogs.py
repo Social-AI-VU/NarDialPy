@@ -240,11 +240,13 @@ class MiniDialog:
         except ImportError:
             pass
 
-        tts_type = (voice_settings.get("tts_type") or "").strip().lower()
-        if not tts_type:
-            inferred = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
-            if inferred:
-                tts_type = inferred
+        default_tts_type = MiniDialog._infer_tts_type_from_conf(fallback_tts_conf)
+        voice_tts_type = (voice_settings.get("tts_type") or "").strip().lower()
+        if voice_tts_type and default_tts_type and voice_tts_type != default_tts_type:
+            raise ValueError(
+                f"Character voice_settings.tts_type '{voice_tts_type}' must match default interaction tts_type '{default_tts_type}'"
+            )
+        tts_type = default_tts_type or voice_tts_type
 
         speaking_rate = voice_settings.get("speaking_rate")
         voice_id = voice_settings.get("voice_id")

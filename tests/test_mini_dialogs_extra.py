@@ -1,3 +1,5 @@
+import pytest
+
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
@@ -368,3 +370,47 @@ def test_move_character_switches_voice_and_falls_back_to_default(session_history
 
     assert observed[0] == ("line 1", "narrator_voice", "nl")
     assert observed[1] == ("line 2", "default_voice", "en")
+
+
+def test_move_character_tts_type_must_match_default_interaction_tts(session_history, user_model, topics_of_interest):
+    from unittest.mock import Mock
+
+    agent = Mock()
+    agent.play_audio = Mock()
+    agent.play_motion_sequence = Mock()
+    agent.play_animation = Mock()
+    agent.ask_yesno = Mock(return_value="yes")
+    agent.ask_open = Mock(return_value="hello")
+    agent.ask_options = Mock(return_value="opt")
+    agent.say = Mock()
+
+    class GoogleTTSConf:
+        def __init__(self):
+            self.google_tts_voice_name = "en-US-Standard-C"
+            self.google_tts_voice_gender = "FEMALE"
+            self.speaking_rate = 1.0
+
+    class InteractionConf:
+        def __init__(self):
+            self.tts_conf = GoogleTTSConf()
+            self.language = "en"
+
+    class Orchestrator:
+        def __init__(self):
+            self.interaction_conf = InteractionConf()
+            self.tts_conf = self.interaction_conf.tts_conf
+
+    agent.orchestrator = Orchestrator()
+
+    moves = [{"type": "say", "character": "narrator", "text": "line 1"}]
+    characters = {
+        "narrator": {
+            "voice_settings": {
+                "tts_type": "elevenlabs",
+                "voice_id": "narrator_voice",
+            }
+        }
+    }
+    md = MiniDialog("test", moves=moves, characters=characters)
+    with pytest.raises(ValueError, match="must match default interaction tts_type 'google'"):
+        md.run(agent, session_history, topics_of_interest, user_model)

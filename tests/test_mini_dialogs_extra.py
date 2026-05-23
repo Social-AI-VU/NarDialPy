@@ -402,6 +402,7 @@ def test_character_tts_backend_mismatch(session_history, user_model, topics_of_i
         def __init__(self):
             self.tts_conf = _GoogleTTSConfMock()
             self.language = "en"
+            self._tts_conf_explicitly_provided = True
 
     class Orchestrator:
         def __init__(self):

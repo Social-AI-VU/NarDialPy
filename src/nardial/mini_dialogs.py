@@ -27,6 +27,12 @@ DEFAULT_ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
 
 
 class MiniDialog:
+    _TTS_BACKEND_ACTIVATORS = {
+        "google": "activate_google_tts",
+        "elevenlabs": "activate_elevenlabs_tts",
+        "naoqi": None,
+    }
+
     def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
@@ -329,6 +335,7 @@ class MiniDialog:
         original_tts_type = self._infer_tts_type_from_conf(original_tts_conf)
         allow_tts_type_override = (
                 interaction_conf is not None
+                # Missing flag defaults to strict mode for backwards compatibility.
                 and getattr(interaction_conf, "_tts_conf_explicitly_provided", True) is False
         )
 
@@ -353,11 +360,7 @@ class MiniDialog:
                     and mapped_tts_type != original_tts_type
             )
             if switched_tts_backend:
-                activator_name = {
-                    "google": "activate_google_tts",
-                    "elevenlabs": "activate_elevenlabs_tts",
-                    "naoqi": None,
-                }.get(mapped_tts_type)
+                activator_name = self._TTS_BACKEND_ACTIVATORS.get(mapped_tts_type)
                 activator = getattr(orchestrator, activator_name, None) if activator_name else None
                 if callable(activator):
                     activator()

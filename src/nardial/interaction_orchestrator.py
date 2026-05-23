@@ -799,11 +799,14 @@ class InteractionOrchestrator:
             disconnect_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.disconnect(), self.background_loop)
             disconnect_elevenlabs_future.result()
             for override_tts in self._elevenlabs_override_tts.values():
-                disconnect_override_future = asyncio.run_coroutine_threadsafe(
-                    override_tts.disconnect(),
-                    self.background_loop,
-                )
-                disconnect_override_future.result()
+                try:
+                    disconnect_override_future = asyncio.run_coroutine_threadsafe(
+                        override_tts.disconnect(),
+                        self.background_loop,
+                    )
+                    disconnect_override_future.result()
+                except Exception as disconnect_error:
+                    self.logger.warning("Failed to disconnect cached ElevenLabs override TTS", exc_info=disconnect_error)
             self._elevenlabs_override_tts.clear()
 
         if self.device_name == 'alphamini':

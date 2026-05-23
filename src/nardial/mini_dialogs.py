@@ -21,6 +21,7 @@ class DialogType(Enum):
 
 MAX_LLM_TURNS = 5
 DEFAULT_ELEVENLABS_VOICE_ID = "yO6w2xlECAQRFP6pX7Hw"
+DEFAULT_ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"
 
 
 class MiniDialog:
@@ -215,7 +216,9 @@ class MiniDialog:
         if not isinstance(voice_settings, dict):
             return None
 
-        GoogleTTSConf = ElevenLabsTTSConf = NaoqiTTSConf = None
+        GoogleTTSConf = None
+        ElevenLabsTTSConf = None
+        NaoqiTTSConf = None
         try:
             from nardial.tts_manager import GoogleTTSConf as _GoogleTTSConf, ElevenLabsTTSConf as _ElevenLabsTTSConf, NaoqiTTSConf as _NaoqiTTSConf
             GoogleTTSConf = _GoogleTTSConf
@@ -234,7 +237,7 @@ class MiniDialog:
         voice_id = voice_settings.get("voice_id")
 
         if tts_type == "elevenlabs":
-            fallback_model_id = getattr(fallback_tts_conf, "model_id", "eleven_flash_v2_5")
+            fallback_model_id = getattr(fallback_tts_conf, "model_id", DEFAULT_ELEVENLABS_MODEL_ID)
             payload = {
                 "speaking_rate": speaking_rate,
                 "voice_id": voice_id or getattr(fallback_tts_conf, "voice_id", DEFAULT_ELEVENLABS_VOICE_ID),
@@ -266,9 +269,11 @@ class MiniDialog:
             yield
             return
 
+        if character_id not in self.characters:
+            raise ValueError(f"Move references unknown character '{character_id}' in dialog '{self.dialog_id}'")
         character = self.characters.get(character_id)
         if not isinstance(character, dict):
-            raise ValueError(f"Move references unknown character '{character_id}' in dialog '{self.dialog_id}'")
+            raise ValueError(f"Character '{character_id}' must be an object")
         voice_settings = character.get("voice_settings")
         if not isinstance(voice_settings, dict):
             raise ValueError(f"Character '{character_id}' must define a voice_settings object")

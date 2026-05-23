@@ -153,11 +153,12 @@ class DialogFactory:
                 errs.append("quit_signal must be string for llm_based dialogs")
 
         characters = doc.get("characters")
+        characters_dict = characters if isinstance(characters, dict) else None
         if characters is not None:
-            if not isinstance(characters, dict):
+            if characters_dict is None:
                 errs.append("characters must be an object mapping character ids to definitions")
             else:
-                for cid, cdef in characters.items():
+                for cid, cdef in characters_dict.items():
                     if not isinstance(cid, str) or not cid:
                         errs.append("characters keys must be non-empty strings")
                         continue
@@ -185,7 +186,7 @@ class DialogFactory:
                 errs.extend(MoveFactory.validate(mv, idx=i))
                 move_character = mv.get("character") if isinstance(mv, dict) else None
                 if move_character is not None:
-                    if not isinstance(characters, dict) or move_character not in characters:
+                    if characters_dict is None or move_character not in characters_dict:
                         errs.append(f"moves[{i}].character references undefined character '{move_character}'")
         return errs
 

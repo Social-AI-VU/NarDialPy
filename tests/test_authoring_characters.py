@@ -49,3 +49,14 @@ def test_dialog_factory_rejects_unknown_character_on_move():
     }
     with pytest.raises(ValueError, match="references undefined character"):
         DialogFactory.from_json(doc)
+
+
+def test_dialog_factory_rejects_character_on_move_when_characters_missing():
+    doc = {
+        "id": "d1",
+        "type": "functional",
+        "functional_type": "greeting",
+        "moves": [{"type": "say", "character": "narrator", "text": "Hello"}],
+    }
+    with pytest.raises(ValueError, match="references undefined character"):
+        DialogFactory.from_json(doc)

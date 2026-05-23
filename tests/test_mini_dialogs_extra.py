@@ -333,7 +333,7 @@ def test_move_character_switches_voice_and_falls_back_to_default(session_history
 
     class InteractionConf:
         def __init__(self):
-            self.tts_conf = type("ElevenLabsTTSConf", (), {"voice_id": "default_voice", "model_id": "eleven_flash_v2_5"})()
+            self.tts_conf = Mock(voice_id="default_voice", model_id="eleven_flash_v2_5")
             self.language = "en"
 
     class Orchestrator:

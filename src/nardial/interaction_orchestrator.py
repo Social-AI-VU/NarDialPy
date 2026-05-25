@@ -516,6 +516,7 @@ class InteractionOrchestrator:
                 sleep(post_speech_delay)
 
     def _elevenlabs_speak(self, text, tts_conf):
+        """Speak text with ElevenLabs, reusing cached override clients when needed."""
         api_key = environ.get("ELEVENLABS_API_KEY")
         if not api_key:
             raise ValueError("ElevenLabs TTS requires an ELEVENLABS_API_KEY environment variable")
@@ -802,6 +803,7 @@ class InteractionOrchestrator:
         if isinstance(self.tts_conf, ElevenLabsTTSConf):
             disconnect_elevenlabs_future = asyncio.run_coroutine_threadsafe(self.tts.disconnect(), self.background_loop)
             disconnect_elevenlabs_future.result()
+            # Ensure any temporary override clients are disconnected before clearing the cache.
             for override_tts in self._elevenlabs_override_tts.values():
                 try:
                     disconnect_override_future = asyncio.run_coroutine_threadsafe(

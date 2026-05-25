@@ -18,7 +18,6 @@ if __name__ == '__main__':
             language="en",
         )
     )
-    interaction_config.always_regenerate = True
 
     agent = ConversationAgent(device_manager=device, int_config=interaction_config)
 

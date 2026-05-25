@@ -550,6 +550,9 @@ class InteractionOrchestrator:
 
         # ElevenLabs TTS returns bytes
         audio_bytes = self._elevenlabs_speak(text, active_tts_conf)
+        if not audio_bytes:
+            self.logger.error("Failed to generate audio")
+            return b""
 
         if audio_bytes and amplified:
             audio_bytes = self._amplify_audio(audio_bytes)

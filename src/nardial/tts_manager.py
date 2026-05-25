@@ -58,8 +58,7 @@ class ElevenLabsTTSConf(TTSConf):
             voice_id (str): Voice identifier in ElevenLabs.
             model_id (str): Model identifier used for synthesis.
     """
-    def __init__(self, speaking_rate=None, voice_id='yO6w2xlECAQRFP6pX7Hw', model_id='eleven_flash_v2_5',
-                 language=None):
+    def __init__(self, speaking_rate=None, voice_id='yO6w2xlECAQRFP6pX7Hw', model_id='eleven_flash_v2_5', language=None):
         super().__init__()
         self.speaking_rate = None if speaking_rate == 1.0 else speaking_rate
         self.voice_id = voice_id
@@ -142,10 +141,7 @@ class ElevenLabsTTS:
         if self.websocket:
             try:
                 await self.websocket.send(dumps({"text": ""}))  # end marker
-                await self.websocket.close()
-                wait_closed = getattr(self.websocket, "wait_closed", None)
-                if callable(wait_closed):
-                    await wait_closed()
+                await self.websocket.closed()
             except Exception as e:
                 self.logger.error(f"[TTS] Error while closing websocket: {e}")
             finally:
@@ -197,7 +193,8 @@ class ElevenLabsTTS:
 
         await self.drain_socket()
         # Send sentence
-        await self.websocket.send(dumps({"text": text, "flush": True}))
+        await self.websocket.send(dumps({"text": text}))
+        await self.websocket.send(dumps({"text": ""}))
 
         audio_chunks = []
         while True:
@@ -208,9 +205,9 @@ class ElevenLabsTTS:
                 if data.get("audio"):
                     audio_chunks.append(base64.b64decode(data["audio"]))
                 if data.get("isFinal"):
-                    return b"".join(audio_chunks) if audio_chunks else None
+                    return b"".join(audio_chunks)
             except asyncio.TimeoutError:
-                self.logger.error('[TTS] No audio received from ElevenLabs')
+                self.logger.error('[TTS] No audio received from Elevenlabs')
                 self.websocket = None
                 return None
             except websockets.exceptions.ConnectionClosedOK:
@@ -291,6 +288,7 @@ class TTSCacher:
                 "speaking_rate": voice_conf.speaking_rate,
                 "setting_1": voice_conf.google_tts_voice_name,
                 "setting_2": voice_conf.google_tts_voice_gender,
+                "setting_3": getattr(voice_conf, "language", None),
             }
         elif isinstance(voice_conf, ElevenLabsTTSConf):
             payload = {
@@ -299,7 +297,6 @@ class TTSCacher:
                 "speaking_rate": voice_conf.speaking_rate,
                 "setting_1": voice_conf.model_id,
                 "setting_2": voice_conf.voice_id,
-                "setting_3": getattr(voice_conf, "language", None),
             }
         else:
             raise ValueError(f'Voice Conf {voice_conf} is not supported.')

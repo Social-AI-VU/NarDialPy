@@ -267,6 +267,7 @@ class InteractionOrchestrator:
         self.tts = None
         self.sample_rate = None
         self.elevenlabs = None
+        # Cache per-configuration ElevenLabs clients used for temporary voice overrides.
         self._elevenlabs_override_tts = {}
         self.tts_conf = self.interaction_conf.tts_conf
         self.tts_cacher = TTSCacher()

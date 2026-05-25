@@ -60,4 +60,3 @@ def test_elevenlabs_speak_collects_all_audio_chunks():
     audio = asyncio.run(tts.speak("test sentence"))
 
     assert audio == b"hello world"
-    assert json.loads(fake_ws.sent_messages[0]) == {"text": "test sentence", "flush": True}

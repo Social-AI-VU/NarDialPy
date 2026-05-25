@@ -21,7 +21,7 @@ if __name__ == '__main__':
     session_manager = SessionManager(
         session_agenda=[],
         agent=agent,
-        dialog_json_path="dialog_with_characters.json",
+        dialog_json_path="dialog_with_characters_googletts.json",
     )
 
     session_manager.run()

@@ -140,9 +140,6 @@ class DialogFactory:
                 errs.append("duration must be numeric seconds for llm_based dialogs")
             if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
                 errs.append("rag_enabled must be boolean for llm_based dialogs")
-            if doc.get("rag_enabled") is True and not (
-                    isinstance(doc.get("index_name"), str) and doc.get("index_name").strip()):
-                errs.append("index_name must be a non-empty string when rag_enabled is true for llm_based dialogs")
             quit_phrases = doc.get("quit_phrases")
             if quit_phrases is not None and (
                     not isinstance(quit_phrases, list) or not all(isinstance(x, str) for x in quit_phrases)):
@@ -208,7 +205,7 @@ class DialogFactory:
                 speak_first=doc.get("speak_first", True),
                 duration=doc.get("duration"),
                 rag_enabled=doc.get("rag_enabled", False),
-                rag_index_name=doc.get("index_name"),
+                index_name=doc.get("index_name"),
             )
         return MiniDialog(did, moves, deps, vdeps)
 
@@ -247,7 +244,7 @@ class DialogFactory:
                 "speak_first": getattr(d, "speak_first", True),
                 "duration": getattr(d, "duration", None),
                 "rag_enabled": getattr(d, "rag_enabled", False),
-                "index_name": getattr(d, "rag_index_name", None),
+                "index_name": getattr(d, "index_name", None),
             })
         else:
             base.update({"type": "unknown"})

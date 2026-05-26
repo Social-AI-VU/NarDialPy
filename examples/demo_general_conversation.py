@@ -14,6 +14,7 @@ from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
 from sic_framework.devices.desktop import Desktop
 
 from nardial.providers.device.desktop import DesktopAdapter
+from nardial.providers.tts.google import GoogleTTSProvider, GoogleTTSConf
 from nardial.providers.tts.null import NullTTSProvider
 from nardial.providers.nlu.written_keyword import WrittenKeywordNLUProvider
 from nardial.conversation_agent import ConversationAgent
@@ -23,6 +24,9 @@ from nardial.session_manager import SessionManager
 # setup key file paths
 dialog_json_path = abspath(join("..", "examples", "dialogs.json"))
 
+# Path to your Google / Dialogflow credentials
+google_keyfile_path = abspath(join("..", "conf", "google", "google_keyfile.json"))
+
 if __name__ == '__main__':
     # Select device
     desktop = Desktop(speakers_conf=SpeakersConf(sample_rate=22050))
@@ -30,7 +34,11 @@ if __name__ == '__main__':
     # device = PepperAdapter(Pepper(ip="10.0.0.148"))
 
     # Create providers — swap NullTTSProvider for GoogleTTSProvider to enable speech output
-    tts = NullTTSProvider()
+    tts_conf = GoogleTTSConf(
+        speaking_rate=1.0,          # speech speed (0.25–4.0)
+        google_tts_voice_name="en-US-Neural2-C",  # voice selection
+    )
+    tts = GoogleTTSProvider(conf=tts_conf,  device=device, keyfile_path=google_keyfile_path)
     nlu = WrittenKeywordNLUProvider()
 
     # Create conversational agent

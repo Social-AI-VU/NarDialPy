@@ -22,7 +22,7 @@ class AlphaminiAdapter:
     def setup(self, logger: Any) -> None:
         self._logger = logger
         self._speaker = self._device.speaker
-        print("\n Device is ALPHAMINI")
+        self._logger.info("Device is ALPHAMINI")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

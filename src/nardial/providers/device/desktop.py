@@ -16,7 +16,7 @@ class DesktopAdapter:
     def setup(self, logger: Any) -> None:
         self._speaker = self._device.speakers
         self._logger = logger
-        self._logger("Device is COMPUTER")
+        self._logger.info("Device is COMPUTER")
 
     def get_mic(self) -> Any | None:
         return self._device.mic

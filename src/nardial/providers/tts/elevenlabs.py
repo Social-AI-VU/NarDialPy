@@ -52,8 +52,10 @@ class ElevenLabsTTSProvider(TTSProvider):
         chunks = [text] if (not chunk_audio or model_id == 'eleven_v3') else self._split_text(text)
 
         for chunk in chunks:
+            # normalize once and reuse for cache key and request
+            normalized_text = self._tts_cacher.normalize_text(chunk)
             payload = {
-                "text": self._tts_cacher.normalize_text(chunk),
+                "text": normalized_text,
                 "tts_service": "ELEVENLABS",
                 "speaking_rate": speaking_rate,
                 "voice_id": voice_id,
@@ -71,18 +73,17 @@ class ElevenLabsTTSProvider(TTSProvider):
                     continue
 
             with self._request_lock:
-                original_voice_id = self._conf.voice_id
-                original_speaking_rate = self._conf.speaking_rate
-                original_model_id = self._conf.model_id
-                self._conf.voice_id = voice_id
-                self._conf.speaking_rate = speaking_rate
-                self._conf.model_id = model_id
-                try:
-                    reply = self._tts.request(GetElevenLabsSpeechRequest(text=chunk))
-                finally:
-                    self._conf.voice_id = original_voice_id
-                    self._conf.speaking_rate = original_speaking_rate
-                    self._conf.model_id = original_model_id
+                # Build per-request parameters and pass them to the ElevenLabs client
+                # Only include parameters accepted by GetElevenLabsSpeechRequest
+                req_kwargs = {"text": normalized_text}
+                if voice_id is not None:
+                    req_kwargs["voice_id"] = voice_id
+                if speaking_rate is not None:
+                    req_kwargs["speaking_rate"] = speaking_rate
+                if model_id is not None:
+                    req_kwargs["model_id"] = model_id
+                # 'language' is not accepted by GetElevenLabsSpeechRequest; omit it
+                reply = self._tts.request(GetElevenLabsSpeechRequest(**req_kwargs))
             if reply is None:
                 continue
 

@@ -5,20 +5,17 @@
   "characters": {
     "narrator": {
       "voice_settings": {
-        "voice_id": "KTPVrSVAEUSJRClDzBw7",
-        "language": "en"
+        "voice_id": "KTPVrSVAEUSJRClDzBw7"
       }
     },
     "guide": {
       "voice_settings": {
-        "voice_id": "yO6w2xlECAQRFP6pX7Hw",
-        "language": "en"
+        "voice_id": "yO6w2xlECAQRFP6pX7Hw"
       }
     },
     "friend": {
       "voice_settings": {
-        "voice_id": "EXAVITQu4vr4xnSDxMaL",
-        "language": "en"
+        "voice_id": "EXAVITQu4vr4xnSDxMaL"
       }
     }
   },

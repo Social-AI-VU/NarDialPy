@@ -57,6 +57,23 @@ class MiniDialog:
         except Exception:
             return default
 
+    def _get_voice_settings(self, move):
+        """
+        Resolve voice settings for a move by looking up the "character" field and returning the corresponding settings
+        from self.characters.
+        Returns a dict or None.
+        """
+        character = self._get(move, "character")
+        if character and isinstance(self.characters, dict):
+            char_settings = self.characters.get(character)
+            if not char_settings:
+                return None
+            voice_settings = char_settings.get("voice_settings") if isinstance(char_settings, dict) else None
+            if voice_settings:
+                return voice_settings
+
+        return None
+
     @staticmethod
     def add_interest(topics_of_interest, topic):
         if topics_of_interest is None or not topic:

@@ -158,6 +158,9 @@ class DialogFactory:
                     if not isinstance(character_cfg, dict):
                         errs.append(f"characters.{character_name} must be an object")
                         continue
+                    if "voice_settings" not in character_cfg:
+                        errs.append(f"characters.{character_name}.voice_settings is required")
+                        continue
                     voice_settings = character_cfg.get("voice_settings")
                     if not isinstance(voice_settings, dict):
                         errs.append(f"characters.{character_name}.voice_settings must be an object")

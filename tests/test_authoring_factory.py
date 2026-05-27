@@ -45,6 +45,21 @@ def test_validate_doc_rejects_invalid_character_voice_settings():
     assert any("characters.narrator.voice_settings must be an object" in e for e in errors)
 
 
+def test_validate_doc_requires_character_voice_settings():
+    doc = {
+        "id": "scene_intro",
+        "type": "functional",
+        "functional_type": "greeting",
+        "characters": {
+            "narrator": {},
+        },
+        "moves": [{"type": "say", "text": "Hello"}],
+    }
+
+    errors = DialogFactory.validate_doc(doc)
+    assert any("characters.narrator.voice_settings is required" in e for e in errors)
+
+
 def test_roundtrip_preserves_characters():
     doc = {
         "id": "scene_intro",

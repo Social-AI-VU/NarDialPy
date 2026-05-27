@@ -208,7 +208,7 @@ class MiniDialog:
         if character_name is not None:
             if character_name not in self.characters:
                 raise ValueError(f"Unknown character '{character_name}' in dialog '{self.dialog_id}'")
-            character_cfg = self.characters.get(character_name) or {}
+            character_cfg = self.characters[character_name]
             voice_settings = character_cfg.get("voice_settings")
         self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)

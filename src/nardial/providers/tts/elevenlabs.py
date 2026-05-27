@@ -1,4 +1,5 @@
 import re
+from threading import Lock
 
 from sic_framework.services.elevenlabs_tts.elevenlabs_tts import (
     ElevenLabsTTS,
@@ -20,6 +21,7 @@ class ElevenLabsTTSProvider(TTSProvider):
         self._device = device
         self._tts_cacher = tts_cacher or TTSCacher()
         self._tts = ElevenLabsTTS(conf=conf)
+        self._request_lock = Lock()
 
     @staticmethod
     def _validate_and_normalize_voice_settings(voice_settings):
@@ -68,18 +70,19 @@ class ElevenLabsTTSProvider(TTSProvider):
                     self._device.play_audio_bytes(audio, sample_rate)
                     continue
 
-            original_voice_id = self._conf.voice_id
-            original_speaking_rate = self._conf.speaking_rate
-            original_model_id = self._conf.model_id
-            self._conf.voice_id = voice_id
-            self._conf.speaking_rate = speaking_rate
-            self._conf.model_id = model_id
-            try:
-                reply = self._tts.request(GetElevenLabsSpeechRequest(text=chunk))
-            finally:
-                self._conf.voice_id = original_voice_id
-                self._conf.speaking_rate = original_speaking_rate
-                self._conf.model_id = original_model_id
+            with self._request_lock:
+                original_voice_id = self._conf.voice_id
+                original_speaking_rate = self._conf.speaking_rate
+                original_model_id = self._conf.model_id
+                self._conf.voice_id = voice_id
+                self._conf.speaking_rate = speaking_rate
+                self._conf.model_id = model_id
+                try:
+                    reply = self._tts.request(GetElevenLabsSpeechRequest(text=chunk))
+                finally:
+                    self._conf.voice_id = original_voice_id
+                    self._conf.speaking_rate = original_speaking_rate
+                    self._conf.model_id = original_model_id
             if reply is None:
                 continue
 

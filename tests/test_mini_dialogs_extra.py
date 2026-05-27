@@ -1,3 +1,5 @@
+import pytest
+
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
@@ -133,7 +135,7 @@ def test_handle_move_branch_executes_correct_case(session_history, user_model, t
     md.handle_move_branch(move)
 
     # Only the "correct" sub-move should have been spoken
-    agent.say.assert_called_once_with("Correct!")
+    agent.say.assert_called_once_with("Correct!", voice_settings=None)
 
 
 def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, topics_of_interest):
@@ -318,3 +320,27 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
     assert "Cool answer!" in texts_spoken
     assert "No worries." not in texts_spoken
 
+
+def test_move_say_uses_character_voice_settings(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    moves = [
+        {"type": "say", "text": "Hello there.", "character": "narrator"},
+        {"type": "say", "text": "Fallback voice."},
+    ]
+    md = MiniDialog(
+        "test",
+        moves=moves,
+        characters={"narrator": {"voice_settings": {"voice_id": "abc123", "language": "en"}}},
+    )
+    md.run(agent, session_history, topics_of_interest, user_model)
+
+    assert agent.say.call_args_list[0].kwargs["voice_settings"] == {"voice_id": "abc123", "language": "en"}
+    assert agent.say.call_args_list[1].kwargs["voice_settings"] is None
+
+
+def test_move_say_raises_for_unknown_character(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    md = MiniDialog("test", moves=[{"type": "say", "text": "Hi", "character": "missing"}], characters={})
+
+    with pytest.raises(ValueError, match="Unknown character"):
+        md.run(agent, session_history, topics_of_interest, user_model)

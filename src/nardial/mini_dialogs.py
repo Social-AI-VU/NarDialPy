@@ -22,7 +22,7 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
@@ -32,6 +32,7 @@ class MiniDialog:
         self.moves = moves
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
+        self.characters = characters or {}
 
         self.conversation_agent = None
         self.session_history = []
@@ -202,7 +203,14 @@ class MiniDialog:
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
-        self.conversation_agent.say(text)
+        character_name = self._get(move, 'character')
+        voice_settings = None
+        if character_name is not None:
+            if character_name not in self.characters:
+                raise ValueError(f"Unknown character '{character_name}' in dialog '{self.dialog_id}'")
+            character_cfg = self.characters.get(character_name) or {}
+            voice_settings = character_cfg.get("voice_settings")
+        self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)
 
     def handle_move_ask_yesno(self, move):
@@ -362,9 +370,9 @@ class FunctionalType(Enum):
 
 
 class FunctionalDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, type, dependencies=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, characters=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies)
+        super().__init__(dialog_id, moves, dependencies, characters=characters)
         self.type = type
 
     def is_greeting_dialog(self):
@@ -375,17 +383,17 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.thread = thread
         self.position = position
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.theme = theme
         self.topics = topics or []
 
@@ -394,8 +402,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, index_name: Optional[str] = None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first

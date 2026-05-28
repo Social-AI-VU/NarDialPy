@@ -7,7 +7,7 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 
 from nardial.conversation_agent import ConversationAgent
-from nardial.conversation_state import ConversationState
+from nardial.conversation_state import ConversationState, upsert_notepad_event
 from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
@@ -324,6 +324,16 @@ class SessionManager:
 
         # Condense topics_of_interest into single-word keywords
         topics_of_interest = self.condense_topics(self.conversation_state.topics_of_interest)
+
+        notepad_provider = getattr(orch, "session_notepad_provider", None)
+        if callable(notepad_provider):
+            try:
+                notepad_text = notepad_provider()
+            except Exception as e:
+                print(f"[WARN] session_notepad_provider failed: {e}")
+                notepad_text = ""
+            if upsert_notepad_event(session_history, notepad_text or ""):
+                print("[INFO] Merged participant notepad into session transcript")
 
         self.conversation_state.add_events(self.session_id, session_history)
         extra_summary = None

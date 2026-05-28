@@ -1,11 +1,34 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import re
 
 from .user_model import UserModel
+
+
+def upsert_notepad_event(events: list, text: str, *, timestamp_utc: str | None = None) -> bool:
+    """Replace the latest notepad event in a transcript list, or append one.
+
+    Returns True when a non-empty notepad was stored.
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return False
+    entry = {
+        "role": "participant",
+        "type": "notepad",
+        "text": cleaned,
+        "timestamp_utc": timestamp_utc or datetime.now(timezone.utc).isoformat(),
+    }
+    for i in range(len(events) - 1, -1, -1):
+        ev = events[i]
+        if isinstance(ev, dict) and ev.get("type") == "notepad":
+            events[i] = entry
+            return True
+    events.append(entry)
+    return True
 
 
 class Session:

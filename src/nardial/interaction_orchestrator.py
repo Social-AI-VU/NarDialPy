@@ -407,6 +407,7 @@ class InteractionOrchestrator:
         self._web_listen_start = threading.Event()
         self._web_listen_armed = False
         self._web_compose_armed = False
+        self._web_awaiting_compose = False
         self._web_action_event = threading.Event()
         self._web_submit_event = threading.Event()
         self._web_action_lock = threading.Lock()
@@ -418,6 +419,7 @@ class InteractionOrchestrator:
         self.web_turn_notifier = None
         self.web_stt_notifier = None
         self.web_tts_notifier = None
+        self._web_last_stt_transcript = ""
         self._web_playback_done = threading.Event()
 
         self._rolling_conversation_summary = ""
@@ -541,6 +543,7 @@ class InteractionOrchestrator:
     def _disarm_web_listen(self) -> None:
         with self._web_turn_lock:
             self._web_listen_armed = False
+            self._web_awaiting_compose = False
         self._web_listen_start.clear()
 
     def signal_web_listen_start(self):
@@ -554,21 +557,37 @@ class InteractionOrchestrator:
         self._web_action_event.set()
         self._web_listen_start.set()
 
+    def signal_web_listen_stop(self) -> None:
+        """User pressed stop on the mic; end STT without waiting for silence timeout."""
+        if self.dialogflow is None:
+            return
+        try:
+            from sic_framework.services.dialogflow.dialogflow import StopListeningMessage
+
+            self.dialogflow.send_message(StopListeningMessage(self.request_id))
+        except Exception as e:
+            self.logger.warning("StopListeningMessage failed: %s", e)
+
     def signal_web_submit_text(self, text: str) -> None:
         """User pressed Done with text from the compose field (typed or edited STT)."""
+        cleaned = (text or "").strip()
+        if not cleaned:
+            return
         with self._web_turn_lock:
             compose = self._web_compose_armed
             armed = self._web_listen_armed
-            if not compose and not armed:
+            awaiting_compose = self._web_awaiting_compose
+            if not compose and not armed and not awaiting_compose:
                 self.logger.debug("Ignoring web submit (not waiting for user).")
                 return
         with self._web_action_lock:
-            self._web_pending_submit = text
-            if compose:
+            self._web_pending_submit = cleaned
+            if compose or awaiting_compose:
                 self._web_submit_event.set()
             else:
-                self._web_action = ("submit", text)
+                self._web_action = ("submit", cleaned)
                 self._web_action_event.set()
+        self._notify_web_turn("processing")
 
     def signal_web_end_conversation(self) -> None:
         """User pressed End conversation in the web UI."""
@@ -596,6 +615,7 @@ class InteractionOrchestrator:
         with self._web_turn_lock:
             self._web_listen_armed = True
             self._web_compose_armed = False
+            self._web_awaiting_compose = False
         self._web_action_event.clear()
         self._web_submit_event.clear()
         with self._web_action_lock:
@@ -619,20 +639,30 @@ class InteractionOrchestrator:
                         self._web_listen_armed = False
                     return action
 
+    def _consume_pending_web_submit(self) -> Optional[str]:
+        with self._web_action_lock:
+            text = self._web_pending_submit
+            self._web_pending_submit = None
+        if text is None:
+            return None
+        with self._web_turn_lock:
+            self._web_compose_armed = False
+            self._web_awaiting_compose = False
+        return text
+
     def _wait_for_web_submit(self) -> str:
         """Block until the user confirms edited STT / compose text."""
         while True:
             end_result = self._web_end_listen_result()
             if end_result is not None:
                 return WEB_END_CONVERSATION_META
+            pending = self._consume_pending_web_submit()
+            if pending is not None:
+                return pending
             if self._web_submit_event.wait(timeout=0.2):
                 self._web_submit_event.clear()
-                with self._web_action_lock:
-                    text = self._web_pending_submit
-                    self._web_pending_submit = None
-                with self._web_turn_lock:
-                    self._web_compose_armed = False
-                return text if text is not None else ""
+                pending = self._consume_pending_web_submit()
+                return pending if pending is not None else ""
 
     def _notify_web_stt(self, transcript: str, *, is_final: bool) -> None:
         fn = getattr(self, "web_stt_notifier", None)
@@ -1470,6 +1500,9 @@ class InteractionOrchestrator:
                     if action_type != "mic":
                         continue
 
+                    self._web_last_stt_transcript = ""
+                    with self._web_turn_lock:
+                        self._web_awaiting_compose = True
                     self._notify_web_turn("user_recording")
                     try:
                         reply = self.dialogflow.request(
@@ -1499,11 +1532,14 @@ class InteractionOrchestrator:
                     except Exception:
                         draft = ""
                     draft = draft.strip()
+                    if not draft:
+                        draft = (self._web_last_stt_transcript or "").strip()
                     if draft:
                         self._notify_web_stt(draft, is_final=True)
 
                     with self._web_turn_lock:
                         self._web_compose_armed = True
+                        self._web_awaiting_compose = False
                     self._notify_web_turn("user_ready")
 
                     user_text = self._wait_for_web_submit().strip()
@@ -1861,6 +1897,7 @@ class InteractionOrchestrator:
         if transcript:
             print("Transcript:", transcript)
         if getattr(self.interaction_conf, "web_audio_input", False) and transcript:
+            self._web_last_stt_transcript = transcript
             self._notify_web_stt(transcript, is_final=is_final)
         if (
             is_final

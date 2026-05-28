@@ -22,7 +22,7 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
@@ -32,6 +32,7 @@ class MiniDialog:
         self.moves = moves
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
+        self.characters = characters or {}
 
         self.conversation_agent = None
         self.session_history = []
@@ -55,6 +56,23 @@ class MiniDialog:
             return getattr(move, key, default)
         except Exception:
             return default
+
+    def _get_voice_settings(self, move):
+        """
+        Resolve voice settings for a move by looking up the "character" field and returning the corresponding settings
+        from self.characters.
+        Returns a dict or None.
+        """
+        character = self._get(move, "character")
+        if character and isinstance(self.characters, dict):
+            char_settings = self.characters.get(character)
+            if not char_settings:
+                return None
+            voice_settings = char_settings.get("voice_settings") if isinstance(char_settings, dict) else None
+            if voice_settings:
+                return voice_settings
+
+        return None
 
     @staticmethod
     def add_interest(topics_of_interest, topic):
@@ -184,7 +202,7 @@ class MiniDialog:
         elif move_type == MOVE_ASK_LLM:
                 self.handle_move_ask_llm(move)
 
-    def _generate_llm_followup(self, user_answer: str, system_prompt: str):
+    def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
         context_messages = [
             entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
@@ -195,19 +213,23 @@ class MiniDialog:
             system_prompt=system_prompt,
         )
         if llm_text:
-            self.conversation_agent.say(llm_text)
+            # Respect per-move voice settings when speaking the generated followup
+            self.conversation_agent.say(llm_text, voice_settings=voice_settings)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
     def handle_move_say(self, move):
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
-        self.conversation_agent.say(text)
+        voice_settings = self._get_voice_settings(move)
+        self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)
 
     def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
-        answer = self.conversation_agent.ask_yesno(move.text)
+        voice_settings = self._get_voice_settings(move)
+        # Pass voice settings into the ask call so the device speaks with the correct character voice
+        answer = self.conversation_agent.ask_yesno(move.text, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
@@ -217,15 +239,17 @@ class MiniDialog:
         if answer == "yes" and getattr(move, 'add_interest', None):
             self.add_interest(self.topics_of_interest, move.add_interest)
 
-        # Optional LLM-generated followup response
+        # Optional LLM-generated followup response, speak with same voice as the move if provided
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                        voice_settings=voice_settings)
 
         return answer
 
     def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
-        answer = self.conversation_agent.ask_open(move.text)
+        voice_settings = self._get_voice_settings(move)
+        answer = self.conversation_agent.ask_open(move.text, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
@@ -236,13 +260,15 @@ class MiniDialog:
 
         # Optional LLM-generated followup response
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                        voice_settings=voice_settings)
 
         return answer
 
     def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
-        answer = self.conversation_agent.ask_options(move.text, move.options)
+        voice_settings = self._get_voice_settings(move)
+        answer = self.conversation_agent.ask_options(move.text, move.options, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
@@ -253,7 +279,8 @@ class MiniDialog:
 
         # Optional LLM-generated followup response
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup)
+            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                        voice_settings=voice_settings)
 
         return answer
 
@@ -274,18 +301,24 @@ class MiniDialog:
 
     def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
+        voice_settings = self._get_voice_settings(move)
         self._run_llm_exchange(
             prompt=move.prompt,
             max_turns=move.max_turns or MAX_LLM_TURNS,
             set_variable=move.set_variable,
             quit_phrases=move.quit_phrases,
             quit_signal=move.quit_signal,
+            speak_first=move.speak_first if hasattr(move, "speak_first") else True,
+            duration=move.duration if hasattr(move, "duration") else None,
+            rag_enabled=move.rag_enabled if hasattr(move, "rag_enabled") else False,
+            index_name=move.index_name if hasattr(move, "index_name") else None,
+            voice_settings=voice_settings,
         )
 
     def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
-                          rag_enabled: bool = False, index_name: Optional[str] = None):
+                          rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None):
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -322,12 +355,13 @@ class MiniDialog:
             if quit_signal and quit_signal in llm_text:
                 clean = llm_text.replace(quit_signal, "").strip()
                 if clean:
-                    agent.say(clean)
+                    # speak with the move's voice settings if provided
+                    agent.say(clean, voice_settings=voice_settings)
                     self._record_robot(MOVE_SAY, clean)
                 return
 
             # Ask the user the LLM's text and listen for reply
-            agent.say(llm_text)
+            agent.say(llm_text, voice_settings=voice_settings)
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
@@ -362,9 +396,9 @@ class FunctionalType(Enum):
 
 
 class FunctionalDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, type, dependencies=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, characters=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies)
+        super().__init__(dialog_id, moves, dependencies, characters=characters)
         self.type = type
 
     def is_greeting_dialog(self):
@@ -375,17 +409,17 @@ class FunctionalDialog(MiniDialog):
 
 
 class NarrativeDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.thread = thread
         self.position = position
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None):
+    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.theme = theme
         self.topics = topics or []
 
@@ -394,8 +428,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, index_name: Optional[str] = None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies)
+                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first

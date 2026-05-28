@@ -1,4 +1,5 @@
 import re
+from threading import Lock
 
 from sic_framework.services.elevenlabs_tts.elevenlabs_tts import (
     ElevenLabsTTS,
@@ -20,18 +21,45 @@ class ElevenLabsTTSProvider(TTSProvider):
         self._device = device
         self._tts_cacher = tts_cacher or TTSCacher()
         self._tts = ElevenLabsTTS(conf=conf)
+        self._request_lock = Lock()
+
+    @staticmethod
+    def _validate_and_normalize_voice_settings(voice_settings):
+        if voice_settings is None:
+            return {}
+        if not isinstance(voice_settings, dict):
+            raise ValueError("ElevenLabs voice_settings must be an object")
+        allowed = {"voice_id", "speaking_rate", "model_id", "language"}
+        unknown = set(voice_settings.keys()) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported ElevenLabs voice_settings fields: {sorted(unknown)}")
+        if "voice_id" in voice_settings and not isinstance(voice_settings["voice_id"], str):
+            raise ValueError("ElevenLabs voice_settings.voice_id must be string")
+        if "model_id" in voice_settings and not isinstance(voice_settings["model_id"], str):
+            raise ValueError("ElevenLabs voice_settings.model_id must be string")
+        if "speaking_rate" in voice_settings and not isinstance(voice_settings["speaking_rate"], (int, float)):
+            raise ValueError("ElevenLabs voice_settings.speaking_rate must be numeric")
+        if "language" in voice_settings and not isinstance(voice_settings["language"], str):
+            raise ValueError("ElevenLabs voice_settings.language must be string")
+        return voice_settings
 
     def speak(self, text: str, amplified: bool = False, always_regenerate: bool = False,
-              chunk_audio: bool = True, **kwargs) -> None:
-        chunks = [text] if (not chunk_audio or self._conf.model_id == 'eleven_v3') else self._split_text(text)
+              chunk_audio: bool = True, voice_settings=None, **kwargs) -> None:
+        voice_settings = self._validate_and_normalize_voice_settings(voice_settings)
+        voice_id = voice_settings.get("voice_id", self._conf.voice_id)
+        speaking_rate = voice_settings.get("speaking_rate", self._conf.speaking_rate)
+        model_id = voice_settings.get("model_id", self._conf.model_id)
+        chunks = [text] if (not chunk_audio or model_id == 'eleven_v3') else self._split_text(text)
 
         for chunk in chunks:
+            # normalize once and reuse for cache key and request
+            normalized_text = self._tts_cacher.normalize_text(chunk)
             payload = {
-                "text": self._tts_cacher.normalize_text(chunk),
+                "text": normalized_text,
                 "tts_service": "ELEVENLABS",
-                "speaking_rate": self._conf.speaking_rate,
-                "voice_id": self._conf.voice_id,
-                "model_id": self._conf.model_id,
+                "speaking_rate": speaking_rate,
+                "voice_id": voice_id,
+                "model_id": model_id,
             }
             tts_key = self._tts_cacher.make_tts_key(payload)
 
@@ -44,7 +72,18 @@ class ElevenLabsTTSProvider(TTSProvider):
                     self._device.play_audio_bytes(audio, sample_rate)
                     continue
 
-            reply = self._tts.request(GetElevenLabsSpeechRequest(text=chunk))
+            with self._request_lock:
+                # Build per-request parameters and pass them to the ElevenLabs client
+                # Only include parameters accepted by GetElevenLabsSpeechRequest
+                req_kwargs = {"text": normalized_text}
+                if voice_id is not None:
+                    req_kwargs["voice_id"] = voice_id
+                if speaking_rate is not None:
+                    req_kwargs["speaking_rate"] = speaking_rate
+                if model_id is not None:
+                    req_kwargs["model_id"] = model_id
+                # 'language' is not accepted by GetElevenLabsSpeechRequest; omit it
+                reply = self._tts.request(GetElevenLabsSpeechRequest(**req_kwargs))
             if reply is None:
                 continue
 

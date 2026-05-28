@@ -286,6 +286,30 @@ Example:
 
 ### Dialog Types
 
+#### Optional Top-Level `characters`
+
+Dialogs can define reusable character voices:
+
+```json
+{
+  "characters": {
+    "narrator": {
+      "voice_settings": {
+        "voice_id": "KTPVrSVAEUSJRClDzBw7",
+        "language": "en"
+      }
+    }
+  }
+}
+```
+
+- `characters` is optional.
+- Each key is a character name.
+- Each value must contain a `voice_settings` object.
+- `voice_settings` is validated at runtime against the active TTS provider.
+
+---
+
 #### 1.`functional`
 
 Utility dialogs for session management — greetings, farewells, and structural transitions.
@@ -427,6 +451,7 @@ Speaks a piece of text. Variable placeholders (`%variable_name%`) are replaced a
 |---|---|---|---|
 | `type` | string | ✅ | `"say"` |
 | `text` | string | ✅ | Text to speak. Use `%var%` to insert stored variables. |
+| `character` | string | | Optional character name from top-level `characters`; if omitted, default provider voice settings are used. |
 
 ```json
 { "type": "say", "text": "Nice to meet you, %first_name%!" }

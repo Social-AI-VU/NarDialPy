@@ -42,13 +42,34 @@ class GoogleTTSProvider(TTSProvider):
         self._sample_rate = init_reply.sample_rate
         print('Google TTS activated')
 
-    def speak(self, text: str, amplified: bool = False, always_regenerate: bool = False, **kwargs) -> None:
+    @staticmethod
+    def _validate_and_normalize_voice_settings(voice_settings):
+        if voice_settings is None:
+            return {}
+        if not isinstance(voice_settings, dict):
+            raise ValueError("Google TTS voice_settings must be an object")
+        allowed = {"speaking_rate", "voice_name", "gender", "google_tts_voice_name", "google_tts_voice_gender", "language"}
+        unknown = set(voice_settings.keys()) - allowed
+        if unknown:
+            raise ValueError(f"Unsupported Google TTS voice_settings fields: {sorted(unknown)}")
+        if "speaking_rate" in voice_settings and not isinstance(voice_settings["speaking_rate"], (int, float)):
+            raise ValueError("Google TTS voice_settings.speaking_rate must be numeric")
+        for key in ("voice_name", "gender", "google_tts_voice_name", "google_tts_voice_gender", "language"):
+            if key in voice_settings and not isinstance(voice_settings[key], str):
+                raise ValueError(f"Google TTS voice_settings.{key} must be string")
+        return voice_settings
+
+    def speak(self, text: str, amplified: bool = False, always_regenerate: bool = False, voice_settings=None, **kwargs) -> None:
+        voice_settings = self._validate_and_normalize_voice_settings(voice_settings)
+        speaking_rate = voice_settings.get("speaking_rate", self._conf.speaking_rate)
+        voice_name = voice_settings.get("voice_name", voice_settings.get("google_tts_voice_name", self._conf.google_tts_voice_name))
+        voice_gender = voice_settings.get("gender", voice_settings.get("google_tts_voice_gender", self._conf.google_tts_voice_gender))
         payload = {
             "text": self._tts_cacher.normalize_text(text),
             "tts_service": "GOOGLE",
-            "speaking_rate": self._conf.speaking_rate,
-            "voice_name": self._conf.google_tts_voice_name,
-            "voice_gender": self._conf.google_tts_voice_gender,
+            "speaking_rate": speaking_rate,
+            "voice_name": voice_name,
+            "voice_gender": voice_gender,
         }
         tts_key = self._tts_cacher.make_tts_key(payload)
         cached_path = self._tts_cacher.load_audio_file(tts_key)
@@ -62,9 +83,9 @@ class GoogleTTSProvider(TTSProvider):
 
         reply = self._tts.request(GetSpeechRequest(
             text=text,
-            voice_name=self._conf.google_tts_voice_name,
-            ssml_gender=self._conf.google_tts_voice_gender,
-            speaking_rate=self._conf.speaking_rate,
+            voice_name=voice_name,
+            ssml_gender=voice_gender,
+            speaking_rate=speaking_rate,
         ))
         audio_bytes = reply.waveform
         sample_rate = reply.sample_rate

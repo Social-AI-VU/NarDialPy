@@ -52,7 +52,7 @@ class ConversationAgent:
             int_config=int_config,
         )
 
-    def say(self, text):
+    def say(self, text, **kwargs):
         """
         Speak a piece of text using the configured TTS provider.
 
@@ -61,7 +61,7 @@ class ConversationAgent:
         text : str
             The text to be spoken aloud.
         """
-        self.orchestrator.say(text)
+        self.orchestrator.say(text, **kwargs)
 
     def play_audio(self, audio_file):
         """

@@ -147,12 +147,36 @@ class DialogFactory:
             if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
                 errs.append("quit_signal must be string for llm_based dialogs")
 
+        characters = doc.get("characters")
+        if characters is not None:
+            if not isinstance(characters, dict):
+                errs.append("characters must be an object")
+            else:
+                for character_name, character_cfg in characters.items():
+                    if not isinstance(character_name, str) or not character_name:
+                        errs.append("characters keys must be non-empty strings")
+                    if not isinstance(character_cfg, dict):
+                        errs.append(f"characters.{character_name} must be an object")
+                        continue
+                    if "voice_settings" not in character_cfg:
+                        errs.append(f"characters.{character_name}.voice_settings is required")
+                        continue
+                    voice_settings = character_cfg.get("voice_settings")
+                    if not isinstance(voice_settings, dict):
+                        errs.append(f"characters.{character_name}.voice_settings must be an object")
+
         moves = doc.get("moves")
         if not isinstance(moves, list):
             errs.append("moves must be a list")
         else:
             for i, mv in enumerate(moves):
                 errs.extend(MoveFactory.validate(mv, idx=i))
+                if isinstance(mv, dict) and "character" in mv:
+                    character_name = mv.get("character")
+                    if not isinstance(character_name, str):
+                        errs.append(f"moves[{i}].character must be string if present")
+                    elif not isinstance(characters, dict) or character_name not in characters:
+                        errs.append(f"moves[{i}].character references unknown character '{character_name}'")
         return errs
 
     @staticmethod
@@ -166,6 +190,7 @@ class DialogFactory:
         deps = list(doc.get("dependencies") or [])
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
+        characters = dict(doc.get("characters") or {})
 
         if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
@@ -175,6 +200,7 @@ class DialogFactory:
                 position=int(doc["position"]),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
             )
         if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
@@ -184,6 +210,7 @@ class DialogFactory:
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
+                characters=characters,
             )
         if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
@@ -191,6 +218,7 @@ class DialogFactory:
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+                characters=characters,
             )
         if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
@@ -206,8 +234,9 @@ class DialogFactory:
                 duration=doc.get("duration"),
                 rag_enabled=doc.get("rag_enabled", False),
                 index_name=doc.get("index_name"),
+                characters=characters,
             )
-        return MiniDialog(did, moves, deps, vdeps)
+        return MiniDialog(did, moves, deps, vdeps, characters=characters)
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -217,6 +246,9 @@ class DialogFactory:
             "variable_dependencies": list(getattr(d, "variable_dependencies", []) or []),
             "moves": list(getattr(d, "moves", []) or []),
         }
+        characters = dict(getattr(d, "characters", {}) or {})
+        if characters:
+            base["characters"] = characters
         if isinstance(d, NarrativeDialog):
             base.update({
                 "type": "narrative",

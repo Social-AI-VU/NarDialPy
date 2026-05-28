@@ -139,10 +139,17 @@ class InteractionOrchestrator:
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
-    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False):
+    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
+            voice_settings=None):
         if animated:
             self.device.play_speaking_animation(self.interaction_conf.animation_style)
-        self.tts_provider.speak(text, amplified=amplified, always_regenerate=always_regenerate, chunk_audio=chunk_audio)
+        self.tts_provider.speak(
+            text,
+            amplified=amplified,
+            always_regenerate=always_regenerate,
+            chunk_audio=chunk_audio,
+            voice_settings=voice_settings,
+        )
         self.log_utterance(speaker='robot', text=text)
         if post_speech_delay and post_speech_delay > 0:
             sleep(post_speech_delay)

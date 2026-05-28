@@ -64,10 +64,12 @@ class MiniDialog:
         Returns a dict or None.
         """
         character = self._get(move, "character")
-        if character and isinstance(self.characters, dict):
+        if character:
+            # If a character is explicitly referenced but characters mapping doesn't contain it,
+            # treat this as an error rather than silently falling back.
+            if not isinstance(self.characters, dict) or character not in self.characters:
+                raise ValueError(f"Unknown character: {character}")
             char_settings = self.characters.get(character)
-            if not char_settings:
-                return None
             voice_settings = char_settings.get("voice_settings") if isinstance(char_settings, dict) else None
             if voice_settings:
                 return voice_settings

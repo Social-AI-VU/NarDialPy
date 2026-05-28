@@ -118,7 +118,10 @@ def test_ask_open_llm_followup_generates_response(
     assert 'friendly robot' in call_kwargs['system_prompt']
 
     # The LLM response should be spoken and recorded
-    agent.say.assert_called_once_with("That sounds wonderful! Mountains are so peaceful.")
+    agent.say.assert_called_once_with(
+        "That sounds wonderful! Mountains are so peaceful.",
+        voice_settings=None
+    )
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
     # User's answer is still stored via set_variable (extract_open_value picks the last token)
@@ -174,7 +177,10 @@ def test_ask_yesno_llm_followup_generates_response(
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
     assert call_kwargs['user_prompt'] == "yes"
-    agent.say.assert_called_once_with("That's great, dogs are amazing companions!")
+    agent.say.assert_called_once_with(
+        "That's great, dogs are amazing companions!",
+        voice_settings=None
+    )
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
@@ -201,7 +207,10 @@ def test_ask_options_llm_followup_generates_response(
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
     assert call_kwargs['user_prompt'] == "forest"
-    agent.say.assert_called_once_with("Forests are so serene and full of life!")
+    agent.say.assert_called_once_with(
+        "Forests are so serene and full of life!",
+        voice_settings=None
+    )
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
@@ -245,6 +254,9 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     md.run(agent, session_history, topics_of_interest, user_model)
 
     agent.ask_llm.assert_called_once()
-    agent.say.assert_called_once_with("Painting is a beautiful hobby!")
+    agent.say.assert_called_once_with(
+        "Painting is a beautiful hobby!",
+        voice_settings=None
+    )
     assert any(entry['type'] == MOVE_ANSWER_OPEN for entry in session_history)
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)

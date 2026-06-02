@@ -1,12 +1,14 @@
 from typing import Any, Optional, List, cast
 import re
-from time import monotonic
+from time import monotonic, sleep
+import asyncio
 
 from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP, MOVE_BRANCH
+    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
+    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml
 
 from enum import Enum
 
@@ -203,6 +205,21 @@ class MiniDialog:
             self.handle_move_animation(move)
         elif move_type == MOVE_ASK_LLM:
                 self.handle_move_ask_llm(move)
+        elif move_type == MOVE_TIMED_WAIT:
+            self.handle_move_timed_wait(move)
+        elif move_type == MOVE_WAIT_FOR_WEB_INPUT:
+            answer = self.handle_move_wait_for_web_input(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_SHOW_IMAGE:
+            self.handle_move_show_image(move)
+        elif move_type == MOVE_SHOW_VIDEO:
+            self.handle_move_show_video(move)
+        elif move_type == MOVE_SHOW_IFRAME:
+            self.handle_move_show_iframe(move)
+        elif move_type == MOVE_SHOW_HTML:
+            self.handle_move_show_html(move)
+        elif move_type == MOVE_BLACK_SCREEN:
+            self.handle_move_black_screen(move)
 
     def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
@@ -391,10 +408,107 @@ class MiniDialog:
 
             dialog_history.append(user_input)
 
+    def handle_move_timed_wait(self, move):
+        move = MoveTimedWait.from_dict(move)
+        try:
+            dur = float(getattr(move, 'duration_seconds', 0) or 0)
+        except Exception:
+            dur = 0
+        if dur > 0:
+            sleep(dur)
+        self._record_robot(MOVE_TIMED_WAIT, f"Waited for {dur} seconds")
 
-class FunctionalType(Enum):
-    GREETING = "greeting"
-    FAREWELL = "farewell"
+    def handle_move_wait_for_web_input(self, move):
+        move = MoveWaitForWebInput.from_dict(move)
+        agent = cast(Any, self.conversation_agent)
+        # If a screen provider exists, show the input widget (buttons or text)
+        try:
+            loop = agent.orchestrator.background_loop
+            if move.options:
+                # show buttons
+                coro = agent.show_buttons(move.options)
+            else:
+                coro = agent.show_text_input(move.prompt or "")
+            # schedule the coroutine on the orchestrator's event loop
+            try:
+                asyncio.run_coroutine_threadsafe(coro, loop)
+            except Exception:
+                # Best-effort: ignore scheduling errors
+                pass
+        except Exception:
+            pass
+
+        # Listen for an event via the orchestrator's listen interface — fallback to ask_open
+        try:
+            # If there is an event bus integrated implementation, it would resolve here.
+            # Fallback: prompt the user via NLU
+            result = agent.orchestrator.listen(timeout=getattr(move, 'timeout', None) or 10)
+            value = result.transcript or None
+        except Exception:
+            value = None
+
+        # Hide any input widget that may have been shown
+        try:
+            loop = agent.orchestrator.background_loop
+            coro2 = agent.hide_input()
+            try:
+                asyncio.run_coroutine_threadsafe(coro2, loop)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Record and return matched outcome key (if exact match to option labels)
+        if value is None:
+            self._record_user(MOVE_WAIT_FOR_WEB_INPUT, "")
+            return None
+        # Try exact match to options
+        val = str(value)
+        for opt in (move.options or []):
+            if opt == val:
+                self._record_user(MOVE_WAIT_FOR_WEB_INPUT, val)
+                return val
+        # Otherwise return the transcript for wildcard handling
+        self._record_user(MOVE_WAIT_FOR_WEB_INPUT, val)
+        return val
+
+    def _schedule_on_loop(self, coro):
+        """Helper: schedule coroutine on the agent's background loop if available."""
+        try:
+            agent = cast(Any, self.conversation_agent)
+            loop = agent.orchestrator.background_loop
+            asyncio.run_coroutine_threadsafe(coro, loop)
+        except Exception:
+            # best effort; ignore failures
+            pass
+
+    def handle_move_show_image(self, move):
+        move = MoveShowImage.from_dict(move)
+        self._schedule_on_loop(self.conversation_agent.show_image(move.src, caption=getattr(move, 'caption', "")))
+        self._record_robot(MOVE_SHOW_IMAGE, f"Show image {getattr(move, 'src', '')}")
+
+    def handle_move_show_video(self, move):
+        move = MoveShowVideo.from_dict(move)
+        self._schedule_on_loop(self.conversation_agent.show_video(move.src))
+        self._record_robot(MOVE_SHOW_VIDEO, f"Show video {getattr(move, 'src', '')}")
+
+    def handle_move_show_iframe(self, move):
+        move = MoveShowIframe.from_dict(move)
+        self._schedule_on_loop(self.conversation_agent.show_iframe(move.url))
+        self._record_robot(MOVE_SHOW_IFRAME, f"Show iframe {getattr(move, 'url', '')}")
+
+    def handle_move_show_html(self, move):
+        move = MoveShowHtml.from_dict(move)
+        self._schedule_on_loop(self.conversation_agent.show_html(move.html))
+        self._record_robot(MOVE_SHOW_HTML, f"Show html snippet")
+
+    def handle_move_black_screen(self, move):
+        # black screen has no params
+        try:
+            self._schedule_on_loop(self.conversation_agent.black())
+        except Exception:
+            pass
+        self._record_robot(MOVE_BLACK_SCREEN, "Black screen")
 
 
 class FunctionalDialog(MiniDialog):
@@ -456,3 +570,10 @@ class LLMDialog(MiniDialog):
             rag_enabled=self.rag_enabled,
             index_name=self.index_name,
         )
+
+
+# small helper enum used by FunctionalDialog
+class FunctionalType(Enum):
+    GREETING = "greeting"
+    FAREWELL = "farewell"
+

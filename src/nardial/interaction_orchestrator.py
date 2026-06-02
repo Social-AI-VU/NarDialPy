@@ -15,6 +15,7 @@ from nardial.providers.tts import TTSProvider, _amplify_audio
 from nardial.providers.nlu import NLUProvider, NLUResult
 from nardial.providers.llm import LLMProvider, Message
 from nardial.providers.vector_store import VectorStoreProvider
+from nardial.providers.screen import ScreenProvider
 
 
 class InteractionConfig:
@@ -54,6 +55,7 @@ class InteractionOrchestrator:
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
+                 screen_provider: ScreenProvider | None = None,
                  int_config: InteractionConfig = None):
 
         if int_config is None:
@@ -86,6 +88,10 @@ class InteractionOrchestrator:
 
         self.logger.info("SETTING UP VECTOR STORE")
         self.vector_store = vector_store
+        self.logger.info('Complete')
+
+        self.logger.info("SETTING UP SCREEN PROVIDER")
+        self.screen_provider = screen_provider
         self.logger.info('Complete')
 
         self.logger.info("SETTING UP TTS")
@@ -137,6 +143,25 @@ class InteractionOrchestrator:
         if self._log_queue:
             timestamp = strftime("%Y-%m-%d %H:%M:%S")
             self._log_queue.put(f"[{timestamp}] recognition result: {recognition_result}")
+
+    async def _push_transcript(self, text: str) -> None:
+        """Push the robot's spoken text to the screen's conversation log.
+
+        Called by :meth:`say` after every TTS call.  Both bundled implementations
+        (``NullScreenProvider``, ``SICScreenAdapter``) are non-blocking — the
+        ``await`` returns immediately.
+        """
+        if self.screen_provider is not None:
+            await self.screen_provider.show_transcript(text)
+
+    async def _push_user_transcript(self, text: str) -> None:
+        """Push the user's recognised speech to the screen's conversation log.
+
+        Called by :meth:`listen` when a non-empty transcript is returned by the
+        NLU provider.  Lets the screen show both sides of the conversation.
+        """
+        if self.screen_provider is not None:
+            await self.screen_provider.show_user_transcript(text)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
@@ -227,6 +252,12 @@ class InteractionOrchestrator:
         self.device.disconnect()
         if self.vector_store is not None:
             self.vector_store.close()
+        if self.screen_provider is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.screen_provider.close())
+            except RuntimeError:
+                asyncio.run(self.screen_provider.close())
         if self.background_loop.is_running():
             self.background_loop.call_soon_threadsafe(self.background_loop.stop)
         self.background_thread.join()

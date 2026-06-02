@@ -12,6 +12,14 @@ MOVE_MOTION_SEQUENCE = "motion_sequence"
 MOVE_ANIMATION = "animation"
 MOVE_BRANCH = "branch"
 
+MOVE_TIMED_WAIT = "timed_wait"
+MOVE_WAIT_FOR_WEB_INPUT = "wait_for_web_input"
+MOVE_SHOW_IMAGE = "show_image"
+MOVE_SHOW_VIDEO = "show_video"
+MOVE_SHOW_IFRAME = "show_iframe"
+MOVE_SHOW_HTML = "show_html"
+MOVE_BLACK_SCREEN = "black_screen"
+
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
 MOVE_ANSWER_OPTIONS = "answer_options"
@@ -387,3 +395,206 @@ class MoveBranch(Move):
             on=data.get("on", "outcome"),
             cases=data.get("cases", {}),
         )
+
+
+class MoveTimedWait(Move):
+    """Pause dialog execution for a fixed duration.
+
+    Parameters
+    ----------
+    duration_seconds : float
+        How long to sleep before the next move runs.
+    """
+
+    def __init__(self, duration_seconds: float):
+        super().__init__()
+        self.type = MOVE_TIMED_WAIT
+        self.duration_seconds = duration_seconds
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveTimedWait instance from a dictionary."""
+        return cls(
+            duration_seconds=data.get("duration_seconds") or data.get("duration") or 0,
+        )
+
+class MoveWaitForWebInput(Move):
+    """Suspend execution until a web input event arrives or the timeout elapses.
+
+    The move listens on the event bus for ``web_input`` events whose
+    ``data["value"]`` is in ``options``.  Requires an active
+    :class:`~nardial.events.bus.EventBus`.  Resolves to ``default_outcome``
+    when no bus is available or on timeout.
+
+    Parameters
+    ----------
+    prompt : str
+        Hint text for the web UI (not spoken by the robot).
+    options : list[str]
+        Accepted ``value`` strings from the web input event.
+    timeout : float | None
+        Seconds to wait.  ``None`` means wait indefinitely.
+    outcomes : dict[str, str]
+        Maps option value → outcome string.
+    default_outcome : str
+        Outcome used on timeout or when no bus is available.
+    """
+    def __init__(self, prompt: Optional[str] = None, options: Optional[List[str]] = None,
+                 timeout: Optional[float] = None, outcomes: Optional[Dict[str, str]] = None,
+                 default_outcome: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_WAIT_FOR_WEB_INPUT
+        self.prompt = prompt or ""
+        # store options as list of strings
+        self.options = list(options or [])
+        self.timeout = timeout
+        self.outcomes = dict(outcomes or {})
+        self.default_outcome = default_outcome
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveWaitForWebInput from a dictionary."""
+        return cls(
+            prompt=data.get("prompt"),
+            options=data.get("options"),
+            timeout=data.get("timeout"),
+            outcomes=data.get("outcomes"),
+            default_outcome=data.get("default_outcome"),
+        )
+
+
+class MoveShowImage(Move):
+    """Display an image on the connected screen.
+
+    Parameters
+    ----------
+    src : str
+        Local file path (relative to the static directory) or a full URL.
+    caption : str
+        Optional caption text shown below the image.
+    """
+
+    def __init__(self, src: str, caption: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_SHOW_IMAGE
+        self.src = src
+        self.caption = caption or ""
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveShowImage instance from a dictionary."""
+        return cls(
+            src=data.get("src") or data.get("image") or data.get("path"),
+            caption=data.get("caption"),
+        )
+
+
+class MoveShowVideo(Move):
+    """Display a video on the connected screen.
+
+    Parameters
+    ----------
+    src : str
+        Local file path or an embeddable URL (e.g. a YouTube embed URL).
+    """
+
+    def __init__(self, src: str):
+        super().__init__()
+        self.type = MOVE_SHOW_VIDEO
+        self.src = src
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveShowVideo instance from a dictionary."""
+        return cls(
+            src=data.get("src") or data.get("video") or data.get("path"),
+        )
+
+
+class MoveShowIframe(Move):
+    """Embed an external URL in an iframe on the screen.
+
+    Parameters
+    ----------
+    url : str
+        The URL to embed.
+    """
+
+    def __init__(self, url: str):
+        super().__init__()
+        self.type = MOVE_SHOW_IFRAME
+        self.url = url
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveShowIframe instance from a dictionary."""
+        return cls(
+            url=data.get("url") or data.get("src") or data.get("iframe_url"),
+        )
+
+
+class MoveShowHtml(Move):
+    """Render a raw HTML snippet in the display area.
+
+    Parameters
+    ----------
+    html : str
+        The HTML to inject.  Dialog authors are responsible for keeping this
+        trusted; the frontend renders it verbatim via ``innerHTML``.
+    """
+
+    def __init__(self, html: str):
+        super().__init__()
+        self.type = MOVE_SHOW_HTML
+        self.html = html
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveShowHtml instance from a dictionary."""
+        return cls(
+            html=data.get("html"),
+        )
+
+
+class MoveBlackScreen(Move):
+    """Set the display to black/blank — no content shown.
+
+    No parameters.  The next display move will restore content.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = MOVE_BLACK_SCREEN
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveBlackScreen instance from a dictionary (no params)."""
+        return cls()

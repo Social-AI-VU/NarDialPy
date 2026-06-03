@@ -6,7 +6,7 @@ import wave
 from os.path import exists
 from pathlib import Path
 from threading import Thread
-from time import sleep, strftime
+from time import strftime
 
 from sic_framework.core import sic_logging
 from sic_framework.core.sic_application import SICApplication

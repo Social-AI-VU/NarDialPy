@@ -294,81 +294,80 @@ class ConversationAgent:
         )
 
     async def show_image(self, src: str, caption: str = "") -> None:
-            """Display an image on the screen, if a screen provider is configured.
+        """Display an image on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            src : str
-                Local file path (relative to the static directory) or a full URL.
-            caption : str
-                Optional caption text shown below the image.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_image(src, caption=caption)
+        Parameters
+        ----------
+        src : str
+            Local file path (relative to the static directory) or a full URL.
+        caption : str
+            Optional caption text shown below the image.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_image(src, caption=caption)
 
     async def show_video(self, src: str) -> None:
-            """Display a video on the screen, if a screen provider is configured.
+        """Display a video on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            src : str
-                Local file path or an embeddable URL.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_video(src)
+        Parameters
+        ----------
+        src : str
+            Local file path or an embeddable URL.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_video(src)
 
     async def show_iframe(self, url: str) -> None:
-            """Embed a URL in an iframe on the screen, if a screen provider is configured.
+        """Embed a URL in an iframe on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            url : str
-                The URL to embed.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_iframe(url)
+        Parameters
+        ----------
+        url : str
+            The URL to embed.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_iframe(url)
 
     async def show_html(self, html: str) -> None:
-            """Render a raw HTML snippet on the screen, if a screen provider is configured.
+        """Render a raw HTML snippet on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            html : str
-                The HTML to inject into the display area.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_html(html)
+        Parameters
+        ----------
+        html : str
+            The HTML to inject into the display area.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_html(html)
 
     async def show_buttons(self, options: list[str]) -> None:
-            """Display clickable buttons on the screen, if a screen provider is configured.
+        """Display clickable buttons on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            options : list of str
-                Button labels.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_buttons(options)
+        Parameters
+        ----------
+        options : list of str
+            Button labels.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_buttons(options)
 
     async def show_text_input(self, prompt: str = "") -> None:
-            """Show a text-input field on the screen, if a screen provider is configured.
+        """Show a text-input field on the screen, if a screen provider is configured.
 
-            Parameters
-            ----------
-            prompt : str
-                Placeholder / hint text for the input field.
-            """
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.show_text_input(prompt)
+        Parameters
+        ----------
+        prompt : str
+            Placeholder / hint text for the input field.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_text_input(prompt)
 
     async def hide_input(self) -> None:
-            """Hide the current input widget on the screen, if a screen provider is configured."""
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.hide_input()
+        """Hide the current input widget on the screen, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.hide_input()
 
     async def black(self) -> None:
-            """Set the screen to black/blank, if a screen provider is configured."""
-            if self.orchestrator.screen_provider is not None:
-                await self.orchestrator.screen_provider.black()
-
+        """Set the screen to black/blank, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.black()
 

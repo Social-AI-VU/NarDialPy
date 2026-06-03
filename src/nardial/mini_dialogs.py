@@ -1,6 +1,6 @@
 from typing import Any, Optional, List, cast
 import re
-from time import monotonic, sleep
+from time import monotonic
 import asyncio
 
 from nardial.events import EventBus
@@ -431,10 +431,10 @@ class MiniDialog:
     async def handle_move_wait_for_web_input(self, move):
         """Wait for a web-input event whose value is in ``move.options``, or until timeout.
 
-                If a screen provider is configured and ``move.options`` is non-empty, buttons
-                are shown before waiting and hidden after resolution (match or timeout).
-                If no event bus is wired up, resolves immediately to ``move.default_outcome``.
-                """
+        If a screen provider is configured and ``move.options`` is non-empty, buttons
+        are shown before waiting and hidden after resolution (match or timeout).
+        If no event bus is wired up, resolves immediately to ``move.default_outcome``.
+        """
         move = MoveWaitForWebInput.from_dict(move)
         sp = self.conversation_agent.orchestrator.screen_provider
 
@@ -487,8 +487,8 @@ class MiniDialog:
     async def handle_move_show_image(self, move):
         """Display an image on the screen.
 
-                Skipped with a warning if no screen provider is configured on the agent.
-                """
+        Skipped with a warning if no screen provider is configured on the agent.
+        """
         move = MoveShowImage.from_dict(move)
         sp = self.conversation_agent.orchestrator.screen_provider
         if sp is None:
@@ -531,8 +531,8 @@ class MiniDialog:
     async def handle_move_show_iframe(self, move):
         """Embed an external URL in an iframe on the screen.
 
-                Skipped with a warning if no screen provider is configured.
-                """
+        Skipped with a warning if no screen provider is configured.
+        """
         move = MoveShowIframe.from_dict(move)
         sp = self.conversation_agent.orchestrator.screen_provider
         if sp is None:
@@ -552,8 +552,8 @@ class MiniDialog:
     async def handle_move_show_html(self, move):
         """Render a raw HTML snippet on the screen.
 
-                Skipped with a warning if no screen provider is configured.
-                """
+        Skipped with a warning if no screen provider is configured.
+        """
         move = MoveShowHtml.from_dict(move)
         sp = self.conversation_agent.orchestrator.screen_provider
         if sp is None:
@@ -573,8 +573,8 @@ class MiniDialog:
     async def handle_move_black_screen(self, move):
         """Set the screen to black/blank.
 
-                Skipped with a warning if no screen provider is configured.
-                """
+        Skipped with a warning if no screen provider is configured.
+        """
         sp = self.conversation_agent.orchestrator.screen_provider
         if sp is None:
             self._record_system(
@@ -654,4 +654,3 @@ class LLMDialog(MiniDialog):
 class FunctionalType(Enum):
     GREETING = "greeting"
     FAREWELL = "farewell"
-

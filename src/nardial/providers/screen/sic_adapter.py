@@ -121,16 +121,6 @@ class SICScreenAdapter:
     def _send_screen(self, payload: dict) -> None:
         """Send a ``WebInfoMessage`` with ``label="screen"`` to drive the display area."""
         from sic_framework.services.webserver.webserver_service import WebInfoMessage
-        # Debug: log the outgoing screen payload so we can inspect html messages
-        try:
-            logger.debug("SICScreenAdapter._send_screen payload type=%s keys=%s", payload.get("type"), list(payload.keys()))
-            # If the payload contains HTML, log a short snippet to help debugging
-            if payload.get("type") == "html":
-                content = payload.get("content") or ""
-                logger.debug("SICScreenAdapter._send_screen html snippet: %s", (content[:200] + "...") if len(content) > 200 else content)
-        except Exception:
-            # Best-effort logging — don't fail screen updates due to logging errors
-            logger.exception("Error while logging screen payload")
         self._webserver.send_message(WebInfoMessage(label="screen", message=payload))
 
     def _send_input(self, payload: dict) -> None:

@@ -29,6 +29,9 @@ class DialogflowNLUProvider:
             print("Dialogflow timeout:", e)
             return NLUResult(transcript="", intent=None)
 
+    def cancel(self) -> None:
+        pass
+
     def _on_dialog(self, message) -> None:
         if message.response:
             transcript = message.response.recognition_result.transcript

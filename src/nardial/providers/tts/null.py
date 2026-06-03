@@ -9,3 +9,6 @@ class NullTTSProvider(TTSProvider):
 
     def close(self) -> None:
         pass
+
+    def cancel(self) -> None:
+        pass

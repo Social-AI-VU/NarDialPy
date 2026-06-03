@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import queue
 import wave
@@ -41,12 +42,13 @@ class InteractionConfig:
         into function arguments when they are not explicitly provided.
         """
         def decorator(func):
-            def wrapper(self, *args, **kwargs):
+            @functools.wraps(func)
+            async def wrapper(self, *args, **kwargs):
                 config = getattr(self, config_attr)
                 for name in param_names:
                     if kwargs.get(name) is None:
                         kwargs[name] = getattr(config, name)
-                return func(self, *args, **kwargs)
+                return await func(self, *args, **kwargs)
             return wrapper
         return decorator
 
@@ -75,12 +77,6 @@ class InteractionOrchestrator:
 
         # Interaction configuration
         self.interaction_conf = int_config
-
-        # Background loop
-        self.background_loop = asyncio.new_event_loop()
-        self.background_thread = Thread(target=self._start_loop, daemon=True)
-        self.background_thread.start()
-        self.logger.info('Complete')
 
         self.logger.info("SETTING UP LLM")
         self.llm_provider = llm_provider
@@ -164,55 +160,44 @@ class InteractionOrchestrator:
             await self.screen_provider.show_user_transcript(text)
 
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
-    def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
+    async def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
             voice_settings=None):
         if animated:
             self.device.play_speaking_animation(self.interaction_conf.animation_style)
-        self.tts_provider.speak(
-            text,
-            amplified=amplified,
-            always_regenerate=always_regenerate,
-            chunk_audio=chunk_audio,
-            voice_settings=voice_settings,
-        )
+        try:
+            await asyncio.to_thread(
+                self.tts_provider.speak, text,
+                amplified=amplified,
+                always_regenerate=always_regenerate,
+                chunk_audio=chunk_audio,
+                voice_settings=voice_settings,
+            )
+        except asyncio.CancelledError:
+            self.tts_provider.cancel()
+            raise
         self.log_utterance(speaker='robot', text=text)
+        await self._push_transcript(text)
         if post_speech_delay and post_speech_delay > 0:
-            sleep(post_speech_delay)
+            await asyncio.sleep(post_speech_delay)
 
-    def listen(self, context=None, timeout=10) -> NLUResult:
+    async def listen(self, context=None, timeout=10) -> NLUResult:
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
-        result = self.nlu_provider.listen(context=context, timeout=timeout)
+        try:
+            result = await asyncio.to_thread(
+                self.nlu_provider.listen, context=context, timeout=timeout
+            )
+        except asyncio.CancelledError:
+            self.nlu_provider.cancel()
+            raise
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=False)
         if result.transcript:
             self.log_utterance(speaker='user', text=result.transcript)
+            await self._push_user_transcript(result.transcript)
         return result
 
-    def play_audio(self, audio_file, amplified=False, log=True):
-        if not exists(audio_file):
-            self.logger.error(f"Audio file not found: {audio_file}")
-            return
-        with wave.open(audio_file, 'rb') as wf:
-            sample_width = wf.getsampwidth()
-            framerate = wf.getframerate()
-            n_frames = wf.getnframes()
-            if sample_width != 2:
-                raise ValueError("WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width))
-            audio = wf.readframes(n_frames)
-            if amplified:
-                audio = _amplify_audio(audio)
-            self.device.play_audio_bytes(audio, framerate)
-            if log:
-                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
-
-    def play_animation(self, animation_name, run_async=False):
-        self.device.play_animation(animation_name, run_async=run_async)
-
-    def play_motion(self, motion_name):
-        self.device.play_motion_sequence(motion_name)
-
-    def request_from_llm(self, user_prompt=None, context_messages=None, system_prompt=None,
+    async def request_from_llm(self, user_prompt=None, context_messages=None, system_prompt=None,
                          json_response=False, rag_enabled: bool = False, index_name: str | None = None):
         if self.llm_provider is None:
             self.logger.warning("No LLM provider configured")
@@ -239,13 +224,38 @@ class InteractionOrchestrator:
             messages.append(Message(role="user", content=str(user_prompt)))
 
         try:
-            text = self.llm_provider.complete(messages, system_prompt=system_prompt or "")
+            text = await asyncio.to_thread(
+                self.llm_provider.complete, messages, system_prompt=system_prompt or ""
+            )
             if json_response:
                 return json.loads(text)
             return text
         except Exception as e:
             print(f"Exception: {e}")
             return None
+
+    def play_audio(self, audio_file, amplified=False, log=True):
+        if not exists(audio_file):
+            self.logger.error(f"Audio file not found: {audio_file}")
+            return
+        with wave.open(audio_file, 'rb') as wf:
+            sample_width = wf.getsampwidth()
+            framerate = wf.getframerate()
+            n_frames = wf.getnframes()
+            if sample_width != 2:
+                raise ValueError("WAV file is not 16-bit audio. Sample width = {} bytes.".format(sample_width))
+            audio = wf.readframes(n_frames)
+            if amplified:
+                audio = _amplify_audio(audio)
+            self.device.play_audio_bytes(audio, framerate)
+            if log:
+                self.log_utterance(speaker='robot', text=f'plays {audio_file}')
+
+    def play_animation(self, animation_name, run_async=False):
+        self.device.play_animation(animation_name, run_async=run_async)
+
+    def play_motion(self, motion_name):
+        self.device.play_motion_sequence(motion_name)
 
     def disconnect(self):
         self.tts_provider.close()
@@ -258,13 +268,6 @@ class InteractionOrchestrator:
                 loop.create_task(self.screen_provider.close())
             except RuntimeError:
                 asyncio.run(self.screen_provider.close())
-        if self.background_loop.is_running():
-            self.background_loop.call_soon_threadsafe(self.background_loop.stop)
-        self.background_thread.join()
-
-    def _start_loop(self):
-        asyncio.set_event_loop(self.background_loop)
-        self.background_loop.run_forever()
 
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf

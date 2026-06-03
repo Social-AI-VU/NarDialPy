@@ -32,6 +32,16 @@ class ConversationAgent:
         The TTS provider used to synthesize and play speech.
     nlu_provider : NLUProvider
         The NLU provider used to capture and interpret user input.
+    llm_provider : LLMProvider, optional
+        Large-language-model provider for generative responses.
+    vector_store : VectorStoreProvider, optional
+        Vector store for retrieval-augmented generation.
+    screen_provider : ScreenProvider, optional
+        Browser-based display provider.  When supplied, the robot's spoken text
+        and the user's recognised speech are pushed to the screen automatically.
+        Dialog authors may also use display moves (``show_image``, ``show_video``,
+        ``show_iframe``, ``show_html``, ``black_screen``) and input moves
+        (``wait_for_web_input``) in JSON dialogs.
     int_config : InteractionConfig, optional
         Configuration for behavioral parameters. If not provided, defaults are used.
 
@@ -55,7 +65,7 @@ class ConversationAgent:
             int_config=int_config,
         )
 
-    def say(self, text, **kwargs):
+    async def say(self, text, **kwargs):
         """
         Speak a piece of text using the configured TTS provider.
 
@@ -64,7 +74,7 @@ class ConversationAgent:
         text : str
             The text to be spoken aloud.
         """
-        self.orchestrator.say(text, **kwargs)
+        await self.orchestrator.say(text, **kwargs)
 
     def play_audio(self, audio_file):
         """
@@ -102,7 +112,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    def ask_yesno(self, question, max_attempts=1):
+    async def ask_yesno(self, question, max_attempts=1):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -120,8 +130,8 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            result = self.orchestrator.listen()
+            await self.say(question)
+            result = await self.orchestrator.listen()
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -133,7 +143,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
+    async def ask_open(self, question, max_attempts=2):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -151,14 +161,14 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
-            result = self.orchestrator.listen()
+            await self.say(question)
+            result = await self.orchestrator.listen()
             if result.transcript:
                 return result.transcript
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
+    async def ask_options(self, question, options, max_attempts=2):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -180,13 +190,108 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts)
+        answer = await self.ask_open(question, max_attempts=max_attempts)
         if answer:
             answer_lower = answer.lower()
             for opt in options:
                 if opt in answer_lower:
                     return opt
         return None
+
+    async def extract_topics_with_llm(self, raw_topics):
+        """
+        Extract concise topic keywords from a list of raw user utterances.
+
+        This method uses GPT to condense free-form text into 1–2 keyword(s)
+        per input item. If GPT fails, a local heuristic fallback is used.
+
+        Parameters
+        ----------
+        raw_topics : list of str
+            Raw topic descriptions (often full sentences).
+
+        Returns
+        -------
+        list of str
+            De-duplicated list of lowercase topic keywords.
+        """
+
+        def _heuristic(lines):
+            if not lines:
+                return []
+            stop = {
+                "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this", "these", "those",
+                "i", "you", "he", "she", "it", "we", "they", "me", "my", "mine", "your", "yours", "his", "her", "its", "our", "ours", "their", "theirs",
+                "to", "in", "on", "at", "from", "for", "with", "about", "as", "of", "is", "are", "was", "were", "be", "been", "am", "do", "does", "did",
+                "yes", "no", "maybe", "okay", "ok", "yeah", "yep", "nope", "uh", "um", "favorite", "favourite", "because", "thing", "things", "think"
+            }
+            out, seen = [], set()
+            for t in lines:
+                words = re.findall(r"[A-Za-z]+", str(t).lower())
+                picked = [w for w in words if len(w) > 2 and w not in stop]
+                if not picked and words:
+                    picked = [words[0]]
+                for w in picked[:2]:
+                    if w not in seen:
+                        out.append(w)
+                        seen.add(w)
+            return out
+
+        raw_topics = [str(x) for x in (raw_topics or []) if str(x).strip()]
+        if not raw_topics:
+            return []
+        try:
+            prompt = (
+                "You will receive a JSON array of phrases. For each item, extract 1-2 concise English keywords "
+                "(single words, lowercase). Avoid function words; these are the topics of interest of the user; prefer specific nouns (e.g., 'oak', 'garden', 'dogs', 'elephants'). "
+                "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
+                f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
+            )
+            data = await self.orchestrator.request_from_llm(system_prompt=prompt)
+            if not isinstance(data, list):
+                raise ValueError("GPT did not return a JSON list")
+            out, seen = [], set()
+            for item in data:
+                if not isinstance(item, str):
+                    continue
+                w = re.sub(r"[^A-Za-z]+", "", item.lower())
+                if len(w) > 2 and w not in seen:
+                    out.append(w)
+                    seen.add(w)
+            return out or _heuristic(raw_topics)
+        except Exception:
+            return _heuristic(raw_topics)
+
+    async def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
+                index_name: str | None = None):
+        """
+        Send a request to the configured LLM and return the response.
+
+        Parameters
+        ----------
+        user_prompt : str
+            The user's input or query.
+        context_messages : list
+            Conversation history or additional context.
+        system_prompt : str
+            Instruction defining the assistant's behavior.
+        rag_enabled : bool, optional
+            Whether to augment the request with context from the configured vector store.
+        index_name : str, optional
+            Vector store index to query. Overrides the provider's default when set.
+
+        Returns
+        -------
+        Any
+            The parsed response from the LLM.
+        """
+        return await self.orchestrator.request_from_llm(
+            user_prompt,
+            context_messages,
+            system_prompt,
+            rag_enabled=rag_enabled,
+            index_name=index_name,
+        )
 
     async def show_image(self, src: str, caption: str = "") -> None:
             """Display an image on the screen, if a screen provider is configured.
@@ -266,97 +371,4 @@ class ConversationAgent:
             if self.orchestrator.screen_provider is not None:
                 await self.orchestrator.screen_provider.black()
 
-    def extract_topics_with_llm(self, raw_topics):
-        """
-        Extract concise topic keywords from a list of raw user utterances.
 
-        This method uses GPT to condense free-form text into 1–2 keyword(s)
-        per input item. If GPT fails, a local heuristic fallback is used.
-
-        Parameters
-        ----------
-        raw_topics : list of str
-            Raw topic descriptions (often full sentences).
-
-        Returns
-        -------
-        list of str
-            De-duplicated list of lowercase topic keywords.
-        """
-
-        def _heuristic(lines):
-            if not lines:
-                return []
-            stop = {
-                "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this", "these", "those",
-                "i", "you", "he", "she", "it", "we", "they", "me", "my", "mine", "your", "yours", "his", "her", "its", "our", "ours", "their", "theirs",
-                "to", "in", "on", "at", "from", "for", "with", "about", "as", "of", "is", "are", "was", "were", "be", "been", "am", "do", "does", "did",
-                "yes", "no", "maybe", "okay", "ok", "yeah", "yep", "nope", "uh", "um", "favorite", "favourite", "because", "thing", "things", "think"
-            }
-            out, seen = [], set()
-            for t in lines:
-                words = re.findall(r"[A-Za-z]+", str(t).lower())
-                picked = [w for w in words if len(w) > 2 and w not in stop]
-                if not picked and words:
-                    picked = [words[0]]
-                for w in picked[:2]:
-                    if w not in seen:
-                        out.append(w)
-                        seen.add(w)
-            return out
-
-        raw_topics = [str(x) for x in (raw_topics or []) if str(x).strip()]
-        if not raw_topics:
-            return []
-        try:
-            prompt = (
-                "You will receive a JSON array of phrases. For each item, extract 1-2 concise English keywords "
-                "(single words, lowercase). Avoid function words; these are the topics of interest of the user; prefer specific nouns (e.g., 'oak', 'garden', 'dogs', 'elephants'). "
-                "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
-                f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
-            )
-            data = self.orchestrator.request_from_llm(system_prompt=prompt)
-            if not isinstance(data, list):
-                raise ValueError("GPT did not return a JSON list")
-            out, seen = [], set()
-            for item in data:
-                if not isinstance(item, str):
-                    continue
-                w = re.sub(r"[^A-Za-z]+", "", item.lower())
-                if len(w) > 2 and w not in seen:
-                    out.append(w)
-                    seen.add(w)
-            return out or _heuristic(raw_topics)
-        except Exception:
-            return _heuristic(raw_topics)
-
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
-                index_name: str | None = None):
-        """
-        Send a request to the configured LLM and return the response.
-
-        Parameters
-        ----------
-        user_prompt : str
-            The user's input or query.
-        context_messages : list
-            Conversation history or additional context.
-        system_prompt : str
-            Instruction defining the assistant's behavior.
-        rag_enabled : bool, optional
-            Whether to augment the request with context from the configured vector store.
-        index_name : str, optional
-            Vector store index to query. Overrides the provider's default when set.
-
-        Returns
-        -------
-        Any
-            The parsed response from the LLM.
-        """
-        return self.orchestrator.request_from_llm(
-            user_prompt,
-            context_messages,
-            system_prompt,
-            rag_enabled=rag_enabled,
-            index_name=index_name,
-        )

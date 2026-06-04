@@ -69,7 +69,7 @@ if __name__ == "__main__":
         conf=WebserverConf(
             templates_dir=str(_WEB_DIR / "templates"),
             static_dir=str(_WEB_DIR / "static"),
-            port=5001,
+            port=5000,
         )
     )
     screen = SICScreenAdapter(webserver=webserver)

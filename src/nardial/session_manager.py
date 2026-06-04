@@ -114,8 +114,9 @@ class SessionManager:
         # set_loop must happen before any source task starts so that emit_sync()
         # calls from callback threads (e.g. robot SDK) have a valid loop reference.
         self._bus.set_loop(asyncio.get_running_loop())
-        if self.agent.orchestrator.screen_provider is not None:
-            self.agent.orchestrator.screen_provider.set_event_bus(self._bus)
+        sp = self.agent.orchestrator.screen_provider
+        if sp is not None and hasattr(sp, "set_event_bus"):
+            sp.set_event_bus(self._bus)
 
         session_history = []
         for dialog in self.session_block:

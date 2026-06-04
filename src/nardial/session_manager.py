@@ -162,7 +162,7 @@ class SessionManager:
         print("Topics of interest:", self.conversation_state.topics_of_interest)
 
         # Condense topics_of_interest into single-word keywords
-        topics_of_interest = self.condense_topics(self.conversation_state.topics_of_interest)
+        topics_of_interest = await self.condense_topics(self.conversation_state.topics_of_interest)
 
         self.conversation_state.add_events(self.session_id, session_history)
         self.conversation_state.end_session(

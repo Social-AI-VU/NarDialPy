@@ -244,9 +244,10 @@ class MiniDialog:
             context_messages=context_messages,
             system_prompt=system_prompt,
         )
-        # Respect per-move voice settings when speaking the generated followup
-        await self.conversation_agent.say(llm_text, voice_settings=voice_settings)
-        self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
+        if llm_text:
+            # Respect per-move voice settings when speaking the generated followup
+            await self.conversation_agent.say(llm_text, voice_settings=voice_settings)
+            self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
     async def handle_move_say(self, move):
         text = self._get(move, 'text')
@@ -482,8 +483,10 @@ class MiniDialog:
             self._bus.unsubscribe(sub)
             # Hide input after resolution regardless of outcome (match or timeout).
             if sp is not None:
-
-        return value
+
+
+        return value
+
             return value
 
     async def handle_move_show_image(self, move):

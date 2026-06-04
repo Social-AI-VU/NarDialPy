@@ -139,26 +139,14 @@ class SessionManager:
 
             dialog.set_event_bus(self._bus)
 
-            # The dialog.run method is async; call it and handle coroutine results so
-            # callers may use the synchronous SessionManager.run() API.
+            # dialog.run is async; await it directly inside the session event loop.
             try:
-                res = dialog.run(
+                await dialog.run(
                     self.agent,
                     session_history,
                     self.conversation_state.topics_of_interest,
-                    self.conversation_state.user_model
+                    self.conversation_state.user_model,
                 )
-                if asyncio.iscoroutine(res):
-                    try:
-                        # Preferred: run coroutine to completion in a new event loop
-                        asyncio.run(res)
-                    except RuntimeError:
-                        # If an event loop is already running in this thread (rare for
-                        # synchronous usage), submit the coroutine to that loop if
-                        # possible and wait for result.
-                        loop = asyncio.get_event_loop()
-                        future = asyncio.run_coroutine_threadsafe(res, loop)
-                        future.result()
             except Exception as e:
                 print(f"[ERROR] Running dialog {dialog.dialog_id} failed: {e}")
 

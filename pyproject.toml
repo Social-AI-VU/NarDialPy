@@ -29,6 +29,7 @@ google-tts = ["social-interaction-cloud[google-tts]"]
 elevenlabs = ["social-interaction-cloud[elevenlabs-tts]"]
 dialogflow = ["social-interaction-cloud[dialogflow]"]
 openai = ["social-interaction-cloud[openai-gpt]"]
+webserver  = ["social-interaction-cloud[webserver]"]
 all = ["nardial[google-tts,elevenlabs,dialogflow,openai]"]
 dev = ["pytest", "pytest-asyncio"]
 
@@ -41,3 +42,6 @@ license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"nardial.providers.screen" = ["web/templates/*.html", "web/static/*.css", "web/static/*.js"]

@@ -483,11 +483,9 @@ class MiniDialog:
             self._bus.unsubscribe(sub)
             # Hide input after resolution regardless of outcome (match or timeout).
             if sp is not None:
-
+                await sp.hide_input()
 
         return value
-
-            return value
 
     async def handle_move_show_image(self, move):
         """Display an image on the screen.

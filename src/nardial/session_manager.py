@@ -173,7 +173,7 @@ class SessionManager:
         )
         self.conversation_state.save()
 
-    def condense_topics(self, topics_of_interest):
+    async def condense_topics(self, topics_of_interest):
         """
         Reduce a list of topics of interest into concise keywords using GPT.
 
@@ -183,17 +183,9 @@ class SessionManager:
         :return: Condensed list of topic keywords.
         """
         try:
-            res = self.agent.extract_topics_with_llm(list(topics_of_interest))
-            if asyncio.iscoroutine(res):
-                try:
-                    topics_of_interest = asyncio.run(res)
-                except RuntimeError:
-                    loop = asyncio.get_event_loop()
-                    future = asyncio.run_coroutine_threadsafe(res, loop)
-                    topics_of_interest = future.result()
-            else:
-                topics_of_interest = res
-                print(f"[DEBUG] Condensed topics: {topics_of_interest}")
+            result = await self.agent.extract_topics_with_llm(list(topics_of_interest))
+            print(f"[DEBUG] Condensed topics: {topics_of_interest}")
+            return result
         except Exception as e:
             print(f"[WARN] Topic condensation failed: {e}")
-        return topics_of_interest
+            return topics_of_interest

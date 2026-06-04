@@ -229,7 +229,8 @@ class MiniDialog:
         elif move_type == MOVE_SHOW_IFRAME:
             await self.handle_move_show_iframe(move)
         elif move_type == MOVE_SHOW_HTML:
-            await self.handle_move_show_html(move)
+            await self.handle_move_show_html(move)
+
         elif move_type == MOVE_BLACK_SCREEN:
             await self.handle_move_black_screen(move)
 
@@ -481,7 +482,8 @@ class MiniDialog:
             self._bus.unsubscribe(sub)
             # Hide input after resolution regardless of outcome (match or timeout).
             if sp is not None:
-                await sp.hide_input()
+
+        return value
             return value
 
     async def handle_move_show_image(self, move):

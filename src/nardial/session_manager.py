@@ -184,7 +184,7 @@ class SessionManager:
         """
         try:
             result = await self.agent.extract_topics_with_llm(list(topics_of_interest))
-            print(f"[DEBUG] Condensed topics: {topics_of_interest}")
+            print(f"[DEBUG] Condensed topics: {result}")
             return result
         except Exception as e:
             print(f"[WARN] Topic condensation failed: {e}")

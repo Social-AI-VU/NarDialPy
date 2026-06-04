@@ -229,7 +229,7 @@ class MiniDialog:
         elif move_type == MOVE_SHOW_IFRAME:
             await self.handle_move_show_iframe(move)
         elif move_type == MOVE_SHOW_HTML:
-           await self.handle_move_show_html(move)
+            await self.handle_move_show_html(move)
         elif move_type == MOVE_BLACK_SCREEN:
             await self.handle_move_black_screen(move)
 

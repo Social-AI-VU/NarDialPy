@@ -1,8 +1,11 @@
+import pytest
+
 from nardial.mini_dialogs import MiniDialog, LLMDialog
 from nardial.moves import MOVE_ASK_LLM, MOVE_ANSWER_LLM, MOVE_LLM_FOLLOWUP, MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS
 
 
-def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["My favorite is 'pizza'", "I like cats"]
@@ -11,7 +14,7 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
+    await md._run_llm_exchange(prompt="p", max_turns=2, set_variable='favorite')
 
     assert agent.ask_llm.call_count == 2
     assert agent.orchestrator.listen.call_count == 2
@@ -24,7 +27,8 @@ def test_run_llm_exchange_happy_path(session_history, user_model, topics_of_inte
     assert user_model['favorite'] == 'cats' or user_model['favorite'] == "I like cats"
 
 
-def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1", "LLM Q2"],
         ask_open_side_effect=["stop please"]
@@ -33,13 +37,14 @@ def test_run_llm_exchange_quit_phrase_stops_early(session_history, user_model, t
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
+    await md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=["stop"])
 
     assert agent.ask_llm.call_count == 1
     assert agent.orchestrator.listen.call_count == 1
 
 
-def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["finished <<QUIT>>"],
         ask_open_side_effect=[]
@@ -48,7 +53,7 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
+    await md._run_llm_exchange(prompt="p", max_turns=3, set_variable=None, quit_phrases=None, quit_signal="<<QUIT>>")
 
     assert agent.ask_llm.call_count == 1
     agent.say.assert_called_once()
@@ -57,7 +62,8 @@ def test_run_llm_exchange_quit_signal(session_history, user_model, topics_of_int
     assert "finished" in say_arg
 
 
-def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["LLM Q1"],
         ask_open_side_effect=["ans"]
@@ -68,7 +74,7 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_llm(move)
+    await md.handle_move_ask_llm(move)
 
     assert agent.ask_llm.call_count >= 1
     assert agent.orchestrator.listen.call_count >= 1
@@ -76,7 +82,8 @@ def test_handle_move_ask_llm_calls_run(session_history, user_model, topics_of_in
     assert any(entry['type'] == MOVE_ANSWER_LLM for entry in session_history)
 
 
-def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(
         ask_llm_side_effect=["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"],
         ask_open_side_effect=["a1", "a2", "a3", "a4", "a5"]
@@ -85,13 +92,14 @@ def test_llm_dialog_run_respects_max_turns(session_history, user_model, topics_o
     dialog = LLMDialog('d1', moves=[], prompt='p', max_turns=3)
     dialog.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    dialog.run(agent, session_history, topics_of_interest, user_model)
+    await dialog.run(agent, session_history, topics_of_interest, user_model)
 
     assert agent.ask_llm.call_count <= 3
     assert agent.orchestrator.listen.call_count <= 3
 
 
-def test_ask_open_llm_followup_generates_response(
+@pytest.mark.asyncio
+async def test_ask_open_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_open: after the user replies, the LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -109,7 +117,7 @@ def test_ask_open_llm_followup_generates_response(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_open(move)
+    await md.handle_move_ask_open(move)
 
     # LLM should have been called once with the user's answer as the prompt
     agent.ask_llm.assert_called_once()
@@ -128,7 +136,8 @@ def test_ask_open_llm_followup_generates_response(
     assert user_model.get('weekend_activity') == 'mountains'
 
 
-def test_ask_open_llm_followup_receives_full_conversation_context(
+@pytest.mark.asyncio
+async def test_ask_open_llm_followup_receives_full_conversation_context(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup receives the full session history as context."""
     agent = make_mock_agent(
@@ -148,14 +157,15 @@ def test_ask_open_llm_followup_receives_full_conversation_context(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_open(move)
+    await md.handle_move_ask_open(move)
 
     call_kwargs = agent.ask_llm.call_args.kwargs
     # Context should include prior history entries
     assert any("Let's talk about food." in msg for msg in call_kwargs['context_messages'])
 
 
-def test_ask_yesno_llm_followup_generates_response(
+@pytest.mark.asyncio
+async def test_ask_yesno_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_yesno: after the user replies yes/no, LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -172,7 +182,7 @@ def test_ask_yesno_llm_followup_generates_response(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_yesno(move)
+    await md.handle_move_ask_yesno(move)
 
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
@@ -184,7 +194,8 @@ def test_ask_yesno_llm_followup_generates_response(
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_ask_options_llm_followup_generates_response(
+@pytest.mark.asyncio
+async def test_ask_options_llm_followup_generates_response(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """llm_followup on ask_options: after the user picks an option, LLM generates a contextual followup."""
     agent = make_mock_agent(
@@ -202,7 +213,7 @@ def test_ask_options_llm_followup_generates_response(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_options(move)
+    await md.handle_move_ask_options(move)
 
     agent.ask_llm.assert_called_once()
     call_kwargs = agent.ask_llm.call_args.kwargs
@@ -214,7 +225,8 @@ def test_ask_options_llm_followup_generates_response(
     assert any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_ask_open_without_llm_followup_does_not_call_llm(
+@pytest.mark.asyncio
+async def test_ask_open_without_llm_followup_does_not_call_llm(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """Without llm_followup, ask_open does not call the LLM."""
     agent = make_mock_agent(ask_open_side_effect=["I like cats."])
@@ -228,13 +240,14 @@ def test_ask_open_without_llm_followup_does_not_call_llm(
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md.handle_move_ask_open(move)
+    await md.handle_move_ask_open(move)
 
     agent.ask_llm.assert_not_called()
     assert not any(entry['type'] == MOVE_LLM_FOLLOWUP for entry in session_history)
 
 
-def test_dispatcher_runs_llm_followup_within_ask_open(
+@pytest.mark.asyncio
+async def test_dispatcher_runs_llm_followup_within_ask_open(
         session_history, user_model, topics_of_interest, make_mock_agent):
     """The move dispatcher triggers llm_followup when running ask_open moves."""
     agent = make_mock_agent(
@@ -251,7 +264,7 @@ def test_dispatcher_runs_llm_followup_within_ask_open(
     ]
 
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     agent.ask_llm.assert_called_once()
     agent.say.assert_called_once_with(

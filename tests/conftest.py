@@ -1,7 +1,35 @@
 import sys
 import os
 import pytest
-from unittest.mock import Mock
+from types import ModuleType
+from unittest.mock import Mock, AsyncMock
+
+# Provide lightweight sic_framework stubs for unit tests.
+if "sic_framework" not in sys.modules:
+    sic_framework = ModuleType("sic_framework")
+    core_module = ModuleType("sic_framework.core")
+    sic_logging_module = ModuleType("sic_framework.core.sic_logging")
+    sic_logging_module.DEBUG = 10
+    sic_app_module = ModuleType("sic_framework.core.sic_application")
+
+    class SICApplication:  # pragma: no cover - test stub
+        def get_app_logger(self):
+            return Mock()
+
+        def set_log_level(self, *_args, **_kwargs):
+            return None
+
+        def set_log_file_path(self, *_args, **_kwargs):
+            return None
+
+    sic_app_module.SICApplication = SICApplication
+    core_module.sic_logging = sic_logging_module
+    core_module.sic_application = sic_app_module
+
+    sys.modules["sic_framework"] = sic_framework
+    sys.modules["sic_framework.core"] = core_module
+    sys.modules["sic_framework.core.sic_logging"] = sic_logging_module
+    sys.modules["sic_framework.core.sic_application"] = sic_app_module
 
 from nardial.providers.nlu import NLUResult
 
@@ -66,11 +94,11 @@ def make_mock_agent():
         open_effect = _wrap_side_effect(ask_open_side_effect)
         yesno_effect = _wrap_side_effect(ask_yes_no_side_effect)
         options_effect = _wrap_side_effect(ask_options_side_effect)
-        agent.ask_llm = Mock(side_effect=llm_effect) if ask_llm_side_effect is not None else Mock(return_value=None)
-        agent.ask_open = Mock(side_effect=open_effect) if ask_open_side_effect is not None else Mock(return_value=None)
-        agent.ask_yesno = Mock(side_effect=yesno_effect) if ask_yes_no_side_effect is not None else Mock(return_value='no')
-        agent.ask_options = Mock(side_effect=options_effect) if ask_options_side_effect is not None else Mock(return_value=None)
-        agent.say = Mock()
+        agent.ask_llm = AsyncMock(side_effect=llm_effect) if ask_llm_side_effect is not None else AsyncMock(return_value=None)
+        agent.ask_open = AsyncMock(side_effect=open_effect) if ask_open_side_effect is not None else AsyncMock(return_value=None)
+        agent.ask_yesno = AsyncMock(side_effect=yesno_effect) if ask_yes_no_side_effect is not None else AsyncMock(return_value='no')
+        agent.ask_options = AsyncMock(side_effect=options_effect) if ask_options_side_effect is not None else AsyncMock(return_value=None)
+        agent.say = AsyncMock()
         agent.play_audio = Mock()
         agent.play_motion_sequence = Mock()
         agent.play_animation = Mock()
@@ -79,9 +107,9 @@ def make_mock_agent():
             def _listen_side_effect(*a, **k):
                 transcript = open_effect(*a, **k) if open_effect is not None else None
                 return NLUResult(transcript=transcript or "", intent=None)
-            orchestrator.listen = Mock(side_effect=_listen_side_effect)
+            orchestrator.listen = AsyncMock(side_effect=_listen_side_effect)
         else:
-            orchestrator.listen = Mock(return_value=NLUResult(transcript="", intent=None))
+            orchestrator.listen = AsyncMock(return_value=NLUResult(transcript="", intent=None))
         agent.orchestrator = orchestrator
         return agent
 

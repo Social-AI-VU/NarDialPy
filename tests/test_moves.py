@@ -1,5 +1,7 @@
 # Replace the heavy sic_framework device-based agent with a simple mock agent for tests
-from unittest.mock import Mock
+from unittest.mock import Mock, AsyncMock
+
+import pytest
 
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
@@ -9,10 +11,10 @@ from nardial.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIO
 def mock_agent():
     # Build a minimal agent with the same interface used by MiniDialog but mocked behaviors
     agent = Mock()
-    agent.say = Mock()
-    agent.ask_yes_no = Mock(return_value='no')
-    agent.ask_open = Mock(return_value='answer')
-    agent.ask_options = Mock(return_value='dreaming')
+    agent.say = AsyncMock()
+    agent.ask_yesno = AsyncMock(return_value='no')
+    agent.ask_open = AsyncMock(return_value='answer')
+    agent.ask_options = AsyncMock(return_value='dreaming')
     agent.play_audio = Mock()
     agent.play_motion_sequence = Mock()
     agent.play_animation = Mock()
@@ -20,16 +22,18 @@ def mock_agent():
     return agent
 
 
-def test_move_say():
+@pytest.mark.asyncio
+async def test_move_say():
     moves = [
         MoveSay(text="Testing Move Say..."),
         MoveSay(text="Testing Move Say Again..."),
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
 
-def test_move_ask_yesno():
+@pytest.mark.asyncio
+async def test_move_ask_yesno():
     add_interest = "pizza"
     set_variable = "likes_pineapple_pizza"
     moves = [
@@ -41,12 +45,13 @@ def test_move_ask_yesno():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
 
 
-def test_move_ask_open():
+@pytest.mark.asyncio
+async def test_move_ask_open():
     set_variable = "favorite_sea_thing"
     add_interest_from_answer = True
     moves = [
@@ -58,12 +63,13 @@ def test_move_ask_open():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
 
 
-def test_move_ask_options():
+@pytest.mark.asyncio
+async def test_move_ask_options():
     set_variable = "what_is_dreaming"
     moves = [
         {
@@ -74,12 +80,13 @@ def test_move_ask_options():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
     assert set_variable in dialog.user_model
 
 
-def test_move_play_audio():
+@pytest.mark.asyncio
+async def test_move_play_audio():
     moves = [
         {
             "type": MOVE_PLAY_AUDIO,
@@ -87,10 +94,11 @@ def test_move_play_audio():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
 
-def test_move_play_motion():
+@pytest.mark.asyncio
+async def test_move_play_motion():
     moves = [
         {
             "type": MOVE_MOTION_SEQUENCE,
@@ -98,10 +106,11 @@ def test_move_play_motion():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())
 
 
-def test_move_animation():
+@pytest.mark.asyncio
+async def test_move_animation():
     moves = [
         {
             "type": MOVE_ANIMATION,
@@ -109,4 +118,4 @@ def test_move_animation():
         }
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
-    dialog.run(agent=mock_agent())
+    await dialog.run(agent=mock_agent())

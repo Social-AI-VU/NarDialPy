@@ -34,7 +34,7 @@ if __name__ == '__main__':
     session_manager = SessionManager(
         session_agenda=[],
         agent=agent,
-        dialog_json_path=abspath(join("..", "examples", "dialog_with_characters_google_tts.json")),
+        dialog_json_path=abspath(join("..", "examples", "dialog_json", "dialog_with_characters_google_tts.json")),
     )
     session_manager.run()
 

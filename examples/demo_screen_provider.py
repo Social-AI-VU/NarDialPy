@@ -86,7 +86,7 @@ if __name__ == "__main__":
     manager = SessionManager(
         session_agenda=["screen_demo"],
         agent=agent,
-        dialog_json_path=str(Path(__file__).parent / "screen_demo_dialogs.json"),
+        dialog_json_path=str(Path(__file__).parent / "dialog_json" / "demo_screen_dialogs.json"),
         participant_id="screen_demo_user",
     )
     manager.run()

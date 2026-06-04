@@ -44,6 +44,7 @@ class TestAskYesNo:
 
     @pytest.mark.asyncio
     async def test_yes_intent_returns_yes(self, agent):
+        """ask_yesno maps a yes intent to the string 'yes'."""
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="yes", intent=INTENT_YESNO_YES
         )
@@ -51,6 +52,7 @@ class TestAskYesNo:
 
     @pytest.mark.asyncio
     async def test_no_intent_returns_no(self, agent):
+        """ask_yesno maps a no intent to the string 'no'."""
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="no", intent=INTENT_YESNO_NO
         )
@@ -58,6 +60,7 @@ class TestAskYesNo:
 
     @pytest.mark.asyncio
     async def test_dontknow_intent_returns_dontknow(self, agent):
+        """ask_yesno maps an uncertain intent to 'dontknow'."""
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="not sure", intent=INTENT_YESNO_DONTKNOW
         )
@@ -65,6 +68,7 @@ class TestAskYesNo:
 
     @pytest.mark.asyncio
     async def test_unrecognised_intent_returns_none(self, agent):
+        """ask_yesno returns None for intents outside the yes/no set."""
         # NLU returned a non-yesno intent; ask_yesno should fall through to None.
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="hello", intent="some_other_intent"
@@ -73,11 +77,13 @@ class TestAskYesNo:
 
     @pytest.mark.asyncio
     async def test_no_intent_at_all_returns_none(self, agent):
+        """ask_yesno returns None when no intent is detected."""
         agent.orchestrator.listen.return_value = NLUResult(transcript="", intent=None)
         assert await agent.ask_yesno("Do you like this?") is None
 
     @pytest.mark.asyncio
     async def test_question_is_spoken_before_listening(self, agent):
+        """ask_yesno speaks the question before listening for an answer."""
         agent.orchestrator.listen.return_value = NLUResult(
             transcript="yes", intent=INTENT_YESNO_YES
         )
@@ -94,17 +100,20 @@ class TestAskOpen:
 
     @pytest.mark.asyncio
     async def test_returns_transcript_on_first_attempt(self, agent):
+        """ask_open returns the first non-empty transcript."""
         agent.orchestrator.listen.return_value = NLUResult(transcript="I like cats")
         assert await agent.ask_open("What do you like?") == "I like cats"
 
     @pytest.mark.asyncio
     async def test_returns_none_after_all_attempts_empty(self, agent):
+        """ask_open returns None after exhausting empty retries."""
         # Both retries return an empty transcript — should give up and return None.
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
         assert await agent.ask_open("What do you like?", max_attempts=2) is None
 
     @pytest.mark.asyncio
     async def test_retries_on_empty_then_succeeds(self, agent):
+        """ask_open retries until a transcript is captured."""
         # First call: empty; second call: real answer.
         agent.orchestrator.listen.side_effect = [
             NLUResult(transcript=""),
@@ -114,6 +123,7 @@ class TestAskOpen:
 
     @pytest.mark.asyncio
     async def test_question_is_spoken_each_attempt(self, agent):
+        """ask_open speaks the question on every retry."""
         # Two empty responses before giving up — question should be spoken twice.
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
         await agent.ask_open("What do you like?", max_attempts=2)

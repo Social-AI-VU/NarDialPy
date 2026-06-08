@@ -2,7 +2,7 @@
 
 **NarDialPy** is a Python package for building and running **narrative-driven, structured dialog systems** — designed for social robots and conversational agents.
 
-It lets you author complete conversations declaratively in JSON, then drive them from Python using voice, NLU, and LLM services. The package handles session flow, branching logic, topic tracking, and personalization so you can focus on what the robot says and how conversations unfold.
+It lets you author complete conversations declaratively in JSON, then drive them from Python using voice, NLU, LLM, and browser-based screen services. The package handles session flow, branching logic, topic tracking, personalization, and screen output so you can focus on what the robot says and how conversations unfold.
 
 ---
 
@@ -30,6 +30,7 @@ The `nardial` package provides the building blocks for authoring and executing m
 | **Dialog JSON** | Conversations are written as structured JSON files. Each file holds one or more *dialogs*, each containing a sequence of *moves* that the robot performs. |
 | **Session Manager** | Loads your dialog JSON, resolves a session agenda, and runs dialogs in order — checking dependencies and tracking state. |
 | **ConversationAgent** | The runtime bridge to the hardware: it calls TTS, STT, LLM, and motion services on your chosen device. |
+| **Screen Provider** | Optional browser-based display layer for transcripts, images, videos, HTML, buttons, and web input. |
 | **Dialog Logic** | Checks eligibility rules (dependencies, variable requirements) before executing each dialog. |
 
 Typical use case:
@@ -142,6 +143,7 @@ NarDialPy is built around a set of provider protocols. Each protocol defines a r
 | | `WrittenKeywordNLUProvider` | `nardial.providers.nlu.written_keyword` | base (keyboard input) |
 | **LLM** | `OpenAIGPTProvider` | `nardial.providers.llm.openai_gpt` | `nardial[openai]` |
 | | `EchoLLMProvider` | `nardial.providers.llm.echo` | base (echoes user input) |
+| **Screen** | `ScreenProvider` / `SICScreenAdapter` / `PepperTabletScreenAdapter` | `nardial.providers.screen` | browser display via SIC webserver |
 | **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
 | | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
 
@@ -685,6 +687,8 @@ All you need is a minimal Python script that wires up the device, loads the dial
 Two ready-to-run demos are included in the `examples/` directory:
 * Demo 1 — General Conversation (`demo_general_conversation.py`): A simple four-step conversation using a mix of narrative and functional dialogs
 * Demo 2 — Structured Conversation (`demo_structured_conversation.py`): A more complete example that demonstrates all dialog types and move types, including `ask_llm`, `play`, `motion_sequence`, and `animation`
+* Demo 3 — Screen Display (`demo_screen_provider.py`): Shows the browser-based screen UI with transcripts, images, iframes, HTML snippets, buttons, and text input
+* Demo 4 — Pepper Tablet (`demo_pepper_tablet.py`): Uses the same screen UI on Pepper's tablet through the SIC webserver
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 

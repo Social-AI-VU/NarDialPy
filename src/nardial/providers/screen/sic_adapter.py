@@ -33,7 +33,10 @@ other SIC consumers that may already subscribe to ``sic/transcript``.
 
 from __future__ import annotations
 
+import base64
 import logging
+import mimetypes
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from nardial.events.types import Event, InterruptLevel, ResumePolicy
@@ -154,9 +157,102 @@ class SICScreenAdapter:
         """Display the user's recognised speech in the conversation log."""
         self._send_transcript("user", text)
 
-    async def show_image(self, src: str, caption: str = "") -> None:
+    async def show_image(self, src: str) -> None:
         """Display an image from a local path or URL."""
-        self._send_screen({"type": "image", "src": src, "caption": caption})
+        html = self.create_image_page(src)
+        await self.show_html(html)
+
+    def _resolve_image_src(self, image_path: str) -> str:
+        """Resolve an image path to a browser-usable src.
+
+        - If the path is an absolute URL (http/https/data) it is returned unchanged.
+        - If the file exists inside the package web static dir it is rewritten to
+          the webserver's /static/... URL so the webserver can serve it.
+        - Otherwise, if a matching file exists on disk (project root, examples,
+          or absolute path), it is embedded as a base64 data URI so the browser
+          will display it without requiring the webserver to expose the file.
+        - If nothing is found, the original image_path is returned unchanged.
+        """
+        if not image_path:
+            return image_path
+        image_path = str(image_path)
+        lowered = image_path.lower()
+        if lowered.startswith("http://") or lowered.startswith("https://") or lowered.startswith("data:"):
+            return image_path
+
+        # Attempt to find the file on disk. Consider common locations:
+        #  - packaged web static dir (served at /static/...)
+        #  - project root / examples / provided relative path
+        try:
+            this_file = Path(__file__).resolve()
+            # project root: ../../../../ (src/nardial/providers/screen -> go up 4)
+            project_root = this_file.parents[4]
+        except Exception:
+            project_root = Path(".")
+
+        # 1) Check packaged web static dir (src/nardial/providers/screen/web/static)
+        web_static = Path(__file__).resolve().parent / "web" / "static"
+        candidate = web_static / image_path
+        if candidate.exists():
+            # expose via the webserver's /static/ path
+            # normalize forward slashes for the URL
+            rel = candidate.relative_to(web_static).as_posix()
+            return f"/static/{rel}"
+
+        # 2) Check project locations: project_root / image_path and project_root / examples / image_path
+        candidates = [
+            project_root / image_path,
+            project_root / "examples" / image_path,
+            Path(image_path),
+        ]
+        for c in candidates:
+            if c.exists():
+                try:
+                    mime, _ = mimetypes.guess_type(str(c))
+                    if not mime:
+                        mime = "application/octet-stream"
+                    data = c.read_bytes()
+                    b64 = base64.b64encode(data).decode("ascii")
+                    return f"data:{mime};base64,{b64}"
+                except Exception:
+                    logger.exception("Failed to embed image '%s' as data URI", c)
+                    break
+
+        # Nothing found — return original path and let the browser attempt to load it.
+        return image_path
+
+    def create_image_page(self, image_path: str):
+        """Create HTML page showing current image."""
+        resolved_src = self._resolve_image_src(image_path)
+        return f"""<!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Image</title>
+                    <style>
+                        body {{
+                            margin: 0;
+                            padding: 0;
+                            background-color: #000;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            overflow: hidden;
+                        }}
+                        img {{
+                            max-width: 100%;
+                            max-height: 100%;
+                            object-fit: contain;
+                        }}
+                    </style>
+                </head>
+                <body>
+                    <img src="{resolved_src}" alt="Displayed Image">
+                </body>
+                </html>
+                """
 
     async def show_video(self, src: str) -> None:
         """Display a video from a local path or an embeddable URL."""

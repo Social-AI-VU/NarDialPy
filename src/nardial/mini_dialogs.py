@@ -502,7 +502,8 @@ class MiniDialog:
                 caption=move.caption,
             )
             return
-        await sp.show_image(move.src, caption=move.caption)
+
+        await sp.show_image(move.src)
         self._record_system(
             MOVE_SHOW_IMAGE,
             "Showed image on screen.",

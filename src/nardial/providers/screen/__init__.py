@@ -49,15 +49,13 @@ class ScreenProvider(Protocol):
         """Display the user's recognised speech in the transcript pane."""
         ...
 
-    async def show_image(self, src: str, caption: str = "") -> None:
+    async def show_image(self, src: str) -> None:
         """Display an image from a local path or URL.
 
         Parameters
         ----------
         src : str
             Local file path (relative to the static directory) or a full URL.
-        caption : str
-            Optional caption text shown below the image.
         """
         ...
 
@@ -125,7 +123,4 @@ class ScreenProvider(Protocol):
         """Release any resources held by the provider."""
         ...
 
-
-from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
-
-__all__ = ["ScreenProvider", "PepperTabletScreenAdapter"]
+__all__ = ["ScreenProvider"]

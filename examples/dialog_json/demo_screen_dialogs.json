@@ -14,8 +14,7 @@
       { "type": "say", "text": "I can display images on screen." },
       {
         "type": "show_image",
-        "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Culinary_fruits_front_view.jpg/1200px-Culinary_fruits_front_view.jpg",
-        "caption": "A colourful assortment of fruits"
+        "src": "assets/images/robot.jpg"
       },
       { "type": "timed_wait", "duration_seconds": 4.0 },
       { "type": "say", "text": "I can also embed external web pages." },

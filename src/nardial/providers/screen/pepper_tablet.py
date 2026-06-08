@@ -92,9 +92,9 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
         if wifi_ssid:
             self._connect_tablet_wifi(wifi_ssid, wifi_password, wifi_security)
 
-        tablet_url = f"http://{host_ip}:{port}/"
-        logger.info("PepperTabletScreenAdapter: opening %s on Pepper tablet", tablet_url)
-        self._open_on_tablet(tablet_url)
+        self.tablet_url = f"http://{host_ip}:{port}/"
+        logger.info("PepperTabletScreenAdapter: opening %s on Pepper tablet", self.tablet_url)
+        self._open_on_tablet(self.tablet_url)
 
     # ------------------------------------------------------------------
     # Internal helpers — all SIC imports deferred so the module can be
@@ -131,6 +131,20 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
             self._tablet.send_message(UrlMessage(url))
         except Exception:
             logger.exception("PepperTabletScreenAdapter: failed to open URL on tablet")
+
+    def refresh_tablet(self) -> None:
+        """Refresh the tablet display by re-sending the current URL.
+
+        This can be used to recover if the tablet goes to sleep or loses the
+        page for some reason.  Failures are logged and swallowed.
+        """
+        logger.info("PepperTabletScreenAdapter: refreshing tablet display")
+        self._open_on_tablet(self.tablet_url)
+
+    async def show_image(self, src: str) -> None:
+        """Override parent method to also refresh pepper's tablet."""
+        await super().show_image(src)
+        self.refresh_tablet()
 
     # ------------------------------------------------------------------
     # Lifecycle

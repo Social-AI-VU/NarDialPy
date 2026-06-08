@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from nardial.events.types import Event, InterruptLevel, ResumePolicy
+from nardial.providers import ScreenProvider
 
 if TYPE_CHECKING:
     from nardial.events.bus import EventBus
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SICScreenAdapter:
+class SICScreenAdapter(ScreenProvider):
     """Screen provider that drives a SIC ``Webserver`` connector.
 
     Parameters
@@ -158,9 +159,9 @@ class SICScreenAdapter:
         self._send_transcript("user", text)
 
     async def show_image(self, src: str) -> None:
-        """Display an image from a local path or URL."""
-        html = self.create_image_page(src)
-        await self.show_html(html)
+        """Display an image from a local path or URL. """
+        resolved = self._resolve_image_src(src)
+        self._send_screen({"type": "image", "src": resolved})
 
     def _resolve_image_src(self, image_path: str) -> str:
         """Resolve an image path to a browser-usable src.

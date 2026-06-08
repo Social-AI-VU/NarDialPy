@@ -422,6 +422,7 @@ class MoveTimedWait(Move):
             duration_seconds=data.get("duration_seconds") or data.get("duration") or 0,
         )
 
+
 class MoveWaitForWebInput(Move):
     """Suspend execution until a web input event arrives or the timeout elapses.
 
@@ -443,6 +444,7 @@ class MoveWaitForWebInput(Move):
     default_outcome : str
         Outcome used on timeout or when no bus is available.
     """
+
     def __init__(self, prompt: Optional[str] = None, options: Optional[List[str]] = None,
                  timeout: Optional[float] = None, outcomes: Optional[Dict[str, str]] = None,
                  default_outcome: Optional[str] = None):
@@ -478,15 +480,12 @@ class MoveShowImage(Move):
     ----------
     src : str
         Local file path (relative to the static directory) or a full URL.
-    caption : str
-        Optional caption text shown below the image.
     """
 
-    def __init__(self, src: str, caption: Optional[str] = None):
+    def __init__(self, src: str):
         super().__init__()
         self.type = MOVE_SHOW_IMAGE
         self.src = src
-        self.caption = caption or ""
 
     def get_type(self):
         """Return the move type."""
@@ -497,7 +496,6 @@ class MoveShowImage(Move):
         """Create a MoveShowImage instance from a dictionary."""
         return cls(
             src=data.get("src") or data.get("image") or data.get("path"),
-            caption=data.get("caption"),
         )
 
 

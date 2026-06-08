@@ -293,18 +293,16 @@ class ConversationAgent:
             index_name=index_name,
         )
 
-    async def show_image(self, src: str, caption: str = "") -> None:
+    async def show_image(self, src: str) -> None:
         """Display an image on the screen, if a screen provider is configured.
 
         Parameters
         ----------
         src : str
             Local file path (relative to the static directory) or a full URL.
-        caption : str
-            Optional caption text shown below the image.
         """
         if self.orchestrator.screen_provider is not None:
-            await self.orchestrator.screen_provider.show_image(src, caption=caption)
+            await self.orchestrator.screen_provider.show_image(src)
 
     async def show_video(self, src: str) -> None:
         """Display a video on the screen, if a screen provider is configured.

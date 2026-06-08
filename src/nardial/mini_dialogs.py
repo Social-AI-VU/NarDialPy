@@ -499,7 +499,6 @@ class MiniDialog:
                 MOVE_SHOW_IMAGE,
                 "No screen provider configured, cannot show image.",
                 src=move.src,
-                caption=move.caption,
             )
             return
 
@@ -508,7 +507,6 @@ class MiniDialog:
             MOVE_SHOW_IMAGE,
             "Showed image on screen.",
             src=move.src,
-            caption=move.caption,
         )
 
     async def handle_move_show_video(self, move):

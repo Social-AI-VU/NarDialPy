@@ -99,7 +99,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    def ask_yesno(self, question, max_attempts=1):
+    def ask_yesno(self, question, max_attempts=1, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -117,7 +117,7 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
+            self.say(question, **kwargs)
             result = self.orchestrator.listen()
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
@@ -130,7 +130,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2):
+    def ask_open(self, question, max_attempts=2, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -148,14 +148,14 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question)
+            self.say(question, **kwargs)
             result = self.orchestrator.listen()
             if result.transcript:
                 return result.transcript
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2):
+    def ask_options(self, question, options, max_attempts=2, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -177,7 +177,7 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts)
+        answer = self.ask_open(question, max_attempts=max_attempts, **kwargs)
         if answer:
             answer_lower = answer.lower()
             for opt in options:

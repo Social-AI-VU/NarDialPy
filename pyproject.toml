@@ -30,7 +30,7 @@ elevenlabs = ["social-interaction-cloud[elevenlabs-tts]"]
 dialogflow = ["social-interaction-cloud[dialogflow]"]
 openai = ["social-interaction-cloud[openai-gpt]"]
 webserver  = ["social-interaction-cloud[webserver]"]
-all = ["nardial[google-tts,elevenlabs,dialogflow,openai]"]
+all = ["nardial[google-tts,elevenlabs,dialogflow,openai,webserver]"]
 dev = ["pytest", "pytest-asyncio"]
 
 [tool.pytest.ini_options]

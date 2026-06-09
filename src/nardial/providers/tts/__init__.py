@@ -9,6 +9,15 @@ class TTSProvider(Protocol):
     def speak(self, text: str, **kwargs) -> None: ...
     def close(self) -> None: ...
 
+    def cancel(self) -> None:
+        """Interrupt an in-progress ``speak`` call.
+
+        Called when the dialog runtime needs to preempt speech (e.g. to handle
+        a button-press interrupt).  Implementations that support mid-speech
+        cancellation should signal their TTS thread/service here.  The default
+        stub is a safe no-op for providers that do not support cancellation.
+        """
+
 
 def _read_wav_bytes(path: str) -> tuple[bytes, int]:
     with wave.open(path, 'rb') as wf:

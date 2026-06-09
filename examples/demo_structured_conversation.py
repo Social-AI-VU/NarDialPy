@@ -167,7 +167,7 @@ if __name__ == '__main__':
         agent=agent,
 
         # Path to your dialog definitions
-        dialog_json_path=abspath(join("..", "examples", "structured_conversation_dialogs.json")),
+        dialog_json_path=abspath(join("..", "examples", "dialog_json", "structured_conversation_dialogs.json")),
 
         # Optional: identify the user (used for personalization/memory)
         participant_id="2",

@@ -2,12 +2,14 @@ import json
 import os
 
 import numpy as np
+import asyncio
 
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
 from nardial.dialog_logic import DialogLogic
 
 from nardial.authoring import load_dialogs
+from nardial.events import EventBus
 
 
 class SessionManager:
@@ -32,6 +34,7 @@ class SessionManager:
         self.conversation_state = ConversationState(participant_id=participant_id)
         self.session_id = self.start_session()
         self.session_block = self.build_session_block()
+        self._bus = None
 
     @staticmethod
     def load_dialogs_from_json(path):
@@ -94,6 +97,9 @@ class SessionManager:
         return session_block
 
     def run(self):
+        asyncio.run(self.run_async())
+
+    async def run_async(self):
         """
         Execute the session by running each dialog in sequence.
 
@@ -103,6 +109,15 @@ class SessionManager:
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
         """
+
+        self._bus = EventBus()
+        # set_loop must happen before any source task starts so that emit_sync()
+        # calls from callback threads (e.g. robot SDK) have a valid loop reference.
+        self._bus.set_loop(asyncio.get_running_loop())
+        sp = self.agent.orchestrator.screen_provider
+        if sp is not None and hasattr(sp, "set_event_bus"):
+            sp.set_event_bus(self._bus)
+
         session_history = []
         for dialog in self.session_block:
             if not DialogLogic.is_dialog_eligible(
@@ -122,12 +137,18 @@ class SessionManager:
                 "dialog_id": dialog.dialog_id
             })
 
-            dialog.run(
-                self.agent,
-                session_history,
-                self.conversation_state.topics_of_interest,
-                self.conversation_state.user_model
-            )
+            dialog.set_event_bus(self._bus)
+
+            # dialog.run is async; await it directly inside the session event loop.
+            try:
+                await dialog.run(
+                    self.agent,
+                    session_history,
+                    self.conversation_state.topics_of_interest,
+                    self.conversation_state.user_model,
+                )
+            except Exception as e:
+                print(f"[ERROR] Running dialog {dialog.dialog_id} failed: {e}")
 
             session_history.append({
                 "role": "system",
@@ -141,7 +162,7 @@ class SessionManager:
         print("Topics of interest:", self.conversation_state.topics_of_interest)
 
         # Condense topics_of_interest into single-word keywords
-        topics_of_interest = self.condense_topics(self.conversation_state.topics_of_interest)
+        topics_of_interest = await self.condense_topics(self.conversation_state.topics_of_interest)
 
         self.conversation_state.add_events(self.session_id, session_history)
         self.conversation_state.end_session(
@@ -152,7 +173,7 @@ class SessionManager:
         )
         self.conversation_state.save()
 
-    def condense_topics(self, topics_of_interest):
+    async def condense_topics(self, topics_of_interest):
         """
         Reduce a list of topics of interest into concise keywords using GPT.
 
@@ -162,8 +183,9 @@ class SessionManager:
         :return: Condensed list of topic keywords.
         """
         try:
-            topics_of_interest = self.agent.extract_topics_with_llm(list(topics_of_interest))
-            print(f"[DEBUG] Condensed topics: {topics_of_interest}")
+            result = await self.agent.extract_topics_with_llm(list(topics_of_interest))
+            print(f"[DEBUG] Condensed topics: {result}")
+            return result
         except Exception as e:
             print(f"[WARN] Topic condensation failed: {e}")
-        return topics_of_interest
+            return topics_of_interest

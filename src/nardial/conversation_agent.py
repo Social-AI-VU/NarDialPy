@@ -9,6 +9,7 @@ from nardial.providers.nlu import (
 )
 from nardial.providers.llm import LLMProvider
 from nardial.providers.vector_store import VectorStoreProvider
+from nardial.providers.screen import ScreenProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -31,6 +32,16 @@ class ConversationAgent:
         The TTS provider used to synthesize and play speech.
     nlu_provider : NLUProvider
         The NLU provider used to capture and interpret user input.
+    llm_provider : LLMProvider, optional
+        Large-language-model provider for generative responses.
+    vector_store : VectorStoreProvider, optional
+        Vector store for retrieval-augmented generation.
+    screen_provider : ScreenProvider, optional
+        Browser-based display provider.  When supplied, the robot's spoken text
+        and the user's recognised speech are pushed to the screen automatically.
+        Dialog authors may also use display moves (``show_image``, ``show_video``,
+        ``show_iframe``, ``show_html``, ``black_screen``) and input moves
+        (``wait_for_web_input``) in JSON dialogs.
     int_config : InteractionConfig, optional
         Configuration for behavioral parameters. If not provided, defaults are used.
 
@@ -42,6 +53,7 @@ class ConversationAgent:
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
+                 screen_provider: ScreenProvider | None = None,
                  int_config: InteractionConfig = None):
         self.orchestrator = InteractionOrchestrator(
             device=device,
@@ -49,10 +61,11 @@ class ConversationAgent:
             nlu_provider=nlu_provider,
             llm_provider=llm_provider,
             vector_store=vector_store,
+            screen_provider=screen_provider,
             int_config=int_config,
         )
 
-    def say(self, text, **kwargs):
+    async def say(self, text, **kwargs):
         """
         Speak a piece of text using the configured TTS provider.
 
@@ -61,7 +74,7 @@ class ConversationAgent:
         text : str
             The text to be spoken aloud.
         """
-        self.orchestrator.say(text, **kwargs)
+        await self.orchestrator.say(text, **kwargs)
 
     def play_audio(self, audio_file):
         """
@@ -99,7 +112,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    def ask_yesno(self, question, max_attempts=1, **kwargs):
+    async def ask_yesno(self, question, max_attempts=1, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -117,8 +130,8 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question, **kwargs)
-            result = self.orchestrator.listen()
+            await self.say(question, **kwargs)
+            result = await self.orchestrator.listen()
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -130,7 +143,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    def ask_open(self, question, max_attempts=2, **kwargs):
+    async def ask_open(self, question, max_attempts=2, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -148,14 +161,14 @@ class ConversationAgent:
         """
         attempts = 0
         while attempts < max_attempts:
-            self.say(question, **kwargs)
-            result = self.orchestrator.listen()
+            await self.say(question, **kwargs)
+            result = await self.orchestrator.listen()
             if result.transcript:
                 return result.transcript
             attempts += 1
         return None
 
-    def ask_options(self, question, options, max_attempts=2, **kwargs):
+    async def ask_options(self, question, options, max_attempts=2, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -177,7 +190,7 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = self.ask_open(question, max_attempts=max_attempts, **kwargs)
+        answer = await self.ask_open(question, max_attempts=max_attempts, **kwargs)
         if answer:
             answer_lower = answer.lower()
             for opt in options:
@@ -185,7 +198,7 @@ class ConversationAgent:
                     return opt
         return None
 
-    def extract_topics_with_llm(self, raw_topics):
+    async def extract_topics_with_llm(self, raw_topics):
         """
         Extract concise topic keywords from a list of raw user utterances.
 
@@ -234,7 +247,7 @@ class ConversationAgent:
                 "Return ONLY a JSON array of unique keywords (strings), no explanations.\n"
                 f"INPUT: {json.dumps(raw_topics, ensure_ascii=False)}\nOUTPUT:"
             )
-            data = self.orchestrator.request_from_llm(system_prompt=prompt)
+            data = await self.orchestrator.request_from_llm(system_prompt=prompt)
             if not isinstance(data, list):
                 raise ValueError("GPT did not return a JSON list")
             out, seen = [], set()
@@ -249,7 +262,7 @@ class ConversationAgent:
         except Exception:
             return _heuristic(raw_topics)
 
-    def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
+    async def ask_llm(self, user_prompt, context_messages, system_prompt, rag_enabled: bool = False,
                 index_name: str | None = None):
         """
         Send a request to the configured LLM and return the response.
@@ -272,10 +285,87 @@ class ConversationAgent:
         Any
             The parsed response from the LLM.
         """
-        return self.orchestrator.request_from_llm(
+        return await self.orchestrator.request_from_llm(
             user_prompt,
             context_messages,
             system_prompt,
             rag_enabled=rag_enabled,
             index_name=index_name,
         )
+
+    async def show_image(self, src: str) -> None:
+        """Display an image on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        src : str
+            Local file path (relative to the static directory) or a full URL.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_image(src)
+
+    async def show_video(self, src: str) -> None:
+        """Display a video on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        src : str
+            Local file path or an embeddable URL.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_video(src)
+
+    async def show_iframe(self, url: str) -> None:
+        """Embed a URL in an iframe on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        url : str
+            The URL to embed.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_iframe(url)
+
+    async def show_html(self, html: str) -> None:
+        """Render a raw HTML snippet on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        html : str
+            The HTML to inject into the display area.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_html(html)
+
+    async def show_buttons(self, options: list[str]) -> None:
+        """Display clickable buttons on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        options : list of str
+            Button labels.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_buttons(options)
+
+    async def show_text_input(self, prompt: str = "") -> None:
+        """Show a text-input field on the screen, if a screen provider is configured.
+
+        Parameters
+        ----------
+        prompt : str
+            Placeholder / hint text for the input field.
+        """
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.show_text_input(prompt)
+
+    async def hide_input(self) -> None:
+        """Hide the current input widget on the screen, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.hide_input()
+
+    async def black(self) -> None:
+        """Set the screen to black/blank, if a screen provider is configured."""
+        if self.orchestrator.screen_provider is not None:
+            await self.orchestrator.screen_provider.black()
+

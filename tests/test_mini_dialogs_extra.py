@@ -1,5 +1,7 @@
 import pytest
 
+from unittest.mock import AsyncMock
+
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
@@ -16,13 +18,14 @@ def test_extract_open_value_quotes_and_tokens():
     assert MiniDialog.extract_open_value('  12345  ') == '12345'
 
 
-def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of_interest, make_mock_agent):
     # ask_llm returns None first (simulating transient LLM failure), then returns text
     agent = make_mock_agent(ask_llm_side_effect=[None, 'Hello LLM'], ask_open_side_effect=['hi'])
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-    md._run_llm_exchange(prompt='p', max_turns=3)
+    await md._run_llm_exchange(prompt='p', max_turns=3)
 
     # ask_llm retried until a non-None response
     assert agent.ask_llm.call_count >= 2
@@ -35,14 +38,15 @@ def test_run_llm_exchange_retries_on_none(session_history, user_model, topics_of
     assert MOVE_ANSWER_LLM in types
 
 
-def test_handle_move_ask_llm_from_dict_sets_variable(session_history, user_model, topics_of_interest, make_mock_agent):
+@pytest.mark.asyncio
+async def test_handle_move_ask_llm_from_dict_sets_variable(session_history, user_model, topics_of_interest, make_mock_agent):
     agent = make_mock_agent(ask_llm_side_effect=['Q1'], ask_open_side_effect=["I like turtles"])
     md = MiniDialog('test', moves=[])
     md.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
     move_dict = {'prompt': 'Tell me something', 'max_turns': 1, 'set_variable': 'pet'}
     # handle_move_ask_llm accepts a dict and internally uses MoveAskLLM.from_dict
-    md.handle_move_ask_llm(move_dict)
+    await md.handle_move_ask_llm(move_dict)
 
     # The user's answer should be stored under the set variable using extractor heuristics
     assert 'pet' in user_model
@@ -56,10 +60,10 @@ def test_handle_move_ask_llm_from_dict_sets_variable(session_history, user_model
 def _make_mock_agent(ask_options_return='dreaming', ask_yesno_return='yes', ask_open_return='something'):
     from unittest.mock import Mock
     agent = Mock()
-    agent.say = Mock()
-    agent.ask_options = Mock(return_value=ask_options_return)
-    agent.ask_yesno = Mock(return_value=ask_yesno_return)
-    agent.ask_open = Mock(return_value=ask_open_return)
+    agent.say = AsyncMock()
+    agent.ask_options = AsyncMock(return_value=ask_options_return)
+    agent.ask_yesno = AsyncMock(return_value=ask_yesno_return)
+    agent.ask_open = AsyncMock(return_value=ask_open_return)
     agent.play_audio = Mock()
     agent.play_motion_sequence = Mock()
     agent.play_animation = Mock()
@@ -117,7 +121,8 @@ def test_resolve_outcome_falls_back_to_default(session_history, user_model, topi
     assert md.current_outcome == "branch_default"
 
 
-def test_handle_move_branch_executes_correct_case(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_handle_move_branch_executes_correct_case(session_history, user_model, topics_of_interest):
     """handle_move_branch runs the sub-moves for the active current_outcome."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
@@ -132,13 +137,14 @@ def test_handle_move_branch_executes_correct_case(session_history, user_model, t
             "incorrect": [{"type": "say", "text": "Wrong!"}],
         }
     }
-    md.handle_move_branch(move)
+    await md.handle_move_branch(move)
 
     # Only the "correct" sub-move should have been spoken
     agent.say.assert_called_once_with("Correct!", voice_settings=None)
 
 
-def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, topics_of_interest):
     """handle_move_branch does nothing when current_outcome matches no case."""
     agent = _make_mock_agent()
     md = MiniDialog('test', moves=[])
@@ -152,11 +158,12 @@ def test_handle_move_branch_unknown_case_is_silent(session_history, user_model, 
             "correct": [{"type": "say", "text": "Correct!"}],
         }
     }
-    md.handle_move_branch(move)
+    await md.handle_move_branch(move)
     agent.say.assert_not_called()
 
 
-def test_full_dialog_new_branching_ask_options(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_full_dialog_new_branching_ask_options(session_history, user_model, topics_of_interest):
     """End-to-end: ask_options with outcomes routes into the correct branch case."""
     agent = _make_mock_agent(ask_options_return='dreaming')
     moves = [
@@ -183,7 +190,7 @@ def test_full_dialog_new_branching_ask_options(session_history, user_model, topi
         {"type": "say", "text": "Continuing the dialog."},
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     assert md.current_outcome == "correct"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -193,7 +200,8 @@ def test_full_dialog_new_branching_ask_options(session_history, user_model, topi
     assert user_model.get("what_is_dreaming") == "dreaming"
 
 
-def test_full_dialog_new_branching_ask_options_default(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_full_dialog_new_branching_ask_options_default(session_history, user_model, topics_of_interest):
     """End-to-end: unknown answer falls through to default_outcome."""
     agent = _make_mock_agent(ask_options_return=None)
     moves = [
@@ -214,7 +222,7 @@ def test_full_dialog_new_branching_ask_options_default(session_history, user_mod
         },
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     assert md.current_outcome == "incorrect"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -222,7 +230,8 @@ def test_full_dialog_new_branching_ask_options_default(session_history, user_mod
     assert "Correct!" not in texts_spoken
 
 
-def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics_of_interest):
     """End-to-end: ask_yesno with outcomes routes into the correct branch case."""
     agent = _make_mock_agent(ask_yesno_return='yes')
     moves = [
@@ -243,7 +252,7 @@ def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics
         },
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     assert md.current_outcome == "mem_yes"
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
@@ -251,7 +260,8 @@ def test_full_dialog_new_branching_ask_yesno(session_history, user_model, topics
     assert "That's okay." not in texts_spoken
 
 
-def test_branch_on_user_model_variable(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_branch_on_user_model_variable(session_history, user_model, topics_of_interest):
     """branch move can read from a user_model variable instead of current_outcome."""
     agent = _make_mock_agent()
     user_model['mood'] = 'happy'
@@ -267,7 +277,7 @@ def test_branch_on_user_model_variable(session_history, user_model, topics_of_in
         },
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Great to hear!" in texts_spoken
@@ -293,7 +303,8 @@ def test_resolve_outcome_wildcard_matches_any_answer(session_history, user_model
     assert md.current_outcome == "no_answer"
 
 
-def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_interest):
     """End-to-end: ask_open with '*' wildcard routes to the answered case."""
     agent = _make_mock_agent(ask_open_return='swimming')
     moves = [
@@ -314,14 +325,15 @@ def test_full_dialog_wildcard_ask_open(session_history, user_model, topics_of_in
         },
     ]
     md = MiniDialog('test', moves=moves)
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     texts_spoken = [call.args[0] for call in agent.say.call_args_list]
     assert "Cool answer!" in texts_spoken
     assert "No worries." not in texts_spoken
 
 
-def test_move_say_uses_character_voice_settings(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_move_say_uses_character_voice_settings(session_history, user_model, topics_of_interest):
     agent = _make_mock_agent()
     moves = [
         {"type": "say", "text": "Hello there.", "character": "narrator"},
@@ -332,15 +344,16 @@ def test_move_say_uses_character_voice_settings(session_history, user_model, top
         moves=moves,
         characters={"narrator": {"voice_settings": {"voice_id": "abc123", "language": "en"}}},
     )
-    md.run(agent, session_history, topics_of_interest, user_model)
+    await md.run(agent, session_history, topics_of_interest, user_model)
 
     assert agent.say.call_args_list[0].kwargs["voice_settings"] == {"voice_id": "abc123", "language": "en"}
     assert agent.say.call_args_list[1].kwargs["voice_settings"] is None
 
 
-def test_move_say_raises_for_unknown_character(session_history, user_model, topics_of_interest):
+@pytest.mark.asyncio
+async def test_move_say_raises_for_unknown_character(session_history, user_model, topics_of_interest):
     agent = _make_mock_agent()
     md = MiniDialog("test", moves=[{"type": "say", "text": "Hi", "character": "missing"}], characters={})
 
     with pytest.raises(ValueError, match="Unknown character"):
-        md.run(agent, session_history, topics_of_interest, user_model)
+        await md.run(agent, session_history, topics_of_interest, user_model)

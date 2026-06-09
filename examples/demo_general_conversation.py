@@ -22,7 +22,7 @@ from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
 
 # setup key file paths
-dialog_json_path = abspath(join("..", "examples", "dialogs.json"))
+dialog_json_path = abspath(join("..", "examples", "dialog_json", "dialogs.json"))
 
 # Path to your Google / Dialogflow credentials
 google_keyfile_path = abspath(join("..", "conf", "google", "google_keyfile.json"))

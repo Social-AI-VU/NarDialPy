@@ -1,12 +1,15 @@
 from typing import Any, Optional, List, cast
 import re
 from time import monotonic
+import asyncio
 
+from nardial.events import EventBus
 from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP, MOVE_BRANCH
+    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
+    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml
 
 from enum import Enum
 
@@ -34,11 +37,22 @@ class MiniDialog:
         self.variable_dependencies = variable_dependencies or []
         self.characters = characters or {}
 
+        # Use a session-shared EventBus when wired; The SessionManager or caller
+        # should call `set_event_bus()` to wire the shared bus before running.
+        self._bus: EventBus | None = None
         self.conversation_agent = None
         self.session_history = []
         self.topics_of_interest = []
         self.user_model = {}
         self.current_outcome = None
+
+    def set_event_bus(self, bus: EventBus) -> None:
+        """Wire a shared EventBus into this MiniDialog.
+
+        The dialog's move-level subscriptions use ``self._bus``; if no bus is
+        wired the web-input wait move resolves immediately to the default outcome.
+        """
+        self._bus = bus
 
     def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
         self.conversation_agent = agent
@@ -138,7 +152,7 @@ class MiniDialog:
             return tokens[-1]
         return text
 
-    def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
@@ -146,7 +160,7 @@ class MiniDialog:
 
         while idx < len(self.moves):
             move = self.moves[idx]
-            self._dispatch_move(move)
+            await self._dispatch_move(move)
             idx += 1
 
     def _resolve_outcome(self, move, answer) -> None:
@@ -168,7 +182,7 @@ class MiniDialog:
         else:
             self.current_outcome = default_outcome
 
-    def handle_move_branch(self, move) -> None:
+    async def handle_move_branch(self, move) -> None:
         """Execute the sub-moves for the matching case of a ``branch`` move."""
         move = MoveBranch.from_dict(move)
         if move.on == "outcome":
@@ -177,61 +191,77 @@ class MiniDialog:
             key = self.user_model.get(move.on)
         case_moves = move.cases.get(key, [])
         for sub_move in case_moves:
-            self._dispatch_move(sub_move)
+            await self._dispatch_move(sub_move)
 
-    def _dispatch_move(self, move) -> None:
+    async def _dispatch_move(self, move) -> None:
         """Execute a single move dict."""
         move_type = self._get(move, 'type')
         if move_type == MOVE_SAY:
-            self.handle_move_say(move)
+            await self.handle_move_say(move)
         elif move_type == MOVE_ASK_YESNO:
-            answer = self.handle_move_ask_yesno(move)
+            answer = await self.handle_move_ask_yesno(move)
             self._resolve_outcome(move, answer)
         elif move_type == MOVE_ASK_OPEN:
-            answer = self.handle_move_ask_open(move)
+            answer = await self.handle_move_ask_open(move)
             self._resolve_outcome(move, answer)
         elif move_type == MOVE_ASK_OPTIONS:
-            answer = self.handle_move_ask_options(move)
+            answer = await self.handle_move_ask_options(move)
             self._resolve_outcome(move, answer)
         elif move_type == MOVE_BRANCH:
-            self.handle_move_branch(move)
+            await self.handle_move_branch(move)
         elif move_type == MOVE_PLAY_AUDIO:
-            self.handle_move_play_audio(move)
+            await self.handle_move_play_audio(move)
         elif move_type == MOVE_MOTION_SEQUENCE:
-            self.handle_move_motion_sequence(move)
+            await self.handle_move_motion_sequence(move)
         elif move_type == MOVE_ANIMATION:
-            self.handle_move_animation(move)
+            await self.handle_move_animation(move)
         elif move_type == MOVE_ASK_LLM:
-                self.handle_move_ask_llm(move)
+            await self.handle_move_ask_llm(move)
+        elif move_type == MOVE_TIMED_WAIT:
+            await self.handle_move_timed_wait(move)
+        elif move_type == MOVE_WAIT_FOR_WEB_INPUT:
+            answer = await self.handle_move_wait_for_web_input(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_SHOW_IMAGE:
+            await self.handle_move_show_image(move)
+        elif move_type == MOVE_SHOW_VIDEO:
+            await self.handle_move_show_video(move)
+        elif move_type == MOVE_SHOW_IFRAME:
+            await self.handle_move_show_iframe(move)
+        elif move_type == MOVE_SHOW_HTML:
+            await self.handle_move_show_html(move)
 
-    def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
+        elif move_type == MOVE_BLACK_SCREEN:
+            await self.handle_move_black_screen(move)
+
+    async def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
         context_messages = [
             entry.get("text", "") for entry in self.session_history if entry.get("text") is not None
         ]
-        llm_text = self.conversation_agent.ask_llm(
+        llm_text = await self.conversation_agent.ask_llm(
             user_prompt=user_answer,
             context_messages=context_messages,
             system_prompt=system_prompt,
         )
         if llm_text:
             # Respect per-move voice settings when speaking the generated followup
-            self.conversation_agent.say(llm_text, voice_settings=voice_settings)
+            await self.conversation_agent.say(llm_text, voice_settings=voice_settings)
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
-    def handle_move_say(self, move):
+    async def handle_move_say(self, move):
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
             text = text.replace(f"%{var}%", str(value))
         voice_settings = self._get_voice_settings(move)
-        self.conversation_agent.say(text, voice_settings=voice_settings)
+        await self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)
 
-    def handle_move_ask_yesno(self, move):
+    async def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
         voice_settings = self._get_voice_settings(move)
         # Pass voice settings into the ask call so the device speaks with the correct character voice
-        answer = self.conversation_agent.ask_yesno(move.text, voice_settings=voice_settings)
+        answer = await self.conversation_agent.ask_yesno(move.text, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_YESNO, move.text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
@@ -243,15 +273,15 @@ class MiniDialog:
 
         # Optional LLM-generated followup response, speak with same voice as the move if provided
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
-                                        voice_settings=voice_settings)
+            await self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                              voice_settings=voice_settings)
 
         return answer
 
-    def handle_move_ask_open(self, move):
+    async def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = self.conversation_agent.ask_open(move.text, voice_settings=voice_settings)
+        answer = await self.conversation_agent.ask_open(move.text, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_OPEN, move.text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
@@ -262,15 +292,15 @@ class MiniDialog:
 
         # Optional LLM-generated followup response
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
-                                        voice_settings=voice_settings)
+            await self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                              voice_settings=voice_settings)
 
         return answer
 
-    def handle_move_ask_options(self, move):
+    async def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = self.conversation_agent.ask_options(move.text, move.options, voice_settings=voice_settings)
+        answer = await self.conversation_agent.ask_options(move.text, move.options, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
@@ -281,30 +311,30 @@ class MiniDialog:
 
         # Optional LLM-generated followup response
         if move.llm_followup:
-            self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
-                                        voice_settings=voice_settings)
+            await self._generate_llm_followup(user_answer=answer or "", system_prompt=move.llm_followup,
+                                              voice_settings=voice_settings)
 
         return answer
 
-    def handle_move_play_audio(self, move):
+    async def handle_move_play_audio(self, move):
         move = MovePlayAudio.from_dict(move)
         self.conversation_agent.play_audio(move.audio_file)
         self._record_robot(MOVE_PLAY_AUDIO, "Played audio. ", audio_file=move.audio_file)
 
-    def handle_move_motion_sequence(self, move):
+    async def handle_move_motion_sequence(self, move):
         move = MoveMotionSequence.from_dict(move)
         self.conversation_agent.play_motion_sequence(move.sequence_file)
         self._record_robot(MOVE_MOTION_SEQUENCE, "Played motion sequence.", motion_sequence_file=move.sequence_file)
 
-    def handle_move_animation(self, move):
+    async def handle_move_animation(self, move):
         move = MoveAnimation.from_dict(move)
         self.conversation_agent.play_animation(move.animation_name)
         self._record_robot(MOVE_ANIMATION, "Played animation. ", animation_name=move.animation_name)
 
-    def handle_move_ask_llm(self, move):
+    async def handle_move_ask_llm(self, move):
         move = MoveAskLLM.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        self._run_llm_exchange(
+        await self._run_llm_exchange(
             prompt=move.prompt,
             max_turns=move.max_turns or MAX_LLM_TURNS,
             set_variable=move.set_variable,
@@ -317,7 +347,7 @@ class MiniDialog:
             voice_settings=voice_settings,
         )
 
-    def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
+    async def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
                           rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None):
@@ -335,7 +365,7 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = agent.orchestrator.listen(timeout=timeout or 10)
+            result = await agent.orchestrator.listen(timeout=timeout or 10)
             user_input = result.transcript or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
@@ -343,7 +373,7 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            llm_text = agent.ask_llm(
+            llm_text = await agent.ask_llm(
                 user_prompt=user_input,
                 context_messages=dialog_history,
                 system_prompt=prompt,
@@ -358,16 +388,16 @@ class MiniDialog:
                 clean = llm_text.replace(quit_signal, "").strip()
                 if clean:
                     # speak with the move's voice settings if provided
-                    agent.say(clean, voice_settings=voice_settings)
+                    await agent.say(clean, voice_settings=voice_settings)
                     self._record_robot(MOVE_SAY, clean)
                 return
 
             # Ask the user the LLM's text and listen for reply
-            agent.say(llm_text, voice_settings=voice_settings)
+            await agent.say(llm_text, voice_settings=voice_settings)
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = agent.orchestrator.listen(timeout=timeout or 10)
+            result = await agent.orchestrator.listen(timeout=timeout or 10)
             user_input = result.transcript or ""
 
             # Record the exchange using the provided record types
@@ -391,10 +421,174 @@ class MiniDialog:
 
             dialog_history.append(user_input)
 
+    async def handle_move_timed_wait(self, move):
+        move = MoveTimedWait.from_dict(move)
+        await asyncio.sleep(move.duration_seconds)
+        self._record_system(
+            MOVE_TIMED_WAIT,
+            f"Waited {move.duration_seconds} seconds",
+            duration_seconds=move.duration_seconds,
+        )
 
-class FunctionalType(Enum):
-    GREETING = "greeting"
-    FAREWELL = "farewell"
+    async def handle_move_wait_for_web_input(self, move):
+        """Wait for a web-input event whose value is in ``move.options``, or until timeout.
+
+        If a screen provider is configured and ``move.options`` is non-empty, buttons
+        are shown before waiting and hidden after resolution (match or timeout).
+        If no event bus is wired up, resolves immediately to ``move.default_outcome``.
+        """
+        move = MoveWaitForWebInput.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+
+        # Show buttons on screen before waiting (only when options are declared).
+        if sp is not None and move.options:
+            await sp.show_buttons(move.options)
+
+        if self._bus is None:
+            self._record_system(
+                MOVE_WAIT_FOR_WEB_INPUT,
+                "No event bus available, resolving to default outcome.",
+                default_outcome=move.default_outcome,
+            )
+            if sp is not None:
+                await sp.hide_input()
+            return None
+
+        value = None
+
+        def _predicate(ev: Any) -> bool:
+            return (
+                    ev.type == "web_input"
+                    and isinstance(ev.data, dict)
+                    and ev.data.get("value") in move.options
+            )
+
+        sub = self._bus.subscribe(_predicate)
+        try:
+            ev = await asyncio.wait_for(sub.get(), timeout=move.timeout)
+            value = ev.data.get("value")
+            self._record_system(
+                MOVE_WAIT_FOR_WEB_INPUT,
+                f"Received web input: {value}",
+                value=value,
+            )
+        except asyncio.TimeoutError:
+            self._record_system(
+                MOVE_WAIT_FOR_WEB_INPUT,
+                f"Timed out after {move.timeout} seconds waiting for web input. Resolving to default outcome.",
+                timeout=move.timeout,
+                default_outcome=move.default_outcome,
+            )
+        finally:
+            self._bus.unsubscribe(sub)
+            # Hide input after resolution regardless of outcome (match or timeout).
+            if sp is not None:
+                await sp.hide_input()
+
+        return value
+
+    async def handle_move_show_image(self, move):
+        """Display an image on the screen.
+
+        Skipped with a warning if no screen provider is configured on the agent.
+        """
+        move = MoveShowImage.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+        if sp is None:
+            self._record_system(
+                MOVE_SHOW_IMAGE,
+                "No screen provider configured, cannot show image.",
+                src=move.src,
+            )
+            return
+
+        await sp.show_image(move.src)
+        self._record_system(
+            MOVE_SHOW_IMAGE,
+            "Showed image on screen.",
+            src=move.src,
+        )
+
+    async def handle_move_show_video(self, move):
+        """Display a video on the screen.
+
+                Skipped with a warning if no screen provider is configured.
+                """
+        move = MoveShowVideo.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+        if sp is None:
+            self._record_system(
+                MOVE_SHOW_VIDEO,
+                "No screen provider configured, cannot show video.",
+                src=move.src,
+            )
+            return
+        await sp.show_video(move.src)
+        self._record_system(
+            MOVE_SHOW_VIDEO,
+            "Showed video on screen.",
+            src=move.src,
+        )
+
+    async def handle_move_show_iframe(self, move):
+        """Embed an external URL in an iframe on the screen.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        move = MoveShowIframe.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+        if sp is None:
+            self._record_system(
+                MOVE_SHOW_IFRAME,
+                "No screen provider configured, cannot show iframe.",
+                url=move.url,
+            )
+            return
+        await sp.show_iframe(move.url)
+        self._record_system(
+            MOVE_SHOW_IFRAME,
+            "Showed iframe on screen.",
+            url=move.url,
+        )
+
+    async def handle_move_show_html(self, move):
+        """Render a raw HTML snippet on the screen.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        move = MoveShowHtml.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+        if sp is None:
+            self._record_system(
+                MOVE_SHOW_HTML,
+                "No screen provider configured, cannot show HTML.",
+                html_length=len(move.html) if move.html else 0,
+            )
+            return
+        await sp.show_html(move.html)
+        self._record_system(
+            MOVE_SHOW_HTML,
+            "Showed HTML on screen.",
+            html_length=len(move.html) if move.html else 0,
+        )
+
+    async def handle_move_black_screen(self, move):
+        """Set the screen to black/blank.
+
+        Skipped with a warning if no screen provider is configured.
+        """
+        sp = self.conversation_agent.orchestrator.screen_provider
+        if sp is None:
+            self._record_system(
+                MOVE_BLACK_SCREEN,
+                "No screen provider configured, cannot set black screen.",
+            )
+            return
+        await sp.black()
+        self._record_system(
+            MOVE_BLACK_SCREEN,
+            "Set black screen.",
+        )
 
 
 class FunctionalDialog(MiniDialog):
@@ -442,10 +636,10 @@ class LLMDialog(MiniDialog):
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
-    def run(self, agent, session_history, topics_of_interest, user_model):
+    async def run(self, agent, session_history, topics_of_interest, user_model):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
-        self._run_llm_exchange(
+        await self._run_llm_exchange(
             prompt=self.prompt,
             max_turns=self.max_turns,
             set_variable=None,
@@ -456,3 +650,9 @@ class LLMDialog(MiniDialog):
             rag_enabled=self.rag_enabled,
             index_name=self.index_name,
         )
+
+
+# small helper enum used by FunctionalDialog
+class FunctionalType(Enum):
+    GREETING = "greeting"
+    FAREWELL = "farewell"

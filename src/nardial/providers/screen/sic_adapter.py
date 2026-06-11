@@ -36,6 +36,7 @@ from __future__ import annotations
 import base64
 import logging
 import mimetypes
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -64,6 +65,23 @@ class SICScreenAdapter(ScreenProvider):
         # Register the SIC callback immediately. If _bus is None when a click
         # arrives the event is dropped with a WARNING (see _on_button_clicked).
         self._webserver.register_callback(self._on_button_clicked)
+
+        # Track any video files we copy into the package static directory so
+        # they can be removed when the adapter is closed.
+        self._copied_files: set[Path] = set()
+
+        # Resolve the package's bundled web/static directory. We keep this
+        # calculation local so importing SIC or other optional deps isn't
+        # required at module import time.
+        try:
+            import nardial.providers.screen as _screen_pkg
+
+            self._static_dir = Path(_screen_pkg.__file__).parent / "web" / "static"
+        except Exception:
+            # If for some reason the package path cannot be resolved, fall back
+            # to a conservative default (current working directory + static).
+            logger.exception("SICScreenAdapter: failed to determine package static dir")
+            self._static_dir = Path.cwd() / "static"
 
     # ------------------------------------------------------------------
     # EventBus wiring (called by SessionManager.run_async)
@@ -163,101 +181,99 @@ class SICScreenAdapter(ScreenProvider):
         resolved = self._resolve_image_src(src)
         self._send_screen({"type": "image", "src": resolved})
 
-    def _resolve_image_src(self, image_path: str) -> str:
-        """Resolve an image path to a browser-usable src.
+    @staticmethod
+    def _resolve_image_src(src: str) -> str:
+        """Resolve a media source to a source the browser can display.
 
-        - If the path is an absolute URL (http/https/data) it is returned unchanged.
-        - If the file exists inside the package web static dir it is rewritten to
-          the webserver's /static/... URL so the webserver can serve it.
-        - Otherwise, if a matching file exists on disk (project root, examples,
-          or absolute path), it is embedded as a base64 data URI so the browser
-          will display it without requiring the webserver to expose the file.
-        - If nothing is found, the original image_path is returned unchanged.
+        Supported inputs:
+        - http://...
+        - https://...
+        - data:...
+        - local image/video file path
+
+        Local files are embedded as data URIs.
         """
-        if not image_path:
-            return image_path
-        image_path = str(image_path)
-        lowered = image_path.lower()
-        if lowered.startswith("http://") or lowered.startswith("https://") or lowered.startswith("data:"):
-            return image_path
+        if not src:
+            return src
 
-        # Attempt to find the file on disk. Consider common locations:
-        #  - packaged web static dir (served at /static/...)
-        #  - project root / examples / provided relative path
+        src = str(src)
+
+        # Already browser-accessible
+        lowered = src.lower()
+        if lowered.startswith(("http://", "https://", "data:")):
+            return src
+
+        path = Path(src)
+        if not path.exists():
+            return src
+
         try:
-            this_file = Path(__file__).resolve()
-            # project root: ../../../../ (src/nardial/providers/screen -> go up 4)
-            project_root = this_file.parents[4]
+            mime, _ = mimetypes.guess_type(str(path))
+            mime = mime or "application/octet-stream"
+
+            data = path.read_bytes()
+            b64 = base64.b64encode(data).decode("ascii")
+
+            return f"data:{mime};base64,{b64}"
+
         except Exception:
-            project_root = Path(".")
+            logger.exception("Failed to resolve media '%s'", src)
+            return src
 
-        # 1) Check packaged web static dir (src/nardial/providers/screen/web/static)
-        web_static = Path(__file__).resolve().parent / "web" / "static"
-        candidate = web_static / image_path
-        if candidate.exists():
-            # expose via the webserver's /static/ path
-            # normalize forward slashes for the URL
-            rel = candidate.relative_to(web_static).as_posix()
-            return f"/static/{rel}"
+    def _resolve_video_src(self, src: str) -> str:
+        # If the source is already a browser-accessible URL or a data URI, send
+        # it straight through.
+        if not src:
+            return src
 
-        # 2) Check project locations: project_root / image_path and project_root / examples / image_path
-        candidates = [
-            project_root / image_path,
-            project_root / "examples" / image_path,
-            Path(image_path),
-        ]
-        for c in candidates:
-            if c.exists():
+        lowered = str(src).lower()
+        if lowered.startswith(("http://", "https://", "data:")):
+            return src
+
+        # Treat the source as a local file path. If it exists, copy it into the
+        # package's web/static directory and expose it under the /static/ URL
+        # path so the browser (and Pepper tablet) can load it.
+        try:
+            path = Path(src)
+            if not path.exists():
+                # If the path does not exist, try resolving relative to the
+                # current working directory (common for example scripts).
+                alt = Path.cwd() / src
+                if alt.exists():
+                    path = alt
+
+            if path.exists() and path.is_file():
+                # Ensure the static dir exists.
                 try:
-                    mime, _ = mimetypes.guess_type(str(c))
-                    if not mime:
-                        mime = "application/octet-stream"
-                    data = c.read_bytes()
-                    b64 = base64.b64encode(data).decode("ascii")
-                    return f"data:{mime};base64,{b64}"
+                    self._static_dir.mkdir(parents=True, exist_ok=True)
                 except Exception:
-                    logger.exception("Failed to embed image '%s' as data URI", c)
-                    break
+                    logger.exception("SICScreenAdapter: failed to create static dir %s", self._static_dir)
 
-        # Nothing found — return original path and let the browser attempt to load it.
-        return image_path
+                # Create a unique filename to avoid collisions and caching issues.
+                import uuid
 
-    def create_image_page(self, image_path: str):
-        """Create HTML page showing current image."""
-        resolved_src = self._resolve_image_src(image_path)
-        return f"""<!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Image</title>
-                    <style>
-                        body {{
-                            margin: 0;
-                            padding: 0;
-                            background-color: #000;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            height: 100vh;
-                            overflow: hidden;
-                        }}
-                        img {{
-                            max-width: 100%;
-                            max-height: 100%;
-                            object-fit: contain;
-                        }}
-                    </style>
-                </head>
-                <body>
-                    <img src="{resolved_src}" alt="Displayed Image">
-                </body>
-                </html>
-                """
+                unique_name = f"nardial_video_{uuid.uuid4().hex}_{path.name}"
+                dest = self._static_dir / unique_name
+
+                try:
+                    shutil.copy2(path, dest)
+                    self._copied_files.add(dest)
+                    # Use the absolute /static/... URL path used by the web frontend.
+                    url = f"/static/{unique_name}"
+                    return url
+                except Exception:
+                    logger.exception("SICScreenAdapter: failed to copy video %s to %s", path, dest)
+                    # Fall through to sending the original src (best-effort).
+                    return src
+        except Exception:
+            logger.exception("SICScreenAdapter.show_video: unexpected error while preparing video %r", src)
+
+        return src
 
     async def show_video(self, src: str) -> None:
         """Display a video from a local path or an embeddable URL."""
-        self._send_screen({"type": "video", "src": src})
+        resolved = self._resolve_video_src(src)
+        self._send_screen({"type": "video", "src": resolved})
 
     async def show_iframe(self, url: str) -> None:
         """Embed an external URL in an iframe on the screen."""
@@ -286,3 +302,18 @@ class SICScreenAdapter(ScreenProvider):
 
     async def close(self) -> None:
         """No-op — the SIC ``Webserver`` connector is managed by the caller."""
+        # Clean up any temporary video files we copied into the static dir.
+        if getattr(self, "_copied_files", None):
+            for p in list(self._copied_files):
+                try:
+                    if p.exists():
+                        p.unlink()
+                        logger.info("SICScreenAdapter: removed temporary static file %s", p)
+                except Exception:
+                    logger.exception("SICScreenAdapter: failed to remove temporary static file %s", p)
+            # Clear the set so repeated close() calls are harmless.
+            self._copied_files.clear()
+
+        # No other shutdown actions here; the webserver is owned by the caller.
+
+

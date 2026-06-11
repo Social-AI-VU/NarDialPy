@@ -132,19 +132,9 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
         except Exception:
             logger.exception("PepperTabletScreenAdapter: failed to open URL on tablet")
 
-    def refresh_tablet(self) -> None:
-        """Refresh the tablet display by re-sending the current URL.
-
-        This can be used to recover if the tablet goes to sleep or loses the
-        page for some reason.  Failures are logged and swallowed.
-        """
-        logger.info("PepperTabletScreenAdapter: refreshing tablet display")
-        self._open_on_tablet(self.tablet_url)
-
     async def show_image(self, src: str) -> None:
         """Override parent method to also refresh pepper's tablet."""
         await super().show_image(src)
-        self.refresh_tablet()
 
     # ------------------------------------------------------------------
     # Lifecycle

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "screen_demo",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+       {"type":  "black_screen"},
+      {"type":  "timed_wait", "duration_seconds": 3.0 },
+      { "type": "say", "text": "Welcome to the NarDialPy screen images demo." },
+      { "type": "say", "text": "I will first display an apple on the screen." },
+      {
+        "type": "show_image",
+        "src": "assets/images/apple.jpg"
+      },
+      { "type": "timed_wait", "duration_seconds": 10.0 },
+      { "type": "say", "text": "Now, I will display an orange." },
+      {
+        "type": "show_image",
+        "src": "assets/images/orange.jpg"
+      },
+      { "type": "timed_wait", "duration_seconds": 10.0 },
+      { "type": "say", "text": "Now, I will display a banana." },
+      {
+        "type": "show_image",
+        "src": "assets/images/banana.jpg"
+      },
+      { "type": "timed_wait", "duration_seconds": 10.0 },
+      {"type": "say", "text": "Finally, I will play a video" },
+      {
+        "type": "show_video",
+        "src": "assets/videos/dummy_video.mp4"
+      },
+      { "type": "timed_wait", "duration_seconds": 60.0 },
+      { "type": "black_screen" },
+      { "type": "say", "text": "Thanks for watching. Goodbye!" }
+    ]
+  }
+]

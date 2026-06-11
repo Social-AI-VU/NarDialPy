@@ -65,7 +65,7 @@ if __name__ == "__main__":
     # The host IP is your computer's LAN address that Pepper can route to (not localhost)
     # You can find it with `ipconfig` (Windows) or `ifconfig` (macOS/Linux) in the terminal.
     host_ip = "10.0.0.184"
-    port = 5001
+    port = 5000
 
     # The SIC Webserver must be running (run-webserver) before this line.
     # WebserverConf tells it which HTML/CSS/JS to serve — pointing at the
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     manager = SessionManager(
         session_agenda=["screen_demo"],
         agent=agent,
-        dialog_json_path=str(Path(__file__).parent / "dialog_json" / "demo_screen_dialogs.json"),
+        dialog_json_path=str(Path(__file__).parent / "dialog_json" / "demo_pepper_tablet.json"),
         participant_id="screen_demo_user",
     )
     manager.run()

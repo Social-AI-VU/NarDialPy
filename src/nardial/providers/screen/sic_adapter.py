@@ -71,16 +71,11 @@ class SICScreenAdapter(ScreenProvider):
         # Path to a directory of static assets (e.g. images or videos) to serve.
         self._assets_root = assets_root
 
-        # Resolve the package's bundled web/static directory. We keep this
-        # calculation local so importing SIC or other optional deps isn't
-        # required at module import time.
+        # Resolve the package's bundled web/static directory.
         try:
             import nardial.providers.screen as _screen_pkg
-
             self._static_dir = Path(_screen_pkg.__file__).parent / "web" / "static"
         except Exception:
-            # If for some reason the package path cannot be resolved, fall back
-            # to a conservative default (current working directory + static).
             logger.exception("SICScreenAdapter: failed to determine package static dir")
             self._static_dir = Path.cwd() / "static"
 

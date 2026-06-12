@@ -97,7 +97,35 @@ class SessionManager:
         return session_block
 
     def run(self):
-        asyncio.run(self.run_async())
+        """Run the session synchronously and ensure a graceful shutdown.
+
+        This wraps asyncio.run(self.run_async()) and guarantees that the
+        agent's orchestrator is disconnected (providers closed) even if
+        the session raises an exception.
+        """
+        try:
+            asyncio.run(self.run_async())
+        finally:
+            # Attempt best-effort graceful shutdown of provider resources.
+            try:
+                if hasattr(self.agent, "orchestrator") and self.agent.orchestrator is not None:
+                    try:
+                        # Stop any logging thread first (if used)
+                        if hasattr(self.agent.orchestrator, "stop_logging"):
+                            try:
+                                self.agent.orchestrator.stop_logging()
+                            except Exception:
+                                pass
+                        # Disconnect providers (TTS, device, vector store, screen)
+                        if hasattr(self.agent.orchestrator, "disconnect"):
+                            self.agent.orchestrator.disconnect()
+                    except Exception:
+                        # Swallow errors during shutdown but print for debug
+                        print("[WARN] Error while disconnecting orchestrator:", end=" ")
+                        import traceback
+                        traceback.print_exc()
+            except Exception:
+                pass
 
     async def run_async(self):
         """

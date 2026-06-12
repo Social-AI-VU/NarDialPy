@@ -56,6 +56,9 @@ from nardial.session_manager import SessionManager
 import nardial.providers.screen as _screen_pkg
 _WEB_DIR = Path(_screen_pkg.__file__).parent / "web"
 
+# Assets root is the base path for any relative paths in the dialog JSON (e.g. image paths).
+assets_root = (Path(__file__).parent / "assets").resolve()
+
 if __name__ == "__main__":
     # ── Device ────────────────────────────────────────────────────────────────
     pepper = Pepper("10.0.0.148")
@@ -86,7 +89,8 @@ if __name__ == "__main__":
         webserver=webserver,
         host_ip=host_ip,
         tablet=pepper.tablet,
-        port=port
+        port=port,
+        assets_root=assets_root,
     )
 
     # ── Agent ──────────────────────────────────────────────────────────────────

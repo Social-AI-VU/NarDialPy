@@ -57,18 +57,19 @@ class SICScreenAdapter(ScreenProvider):
     webserver : Webserver
         An already-instantiated SIC ``Webserver`` connector.  The caller is
         responsible for its lifecycle (creation and teardown).
+    assets_root : str, optional
+        Path to a directory of static assets (e.g. images or videos) to serve.
     """
 
-    def __init__(self, webserver) -> None:
+    def __init__(self, webserver,  assets_root: Path = None) -> None:
         self._webserver = webserver
         self._bus: "EventBus | None" = None
         # Register the SIC callback immediately. If _bus is None when a click
         # arrives the event is dropped with a WARNING (see _on_button_clicked).
         self._webserver.register_callback(self._on_button_clicked)
 
-        # Track any video files we copy into the package static directory so
-        # they can be removed when the adapter is closed.
-        self._copied_files: set[Path] = set()
+        # Path to a directory of static assets (e.g. images or videos) to serve.
+        self._assets_root = assets_root
 
         # Resolve the package's bundled web/static directory. We keep this
         # calculation local so importing SIC or other optional deps isn't
@@ -82,6 +83,58 @@ class SICScreenAdapter(ScreenProvider):
             # to a conservative default (current working directory + static).
             logger.exception("SICScreenAdapter: failed to determine package static dir")
             self._static_dir = Path.cwd() / "static"
+
+        self._asset_link_dir = self._static_dir / "user_assets"
+        self._ensure_asset_symlink()
+
+    def _ensure_asset_symlink(self) -> None:
+        try:
+            if not self._assets_root:
+                return
+
+            if not self._assets_root.exists():
+                logger.warning("Asset root does not exist: %s", self._assets_root)
+                return
+
+            self._static_dir.mkdir(parents=True, exist_ok=True)
+
+            if self._asset_link_dir.exists() or self._asset_link_dir.is_symlink():
+                try:
+                    self._asset_link_dir.unlink()
+                except Exception:
+                    logger.exception("Failed to remove old asset link")
+
+            try:
+                self._asset_link_dir.symlink_to(
+                    self._assets_root,
+                    target_is_directory=True
+                )
+                self._asset_mode = "symlink"
+            except Exception:
+                logger.warning("Symlink failed; assets will not be served via /static")
+                self._asset_mode = "fallback"
+
+        except Exception:
+            logger.exception("Asset setup failed")
+
+    @staticmethod
+    def _resolve_media_src(src: str) -> str:
+        if not src:
+            return src
+
+        src = str(src)
+
+        # Already valid for browser
+        if src.startswith(("http://", "https://", "data:")):
+            return src
+
+        # Asset handling
+        if src.startswith("assets/"):
+            relative = src[len("assets/"):]
+            return f"/static/user_assets/{relative}"
+
+        # fallback: assume it's already a valid static path or malformed input
+        return src
 
     # ------------------------------------------------------------------
     # EventBus wiring (called by SessionManager.run_async)
@@ -178,101 +231,12 @@ class SICScreenAdapter(ScreenProvider):
 
     async def show_image(self, src: str) -> None:
         """Display an image from a local path or URL. """
-        resolved = self._resolve_image_src(src)
+        resolved = self._resolve_media_src(src)
         self._send_screen({"type": "image", "src": resolved})
-
-    @staticmethod
-    def _resolve_image_src(src: str) -> str:
-        """Resolve a media source to a source the browser can display.
-
-        Supported inputs:
-        - http://...
-        - https://...
-        - data:...
-        - local image/video file path
-
-        Local files are embedded as data URIs.
-        """
-        if not src:
-            return src
-
-        src = str(src)
-
-        # Already browser-accessible
-        lowered = src.lower()
-        if lowered.startswith(("http://", "https://", "data:")):
-            return src
-
-        path = Path(src)
-        if not path.exists():
-            return src
-
-        try:
-            mime, _ = mimetypes.guess_type(str(path))
-            mime = mime or "application/octet-stream"
-
-            data = path.read_bytes()
-            b64 = base64.b64encode(data).decode("ascii")
-
-            return f"data:{mime};base64,{b64}"
-
-        except Exception:
-            logger.exception("Failed to resolve media '%s'", src)
-            return src
-
-    def _resolve_video_src(self, src: str) -> str:
-        # If the source is already a browser-accessible URL or a data URI, send
-        # it straight through.
-        if not src:
-            return src
-
-        lowered = str(src).lower()
-        if lowered.startswith(("http://", "https://", "data:")):
-            return src
-
-        # Treat the source as a local file path. If it exists, copy it into the
-        # package's web/static directory and expose it under the /static/ URL
-        # path so the browser (and Pepper tablet) can load it.
-        try:
-            path = Path(src)
-            if not path.exists():
-                # If the path does not exist, try resolving relative to the
-                # current working directory (common for example scripts).
-                alt = Path.cwd() / src
-                if alt.exists():
-                    path = alt
-
-            if path.exists() and path.is_file():
-                # Ensure the static dir exists.
-                try:
-                    self._static_dir.mkdir(parents=True, exist_ok=True)
-                except Exception:
-                    logger.exception("SICScreenAdapter: failed to create static dir %s", self._static_dir)
-
-                # Create a unique filename to avoid collisions and caching issues.
-                import uuid
-
-                unique_name = f"nardial_video_{uuid.uuid4().hex}_{path.name}"
-                dest = self._static_dir / unique_name
-
-                try:
-                    shutil.copy2(path, dest)
-                    self._copied_files.add(dest)
-                    # Use the absolute /static/... URL path used by the web frontend.
-                    url = f"/static/{unique_name}"
-                    return url
-                except Exception:
-                    logger.exception("SICScreenAdapter: failed to copy video %s to %s", path, dest)
-                    # Fall through to sending the original src (best-effort).
-                    return src
-        except Exception:
-            logger.exception("SICScreenAdapter.show_video: unexpected error while preparing video %r", src)
-
-        return src
 
     async def show_video(self, src: str) -> None:
         """Display a video from a local path or an embeddable URL."""
-        resolved = self._resolve_video_src(src)
+        resolved = self._resolve_media_src(src)
         self._send_screen({"type": "video", "src": resolved})
 
     async def show_iframe(self, url: str) -> None:
@@ -301,18 +265,12 @@ class SICScreenAdapter(ScreenProvider):
         self._send_screen({"type": "black"})
 
     async def close(self) -> None:
-        """No-op — the SIC ``Webserver`` connector is managed by the caller."""
-        # Clean up any temporary video files we copied into the static dir.
-        if getattr(self, "_copied_files", None):
-            for p in list(self._copied_files):
-                try:
-                    if p.exists():
-                        p.unlink()
-                        logger.info("SICScreenAdapter: removed temporary static file %s", p)
-                except Exception:
-                    logger.exception("SICScreenAdapter: failed to remove temporary static file %s", p)
-            # Clear the set so repeated close() calls are harmless.
-            self._copied_files.clear()
+        # Clean up any symlink created for the assets root.
+        if self._asset_mode == "symlink":
+            try:
+                self._asset_link_dir.unlink()
+            except Exception:
+                logger.exception("Failed to remove asset symlink")
 
         # No other shutdown actions here; the webserver is owned by the caller.
 

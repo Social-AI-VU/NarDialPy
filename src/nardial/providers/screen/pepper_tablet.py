@@ -37,6 +37,7 @@ constructor.  The connection request is sent before the page URL is opened.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from nardial.providers.screen.sic_adapter import SICScreenAdapter
 
@@ -72,6 +73,8 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
     wifi_security : str
         Security type — one of ``"open"``, ``"wep"``, ``"wpa"``, ``"wpa2"``
         (default: ``"wpa2"``).
+    assets_root : str or None
+        Optional root directory for local assets (images, videos)
     """
 
     def __init__(
@@ -84,9 +87,10 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
         wifi_ssid: str | None = None,
         wifi_password: str = "",
         wifi_security: str = "wpa2",
+        assets_root: Path | None = None,
     ) -> None:
         # Parent registers the button-click callback on the webserver.
-        super().__init__(webserver=webserver)
+        super().__init__(webserver=webserver, assets_root=assets_root)
         self._tablet = tablet
 
         if wifi_ssid:

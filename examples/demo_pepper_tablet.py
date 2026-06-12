@@ -56,6 +56,9 @@ from nardial.session_manager import SessionManager
 import nardial.providers.screen as _screen_pkg
 _WEB_DIR = Path(_screen_pkg.__file__).parent / "web"
 
+# Assets root is the base path for any relative paths in the dialog JSON (e.g. image paths).
+assets_root = (Path(__file__).parent / "assets").resolve()
+
 if __name__ == "__main__":
     # ── Device ────────────────────────────────────────────────────────────────
     pepper = Pepper("10.0.0.148")
@@ -65,7 +68,7 @@ if __name__ == "__main__":
     # The host IP is your computer's LAN address that Pepper can route to (not localhost)
     # You can find it with `ipconfig` (Windows) or `ifconfig` (macOS/Linux) in the terminal.
     host_ip = "10.0.0.184"
-    port = 5001
+    port = 5000
 
     # The SIC Webserver must be running (run-webserver) before this line.
     # WebserverConf tells it which HTML/CSS/JS to serve — pointing at the
@@ -86,7 +89,8 @@ if __name__ == "__main__":
         webserver=webserver,
         host_ip=host_ip,
         tablet=pepper.tablet,
-        port=port
+        port=port,
+        assets_root=assets_root,
     )
 
     # ── Agent ──────────────────────────────────────────────────────────────────
@@ -101,7 +105,7 @@ if __name__ == "__main__":
     manager = SessionManager(
         session_agenda=["screen_demo"],
         agent=agent,
-        dialog_json_path=str(Path(__file__).parent / "dialog_json" / "demo_screen_dialogs.json"),
+        dialog_json_path=str(Path(__file__).parent / "dialog_json" / "demo_pepper_tablet.json"),
         participant_id="screen_demo_user",
     )
     manager.run()

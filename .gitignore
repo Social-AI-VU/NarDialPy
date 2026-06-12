@@ -43,3 +43,6 @@ conf/.env
 # Ignore Claude
 .claude/
 CLAUDE.md
+
+# ignore assets
+examples/assets/

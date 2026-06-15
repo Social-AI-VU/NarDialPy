@@ -136,10 +136,6 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
         except Exception:
             logger.exception("PepperTabletScreenAdapter: failed to open URL on tablet")
 
-    async def show_image(self, src: str) -> None:
-        """Override parent method to also refresh pepper's tablet."""
-        await super().show_image(src)
-
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------

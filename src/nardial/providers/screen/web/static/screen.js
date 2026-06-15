@@ -128,11 +128,11 @@ function handleInput(payload) {
       btn.className = "btn-option";
       btn.textContent = option;
       btn.addEventListener("click", function () {
+        sendValue(option);
         // Disable all buttons after the first click to prevent double-submission.
         Array.from(inputArea.querySelectorAll(".btn-option")).forEach(function (b) {
           b.disabled = true;
         });
-        sendValue(option);
       });
       inputArea.appendChild(btn);
     });

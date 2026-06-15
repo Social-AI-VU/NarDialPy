@@ -7,15 +7,13 @@ This demo depends on external services for speech, language understanding, and L
 -------------------------
 1. Install dependencies
 -------------------------
-From the repository root:
-    pip install -e .
-    pip install --upgrade "social-interaction-cloud[dialogflow,google-tts,openai-gpt]"
+    pip install "nardial[google-tts,dialogflow,openai]"
 -------------------------
 2. Configure credentials
 -------------------------
 You MUST create the following files:
 
-- Dialogflow / Google credentials: conf/dialogflow/google_keyfile.json
+- Dialogflow / Google credentials: conf/google/google_keyfile.json
 - OpenAI API key: conf/.env
 Example `.env` file:
     OPENAI_API_KEY="your key"
@@ -26,7 +24,11 @@ WARNING: Never commit these files to version control.
 -------------------------
 You MUST run these in separate terminals BEFORE starting the demo:
 
-    conf/redis/redis-server.exe conf/redis/redis.conf
+    (macOS/Linux)
+    redis-server conf/redis/redis.conf
+    OR
+    (Windows)
+    .\\conf\\redis\\redis-server.exe .\\conf\\redis\\redis.conf
     run-dialogflow
     run-google-tts
     run-gpt
@@ -34,7 +36,7 @@ You MUST run these in separate terminals BEFORE starting the demo:
 """
 import json
 import sys
-from os.path import abspath, join
+from pathlib import Path
 
 from dotenv import load_dotenv
 from sic_framework.devices.common_desktop.desktop_speakers import SpeakersConf
@@ -49,11 +51,17 @@ from nardial.conversation_agent import ConversationAgent
 from nardial.interaction_orchestrator import InteractionConfig
 from nardial.session_manager import SessionManager
 
+BASE_DIR = Path(__file__).resolve().parent
+NARDIAL_ROOT = BASE_DIR.parent
+
+GOOGLE_KEYFILE_PATH = NARDIAL_ROOT / "conf" / "google" / "google_keyfile.json"
+ENV_FILE_PATH = NARDIAL_ROOT / "conf" / ".env"
+
 # Load OPENAI_API_KEY and other secrets from conf/.env
-load_dotenv(abspath(join("..", "conf", ".env")))
+load_dotenv(ENV_FILE_PATH)
 
 # Path to your Google / Dialogflow credentials
-google_keyfile_path = abspath(join("..", "conf", "google", "google_keyfile.json"))
+google_keyfile_path = str(GOOGLE_KEYFILE_PATH)
 
 if __name__ == '__main__':
     # =========================
@@ -167,7 +175,7 @@ if __name__ == '__main__':
         agent=agent,
 
         # Path to your dialog definitions
-        dialog_json_path=abspath(join("..", "examples", "dialog_json", "structured_conversation_dialogs.json")),
+        dialog_json_path=str(BASE_DIR / "dialog_json" / "structured_conversation_dialogs.json"),
 
         # Optional: identify the user (used for personalization/memory)
         participant_id="2",

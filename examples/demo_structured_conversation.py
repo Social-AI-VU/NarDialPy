@@ -33,6 +33,7 @@ You MUST run these in separate terminals BEFORE starting the demo:
 =========================
 """
 import json
+import os
 import sys
 from os.path import abspath, join
 
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     # --- TTS ---
     tts_conf = GoogleTTSConf(
         # speaking_rate=1.0,          # speech speed (0.25–4.0)
-        # google_tts_voice_name="en-US-Neural2-C",  # voice selection
+        google_tts_voice_name="en-US-Neural2-C",  # voice selection
     )
     tts = GoogleTTSProvider(conf=tts_conf, device=device, keyfile_path=google_keyfile_path)
 
@@ -96,7 +97,7 @@ if __name__ == '__main__':
     # --- LLM (optional) ---
     # Reads OPENAI_API_KEY from the environment (loaded via dotenv above).
     # Pass api_key="..." explicitly if you prefer not to use dotenv.
-    llm = OpenAIGPTProvider()
+    llm = OpenAIGPTProvider(api_key=os.getenv("OPENAI_API_KEY"))
 
     # --- Behavioral config ---
     interaction_config = InteractionConfig(

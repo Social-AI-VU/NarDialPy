@@ -220,6 +220,8 @@ class InteractionOrchestrator:
                     messages.append(msg)
                 elif isinstance(msg, dict):
                     messages.append(Message(role=msg.get("role", "user"), content=msg.get("content", "")))
+                elif isinstance(msg, str):
+                    messages.append(Message(role="user", content=msg))
         if user_prompt is not None:
             messages.append(Message(role="user", content=str(user_prompt)))
 

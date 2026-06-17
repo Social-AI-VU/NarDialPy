@@ -13,6 +13,8 @@ from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTI
 
 from enum import Enum
 
+from nardial.providers import Message
+
 
 class DialogType(Enum):
     NARRATIVE = "narrative"
@@ -402,7 +404,9 @@ class MiniDialog:
 
             # Record the exchange using the provided record types
             self._record_robot(MOVE_ASK_LLM, llm_text)
+            dialog_history.append(Message(role="assistant", content=llm_text))
             self._record_user(MOVE_ANSWER_LLM, user_input)
+            dialog_history.append(Message(role="user", content=user_input))
 
             # Optionally store a variable from user's answer
             if set_variable and user_input:
@@ -418,8 +422,6 @@ class MiniDialog:
                     break
             if quit_happened:
                 return
-
-            dialog_history.append(user_input)
 
     async def handle_move_timed_wait(self, move):
         move = MoveTimedWait.from_dict(move)
@@ -636,7 +638,7 @@ class LLMDialog(MiniDialog):
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
-    async def run(self, agent, session_history, topics_of_interest, user_model):
+    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
         await self._run_llm_exchange(

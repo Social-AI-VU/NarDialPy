@@ -33,9 +33,7 @@ other SIC consumers that may already subscribe to ``sic/transcript``.
 
 from __future__ import annotations
 
-import base64
 import logging
-import mimetypes
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -83,6 +81,7 @@ class SICScreenAdapter(ScreenProvider):
         self._ensure_asset_symlink()
 
     def _ensure_asset_symlink(self) -> None:
+        self._asset_mode = "none"
         try:
             if not self._assets_root:
                 return
@@ -95,7 +94,10 @@ class SICScreenAdapter(ScreenProvider):
 
             if self._asset_link_dir.exists() or self._asset_link_dir.is_symlink():
                 try:
-                    self._asset_link_dir.unlink()
+                    if self._asset_link_dir.is_symlink():
+                        self._asset_link_dir.unlink()
+                    else:
+                        shutil.rmtree(self._asset_link_dir)
                 except Exception:
                     logger.exception("Failed to remove old asset link")
 
@@ -105,9 +107,13 @@ class SICScreenAdapter(ScreenProvider):
                     target_is_directory=True
                 )
                 self._asset_mode = "symlink"
-            except Exception:
-                logger.warning("Symlink failed; assets will not be served via /static")
-                self._asset_mode = "fallback"
+            except (OSError, NotImplementedError):
+                try:
+                    shutil.copytree(str(self._assets_root), str(self._asset_link_dir))
+                    self._asset_mode = "copy"
+                    logger.info("Symlink not supported; copied assets to %s", self._asset_link_dir)
+                except Exception:
+                    logger.warning("Assets could not be symlinked or copied; they will not be served via /static")
 
         except Exception:
             logger.exception("Asset setup failed")
@@ -260,12 +266,17 @@ class SICScreenAdapter(ScreenProvider):
         self._send_screen({"type": "black"})
 
     async def close(self) -> None:
-        # Clean up any symlink created for the assets root.
+        # Clean up assets mounted for the webserver.
         if self._asset_mode == "symlink":
             try:
                 self._asset_link_dir.unlink()
             except Exception:
                 logger.exception("Failed to remove asset symlink")
+        elif self._asset_mode == "copy":
+            try:
+                shutil.rmtree(self._asset_link_dir)
+            except Exception:
+                logger.exception("Failed to remove copied assets directory")
 
         # No other shutdown actions here; the webserver is owned by the caller.
 

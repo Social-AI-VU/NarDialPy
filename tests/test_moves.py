@@ -4,7 +4,7 @@ from unittest.mock import Mock, AsyncMock
 import pytest
 
 from nardial.mini_dialogs import MiniDialog
-from nardial.moves import MoveSay, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
+from nardial.moves import MoveSay, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_ANIMATION, \
     MOVE_MOTION_SEQUENCE
 
 
@@ -30,6 +30,22 @@ async def test_move_say():
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
     await dialog.run(agent=mock_agent())
+
+
+@pytest.mark.asyncio
+async def test_move_say_options(monkeypatch):
+    monkeypatch.setattr("nardial.mini_dialogs.random.choice", lambda seq: seq[1])
+    moves = [
+        {
+            "type": MOVE_SAY_OPTIONS,
+            "options": ["Testing Move Say...", "Testing Move Say Again..."],
+        }
+    ]
+    dialog = MiniDialog(dialog_id="1", moves=moves)
+    agent = mock_agent()
+    await dialog.run(agent=agent)
+
+    agent.say.assert_called_once_with("Testing Move Say Again...", voice_settings=None)
 
 
 @pytest.mark.asyncio

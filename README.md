@@ -461,6 +461,22 @@ Speaks a piece of text. Variable placeholders (`%variable_name%`) are replaced a
 
 ---
 
+#### `say_options`
+
+Speaks one randomly chosen response from a predefined list.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | string | ✅ | `"say_options"` |
+| `options` | array of strings | ✅ | Candidate utterances to choose from at runtime |
+| `character` | string | | Optional character name from top-level `characters` |
+
+```json
+{ "type": "say_options", "options": ["Hi!", "Hello!", "Hey there!"] }
+```
+
+---
+
 #### `ask_open`
 
 Asks a free-text question and listens for any spoken reply. The answer can be stored in a variable and used to drive branching.

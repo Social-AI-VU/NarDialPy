@@ -2,14 +2,15 @@ from typing import Any, Optional, List, cast
 import re
 from time import monotonic
 import asyncio
+import random
 
 from nardial.events import EventBus
-from nardial.moves import MOVE_SAY, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
+from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
     MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
-    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml
+    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions
 
 from enum import Enum
 
@@ -200,6 +201,8 @@ class MiniDialog:
         move_type = self._get(move, 'type')
         if move_type == MOVE_SAY:
             await self.handle_move_say(move)
+        elif move_type == MOVE_SAY_OPTIONS:
+            await self.handle_move_say_options(move)
         elif move_type == MOVE_ASK_YESNO:
             answer = await self.handle_move_ask_yesno(move)
             self._resolve_outcome(move, answer)
@@ -258,6 +261,20 @@ class MiniDialog:
         voice_settings = self._get_voice_settings(move)
         await self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)
+
+    async def handle_move_say_options(self, move):
+        move = MoveSayOptions.from_dict(move)
+        options = move.options
+        if not isinstance(options, list) or not options:
+            raise ValueError("say_options moves require a non-empty options list")
+        choice = random.choice(options)
+        if not isinstance(choice, str):
+            raise ValueError("say_options options must be strings")
+        for var, value in self.user_model.items():
+            choice = choice.replace(f"%{var}%", str(value))
+        voice_settings = self._get_voice_settings(move)
+        await self.conversation_agent.say(choice, voice_settings=voice_settings)
+        self._record_robot(MOVE_SAY_OPTIONS, choice, options=options)
 
     async def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)

@@ -55,9 +55,9 @@ section#editor[data-type="narrative"] .type-narrative { display:block; }
 section#editor[data-type="chitchat"] .type-chitchat { display:block; }
 
 /* Move type conditional fields */
-.for-ask_yesno, .for-ask_open, .for-ask_options, .for-play { display:none; }
+.for-ask_yesno, .for-ask_open, .for-ask_options, .for-say_options, .for-play { display:none; }
 .move-row[data-type="ask_yesno"] .for-ask_yesno { display:flex; }
 .move-row[data-type="ask_open"] .for-ask_open { display:flex; }
 .move-row[data-type="ask_options"] .for-ask_options { display:flex; }
+.move-row[data-type="say_options"] .for-say_options { display:flex; }
 .move-row[data-type="play"] .for-play { display:flex; }
-

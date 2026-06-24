@@ -3,6 +3,7 @@ from typing import Dict, List
 from abc import abstractmethod
 
 MOVE_SAY = "say"
+MOVE_SAY_OPTIONS = "say_options"
 MOVE_ASK_YESNO = "ask_yesno"
 MOVE_ASK_OPEN = "ask_open"
 MOVE_ASK_OPTIONS = "ask_options"

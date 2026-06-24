@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
 from nardial.moves import (
     MOVE_SAY,
+    MOVE_SAY_OPTIONS,
     MOVE_ASK_OPEN,
     MOVE_ASK_YESNO,
     MOVE_ASK_OPTIONS,
@@ -23,6 +24,7 @@ from nardial.moves import (
 
 ALLOWED_MOVE_TYPES = {
     MOVE_SAY,
+    MOVE_SAY_OPTIONS,
     MOVE_ASK_YESNO,
     MOVE_ASK_OPEN,
     MOVE_ASK_OPTIONS,
@@ -50,9 +52,13 @@ class MoveFactory:
         mt = move.get("type")
         if mt not in ALLOWED_MOVE_TYPES:
             errs.append(f"moves[{idx}].type must be one of {sorted(ALLOWED_MOVE_TYPES)}")
-        if mt in {"say"}:
+        if mt == MOVE_SAY:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for say")
+        if mt == MOVE_SAY_OPTIONS:
+            opts = move.get("options")
+            if not isinstance(opts, list) or not opts or not all(isinstance(o, str) for o in opts):
+                errs.append(f"moves[{idx}].options must be a non-empty list of strings for say_options")
         if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for {mt}")

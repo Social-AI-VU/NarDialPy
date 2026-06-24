@@ -70,6 +70,36 @@ class MoveSay(Move):
         return self.type
 
 
+class MoveSayOptions(Move):
+    """
+    A move that makes the agent say a piece of text from selectable options.
+    """
+
+    def __init__(self, options: List[str]):
+        """
+        :param options: List of selectable options for the conversational agent.
+        """
+        super().__init__()
+        self.type = MOVE_SAY_OPTIONS
+        self.options = options or []
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, move):
+        """
+        Create a MoveSayOptions instance from a dictionary.
+
+        :param move: Dictionary representation of the move.
+        :return: MoveSayOptions instance.
+        """
+        return cls(
+            options=move.get("options", []),
+        )
+
+
 class MoveAskYesNo(Move):
     """
     A move that asks a yes/no question and processes the response.

@@ -10,7 +10,7 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
     MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
-    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml
+    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions
 
 from enum import Enum
 
@@ -263,7 +263,8 @@ class MiniDialog:
         self._record_robot(MOVE_SAY, text)
 
     async def handle_move_say_options(self, move):
-        options = self._get(move, "options")
+        move = MoveSayOptions.from_dict(move)
+        options = move.options
         if not isinstance(options, list) or not options:
             raise ValueError("say_options moves require a non-empty options list")
         choice = random.choice(options)

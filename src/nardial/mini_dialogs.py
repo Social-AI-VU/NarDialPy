@@ -263,7 +263,7 @@ class MiniDialog:
         self._record_robot(MOVE_SAY, text)
 
     async def handle_move_say_options(self, move):
-        options = self._get(move, "options") or []
+        options = self._get(move, "options")
         if not isinstance(options, list) or not options:
             raise ValueError("say_options moves require a non-empty options list")
         choice = random.choice(options)

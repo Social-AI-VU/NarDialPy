@@ -50,7 +50,7 @@ def test_validate_doc_rejects_invalid_say_options_move():
     }
 
     errors = DialogFactory.validate_doc(doc)
-    assert any("say_options" in e for e in errors)
+    assert any("options must be a non-empty list of strings for say_options" in e for e in errors)
 
 
 def test_validate_doc_rejects_invalid_character_voice_settings():

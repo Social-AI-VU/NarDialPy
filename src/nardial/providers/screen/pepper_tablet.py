@@ -88,10 +88,9 @@ class PepperTabletScreenAdapter(SICScreenAdapter):
         wifi_ssid: str | None = None,
         wifi_password: str = "",
         wifi_security: str = "wpa2",
-        assets_root: Path | None = None,
     ) -> None:
         # Parent registers the button-click callback on the webserver.
-        super().__init__(webserver=webserver, assets_root=assets_root)
+        super().__init__(webserver=webserver)
         self._tablet = tablet
 
         if wifi_ssid:

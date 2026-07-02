@@ -1,5 +1,8 @@
 from typing import Protocol, runtime_checkable
 
+from nardial.providers.screen.web.assets_extension import AssetsExtension
+from nardial.providers.screen.web.webserver_wrapper import WebServerWrapper
+
 
 @runtime_checkable
 class ScreenProvider(Protocol):
@@ -123,4 +126,4 @@ class ScreenProvider(Protocol):
         """Release any resources held by the provider."""
         ...
 
-__all__ = ["ScreenProvider"]
+__all__ = ["ScreenProvider", "AssetsExtension", "WebServerWrapper"]

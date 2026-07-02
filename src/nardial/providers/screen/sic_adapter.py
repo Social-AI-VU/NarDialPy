@@ -56,60 +56,14 @@ class SICScreenAdapter(ScreenProvider):
     webserver : Webserver
         An already-instantiated SIC ``Webserver`` connector.  The caller is
         responsible for its lifecycle (creation and teardown).
-    assets_root : str, optional
-        Optional base directory used to resolve ``assets/<relative-path>`` sources.
-        Resolved files are sent as ``data:`` URLs (no symlink/copy required).
     """
 
-    def __init__(self, webserver,  assets_root: Path = None) -> None:
+    def __init__(self, webserver) -> None:
         self._webserver = webserver
         self._bus: "EventBus | None" = None
         # Register the SIC callback immediately. If _bus is None when a click
         # arrives the event is dropped with a WARNING (see _on_button_clicked).
         self._webserver.register_callback(self._on_button_clicked)
-
-        # Optional root for "assets/<path>" lookups.
-        self._assets_root = Path(assets_root).resolve() if assets_root else None
-
-    def _resolve_media_src(self, src: str) -> str:
-        if not src:
-            return src
-
-        src = str(src)
-
-        # Already valid for browser
-        if src.startswith(("http://", "https://", "data:")):
-            return src
-
-        media_path: Path | None = None
-
-        if src.startswith("assets/"):
-            if not self._assets_root:
-                return src
-
-            relative = src[len("assets/"):].strip("/")
-            candidate = (self._assets_root / relative).resolve()
-            try:
-                candidate.relative_to(self._assets_root)
-            except ValueError:
-                logger.warning("Rejected asset path outside assets_root: %s", src)
-                return src
-            media_path = candidate
-        else:
-            media_path = Path(src).expanduser()
-            if not media_path.is_absolute():
-                media_path = media_path.resolve()
-
-        if not media_path.is_file():
-            return src
-
-        try:
-            mime_type = mimetypes.guess_type(str(media_path))[0] or "application/octet-stream"
-            encoded = base64.b64encode(media_path.read_bytes()).decode("ascii")
-            return f"data:{mime_type};base64,{encoded}"
-        except Exception:
-            logger.exception("Failed to read media file for %s", src)
-            return src
 
     # ------------------------------------------------------------------
     # EventBus wiring (called by SessionManager.run_async)
@@ -206,13 +160,11 @@ class SICScreenAdapter(ScreenProvider):
 
     async def show_image(self, src: str) -> None:
         """Display an image from a local path or URL. """
-        resolved = self._resolve_media_src(src)
-        self._send_screen({"type": "image", "src": resolved})
+        self._send_screen({"type": "image", "src": src})
 
     async def show_video(self, src: str) -> None:
         """Display a video from a local path or an embeddable URL."""
-        resolved = self._resolve_media_src(src)
-        self._send_screen({"type": "video", "src": resolved})
+        self._send_screen({"type": "video", "src": src})
 
     async def show_iframe(self, url: str) -> None:
         """Embed an external URL in an iframe on the screen."""

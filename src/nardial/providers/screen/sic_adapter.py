@@ -36,7 +36,6 @@ from __future__ import annotations
 import base64
 import logging
 import mimetypes
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -57,79 +56,14 @@ class SICScreenAdapter(ScreenProvider):
     webserver : Webserver
         An already-instantiated SIC ``Webserver`` connector.  The caller is
         responsible for its lifecycle (creation and teardown).
-    assets_root : str, optional
-        Path to a directory of static assets (e.g. images or videos) to serve.
     """
 
-    def __init__(self, webserver,  assets_root: Path = None) -> None:
+    def __init__(self, webserver) -> None:
         self._webserver = webserver
         self._bus: "EventBus | None" = None
         # Register the SIC callback immediately. If _bus is None when a click
         # arrives the event is dropped with a WARNING (see _on_button_clicked).
         self._webserver.register_callback(self._on_button_clicked)
-
-        # Path to a directory of static assets (e.g. images or videos) to serve.
-        self._assets_root = assets_root
-
-        # Resolve the package's bundled web/static directory.
-        try:
-            import nardial.providers.screen as _screen_pkg
-            self._static_dir = Path(_screen_pkg.__file__).parent / "web" / "static"
-        except Exception:
-            logger.exception("SICScreenAdapter: failed to determine package static dir")
-            self._static_dir = Path.cwd() / "static"
-
-        self._asset_link_dir = self._static_dir / "user_assets"
-        self._ensure_asset_symlink()
-
-    def _ensure_asset_symlink(self) -> None:
-        try:
-            if not self._assets_root:
-                return
-
-            if not self._assets_root.exists():
-                logger.warning("Asset root does not exist: %s", self._assets_root)
-                return
-
-            self._static_dir.mkdir(parents=True, exist_ok=True)
-
-            if self._asset_link_dir.exists() or self._asset_link_dir.is_symlink():
-                try:
-                    self._asset_link_dir.unlink()
-                except Exception:
-                    logger.exception("Failed to remove old asset link")
-
-            try:
-                self._asset_link_dir.symlink_to(
-                    self._assets_root,
-                    target_is_directory=True
-                )
-                self._asset_mode = "symlink"
-            except Exception:
-                logger.warning("Symlink failed; assets will not be served via /static")
-                self._asset_mode = "fallback"
-
-        except Exception:
-            logger.exception("Asset setup failed")
-
-    @staticmethod
-    def _resolve_media_src(src: str) -> str:
-        if not src:
-            return src
-
-        src = str(src)
-
-        # Already valid for browser
-        if src.startswith(("http://", "https://", "data:")):
-            return src
-
-        # Asset handling
-        if src.startswith("assets/"):
-            relative = src[len("assets/"):]
-            return f"/static/user_assets/{relative}"
-
-        # fallback: assume it's already a valid static path or malformed input
-        return src
 
     # ------------------------------------------------------------------
     # EventBus wiring (called by SessionManager.run_async)
@@ -226,13 +160,11 @@ class SICScreenAdapter(ScreenProvider):
 
     async def show_image(self, src: str) -> None:
         """Display an image from a local path or URL. """
-        resolved = self._resolve_media_src(src)
-        self._send_screen({"type": "image", "src": resolved})
+        self._send_screen({"type": "image", "src": src})
 
     async def show_video(self, src: str) -> None:
         """Display a video from a local path or an embeddable URL."""
-        resolved = self._resolve_media_src(src)
-        self._send_screen({"type": "video", "src": resolved})
+        self._send_screen({"type": "video", "src": src})
 
     async def show_iframe(self, url: str) -> None:
         """Embed an external URL in an iframe on the screen."""
@@ -260,13 +192,5 @@ class SICScreenAdapter(ScreenProvider):
         self._send_screen({"type": "black"})
 
     async def close(self) -> None:
-        # Clean up any symlink created for the assets root.
-        if self._asset_mode == "symlink":
-            try:
-                self._asset_link_dir.unlink()
-            except Exception:
-                logger.exception("Failed to remove asset symlink")
-
         # No other shutdown actions here; the webserver is owned by the caller.
-
-
+        pass

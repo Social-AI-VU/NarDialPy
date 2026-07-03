@@ -808,6 +808,8 @@ You can find additional demos in the [SIC Applications repository](https://githu
 
 ## Development
 
+For an architecture-level explanation of how JSON dialogs become running conversations, see [Developer Flow](docs/DEVELOPER_README.md).
+
 Run tests from the repository root:
 
 ```bash

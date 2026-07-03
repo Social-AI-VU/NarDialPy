@@ -1,6 +1,14 @@
+import asyncio
+
 import pytest
 
-from nardial.events import Event, EventBus, InterruptLevel
+from nardial.events import (
+    EVENT_INTERACTION_PAUSE,
+    EVENT_INTERACTION_RESUME,
+    Event,
+    EventBus,
+    InterruptLevel,
+)
 
 
 @pytest.mark.asyncio
@@ -58,3 +66,41 @@ async def test_drain_at_level_does_not_remove_other_levels():
     assert [ev.type for ev in drained] == ["immediate"]
     assert not bus.has_pending(InterruptLevel.IMMEDIATE)
     assert bus.has_pending(InterruptLevel.BETWEEN_DIALOGS)
+
+
+@pytest.mark.asyncio
+async def test_pause_resume_events_control_blocking_state_without_queueing():
+    bus = EventBus()
+
+    await bus.emit(
+        Event(priority=0, type=EVENT_INTERACTION_PAUSE, source="test")
+    )
+
+    assert bus.is_paused
+    assert not bus.has_pending(InterruptLevel.BETWEEN_DIALOGS)
+
+    waiter = asyncio.create_task(bus.wait_until_resumed())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+
+    await bus.emit(
+        Event(priority=0, type=EVENT_INTERACTION_RESUME, source="test")
+    )
+
+    await asyncio.wait_for(waiter, timeout=1)
+    assert not bus.is_paused
+
+
+@pytest.mark.asyncio
+async def test_shutdown_releases_paused_waiters():
+    bus = EventBus()
+    bus.pause()
+
+    waiter = asyncio.create_task(bus.wait_until_resumed())
+    await asyncio.sleep(0)
+    assert not waiter.done()
+
+    bus.shutdown()
+
+    await asyncio.wait_for(waiter, timeout=1)
+    assert not bus.is_paused

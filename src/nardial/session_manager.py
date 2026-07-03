@@ -148,6 +148,8 @@ class SessionManager:
 
         session_history = []
         for dialog in self.session_block:
+            await self._bus.wait_until_resumed()
+
             if not DialogLogic.is_dialog_eligible(
                     dialog,
                     self.conversation_state.completed_dialogs,

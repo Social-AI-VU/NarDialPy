@@ -20,7 +20,12 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Callable
 
-from nardial.events.types import Event, InterruptLevel
+from nardial.events.types import (
+    EVENT_INTERACTION_PAUSE,
+    EVENT_INTERACTION_RESUME,
+    Event,
+    InterruptLevel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,9 @@ class EventBus:
 
     def __init__(self) -> None:
         self._queue: asyncio.PriorityQueue[Event] = asyncio.PriorityQueue()
+        self._resume_event = asyncio.Event()
+        self._resume_event.set()
+        self._paused = False
         # Subscriptions keyed by id(queue) for O(1) subscribe/unsubscribe.
         self._subscriptions: dict[int, tuple[Callable[[Event], bool], asyncio.Queue[Event]]] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -52,13 +60,39 @@ class EventBus:
 
         Matched subscriptions consume the event first; if no subscription
         matches it is placed on the priority queue for session-level handling.
+        Pause/resume control events update the bus state and are consumed here.
         """
         if self._closed:
+            return
+        if event.type == EVENT_INTERACTION_PAUSE:
+            self.pause()
+            return
+        if event.type == EVENT_INTERACTION_RESUME:
+            self.resume()
             return
         consumed = await self._deliver_to_subscribers(event)
         if not consumed:
             await self._queue.put(event)
             self._pending_counts[event.interrupt_level] += 1
+
+    def pause(self) -> None:
+        """Enter a blocking paused state until a resume event is emitted."""
+        self._paused = True
+        self._resume_event.clear()
+
+    def resume(self) -> None:
+        """Leave the paused state and release any blocked session checkpoints."""
+        self._paused = False
+        self._resume_event.set()
+
+    @property
+    def is_paused(self) -> bool:
+        """Return True while interaction progression is paused."""
+        return self._paused
+
+    async def wait_until_resumed(self) -> None:
+        """Block while paused, then return when an interaction resume event arrives."""
+        await self._resume_event.wait()
 
     def emit_sync(self, event: Event) -> None:
         """Thread-safe emit for use from non-asyncio threads.
@@ -180,3 +214,4 @@ class EventBus:
     def shutdown(self) -> None:
         """Mark the bus as closed; subsequent ``emit`` calls are no-ops."""
         self._closed = True
+        self.resume()

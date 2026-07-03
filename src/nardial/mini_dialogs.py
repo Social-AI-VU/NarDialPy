@@ -166,6 +166,10 @@ class MiniDialog:
             await self._dispatch_move(move)
             idx += 1
 
+    async def _wait_until_resumed(self) -> None:
+        if self._bus is not None:
+            await self._bus.wait_until_resumed()
+
     def _resolve_outcome(self, move, answer) -> None:
         """Resolve and store ``current_outcome`` from the declarative outcome fields.
 
@@ -198,6 +202,7 @@ class MiniDialog:
 
     async def _dispatch_move(self, move) -> None:
         """Execute a single move dict."""
+        await self._wait_until_resumed()
         move_type = self._get(move, 'type')
         if move_type == MOVE_SAY:
             await self.handle_move_say(move)
@@ -381,6 +386,7 @@ class MiniDialog:
 
         agent = cast(Any, self.conversation_agent)
         if not speak_first:
+            await self._wait_until_resumed()
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
@@ -389,6 +395,7 @@ class MiniDialog:
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
         for _ in range(max_turns or MAX_LLM_TURNS):
+            await self._wait_until_resumed()
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
@@ -413,6 +420,7 @@ class MiniDialog:
 
             # Ask the user the LLM's text and listen for reply
             await agent.say(llm_text, voice_settings=voice_settings)
+            await self._wait_until_resumed()
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return

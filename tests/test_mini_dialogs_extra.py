@@ -1,7 +1,9 @@
-import pytest
-
+import asyncio
 from unittest.mock import AsyncMock
 
+import pytest
+
+from nardial.events import EVENT_INTERACTION_PAUSE, EVENT_INTERACTION_RESUME, Event, EventBus
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import MoveAskLLM, MoveBranch, MOVE_ASK_LLM, MOVE_ANSWER_LLM
 
@@ -51,6 +53,27 @@ async def test_handle_move_ask_llm_from_dict_sets_variable(session_history, user
     # The user's answer should be stored under the set variable using extractor heuristics
     assert 'pet' in user_model
     assert user_model['pet'] in ('turtles', 'I like turtles')
+
+
+@pytest.mark.asyncio
+async def test_dialog_waits_for_resume_before_next_move(session_history, user_model, topics_of_interest):
+    agent = _make_mock_agent()
+    bus = EventBus()
+    await bus.emit(Event(priority=0, type=EVENT_INTERACTION_PAUSE, source="test"))
+
+    md = MiniDialog("test", moves=[{"type": "say", "text": "After resume"}])
+    md.set_event_bus(bus)
+
+    task = asyncio.create_task(md.run(agent, session_history, topics_of_interest, user_model))
+    await asyncio.sleep(0)
+
+    assert not task.done()
+    agent.say.assert_not_called()
+
+    await bus.emit(Event(priority=0, type=EVENT_INTERACTION_RESUME, source="test"))
+    await asyncio.wait_for(task, timeout=1)
+
+    agent.say.assert_called_once_with("After resume", voice_settings=None)
 
 
 # ---------------------------------------------------------------------------

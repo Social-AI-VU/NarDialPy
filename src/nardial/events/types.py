@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+EVENT_INTERACTION_PAUSE = "interaction_pause"
+EVENT_INTERACTION_RESUME = "interaction_resume"
+
 
 class InterruptLevel(str, Enum):
     """Granularity at which an event can interrupt the dialog session.

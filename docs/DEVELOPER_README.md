@@ -224,6 +224,19 @@ For `wait_for_web_input`:
 
 The event bus also supports queued session-level events with interrupt levels, but the currently active runtime path mainly uses move-level subscriptions for web input.
 
+## Pause and Resume
+
+The event bus also owns a platform-agnostic pause state for interaction flow control. Emit `EVENT_INTERACTION_PAUSE` to block progression, and emit `EVENT_INTERACTION_RESUME` to release it.
+
+```python
+from nardial.events import EVENT_INTERACTION_PAUSE, EVENT_INTERACTION_RESUME, Event
+
+bus.emit_sync(Event(priority=0, type=EVENT_INTERACTION_PAUSE, source="keyboard"))
+bus.emit_sync(Event(priority=0, type=EVENT_INTERACTION_RESUME, source="keyboard"))
+```
+
+Pause/resume events are consumed by `EventBus.emit()` and are not added to the normal priority queue. The runtime waits on this state before each dialog in `SessionManager.run_async()`, before each move in `MiniDialog._dispatch_move()`, and at continuation points inside LLM exchanges. External sources can therefore be keyboard listeners, screen controls, robot callbacks, or any other component that can emit events onto the shared session bus.
+
 ## Conversation State
 
 `ConversationState` tracks continuity and transcripts.

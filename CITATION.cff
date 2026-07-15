@@ -1,0 +1,60 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: NarDialPy
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Mike E.U.
+    family-names: Ligthart
+    email: m.e.u.ligthart@vu.nl
+    affiliation: Vrije Universiteit Amsterdam
+    orcid: 'https://orcid.org/0000-0002-0768-9977'
+  - given-names: Evelyne
+    family-names: Prodescu
+    orcid: 'https://orcid.org/0009-0008-2161-8455'
+    affiliation: Vrije Universiteit Amsterdam
+  - given-names: Clara
+    family-names: Fayyad
+    orcid: 'https://orcid.org/0009-0006-7324-1421'
+    affiliation: Vrije Universiteit Amsterdam
+repository-code: 'https://github.com/Social-AI-VU/NarDialPy'
+abstract: >-
+  NarDialPy is a Python package for building and running
+  narrative-driven, structured dialog systems for social
+  robots and conversational agents. Conversations are
+  authored declaratively as JSON files describing dialogs,
+  made up of ordered moves, that can be sequenced through
+  dependencies, session agendas, and topic tracking, while
+  the runtime handles session flow, branching logic,
+  personalization, and screen output. A ConversationAgent
+  bridges this dialog logic to concrete text-to-speech,
+  speech recognition, large language model, and motion
+  services on a chosen device, with pluggable providers for
+  platforms such as Pepper, NAO, Alphamini, and desktop
+  agents, and for services including Google Cloud,
+  ElevenLabs, Dialogflow, and OpenAI. Dialog types range
+  from fully scripted functional and narrative dialogs to
+  free-form large-language-model-driven exchanges, allowing
+  structured and generative interaction styles to be
+  combined within a single session. The package builds on
+  the Social Interaction Cloud framework and is intended to
+  let researchers and developers author the content and
+  branching logic of multi-turn, social-robot conversations
+  without reimplementing the underlying dialog-management
+  runtime for each study or application.
+keywords:
+  - dialog management
+  - social robotics
+  - human-robot interaction
+  - narrative dialogue
+  - conversational agents
+  - large language models
+  - Pepper
+  - NAO
+license: AGPL-3.0
+version: 0.3.3
+date-released: '2026-06-15'

@@ -1,0 +1,43 @@
+[
+  {
+    "id": "whisper_demo",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hello! I am using local Whisper speech recognition. No internet or API key needed." },
+      { "type": "say", "text": "Please say something after the beep." },
+      {
+        "type": "ask_open",
+        "text": "What is your name?",
+        "timeout": 10.0,
+        "outcomes": {
+          "answered": "got_name"
+        },
+        "default_outcome": "no_name"
+      },
+      {
+        "type": "branch",
+        "on": "outcome",
+        "cases": {
+          "got_name": [
+            { "type": "say", "text": "Thank you! I heard you clearly." }
+          ],
+          "no_name": [
+            { "type": "say", "text": "I did not hear anything. Please check your microphone." }
+          ]
+        }
+      },
+      { "type": "say", "text": "Let me ask you one more thing." },
+      {
+        "type": "ask_open",
+        "text": "How are you feeling today?",
+        "timeout": 10.0,
+        "outcomes": {
+          "answered": "got_feeling"
+        },
+        "default_outcome": "no_answer"
+      },
+      { "type": "say", "text": "Great, that is all. The local Whisper demo is complete." }
+    ]
+  }
+]

@@ -282,7 +282,6 @@ class MiniDialog:
         # Pass voice settings into the ask call so the device speaks with the correct character voice
         text = self._get(move, 'text')
         for var, value in self.user_model.items():
-            print(f"{var}: {value}")
             text = text.replace(f"%{var}%", str(value))
         answer = await self.conversation_agent.ask_yesno(text, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_YESNO, text)
@@ -389,7 +388,6 @@ class MiniDialog:
         for var, value in self.user_model.items():
             prompt = prompt.replace(f"%{var}%", str(value))
             for i in range(len(quit_phrases)):
-                print(quit_phrases[i], type(quit_phrases[i]))
                 quit_phrases[i] = quit_phrases[i].replace(f"%{var}%", str(value))
 
         def remaining_time():

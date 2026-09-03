@@ -280,8 +280,12 @@ class MiniDialog:
         move = MoveAskYesNo.from_dict(move)
         voice_settings = self._get_voice_settings(move)
         # Pass voice settings into the ask call so the device speaks with the correct character voice
-        answer = await self.conversation_agent.ask_yesno(move.text, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_YESNO, move.text)
+        text = self._get(move, 'text')
+        for var, value in self.user_model.items():
+            print(f"{var}: {value}")
+            text = text.replace(f"%{var}%", str(value))
+        answer = await self.conversation_agent.ask_yesno(text, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_YESNO, text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
 
@@ -300,8 +304,11 @@ class MiniDialog:
     async def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = await self.conversation_agent.ask_open(move.text, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_OPEN, move.text)
+        text = self._get(move, 'text')
+        for var, value in self.user_model.items():
+            text = text.replace(f"%{var}%", str(value))
+        answer = await self.conversation_agent.ask_open(text, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
@@ -319,8 +326,14 @@ class MiniDialog:
     async def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = await self.conversation_agent.ask_options(move.text, move.options, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
+        text = self._get(move, 'text')
+        options = self._get(move, 'options')
+        for var, value in self.user_model.items():
+            text = text.replace(f"%{var}%", str(value))
+            for i in range(len(options)):
+                options[i] = options[i].replace(f"%{var}%", str(value))
+        answer = await self.conversation_agent.ask_options(text, move.options, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
 
@@ -373,6 +386,11 @@ class MiniDialog:
         dialog_history = []
         user_input = ""
         start_time = monotonic()
+        for var, value in self.user_model.items():
+            prompt = prompt.replace(f"%{var}%", str(value))
+            for i in range(len(quit_phrases)):
+                print(quit_phrases[i], type(quit_phrases[i]))
+                quit_phrases[i] = quit_phrases[i].replace(f"%{var}%", str(value))
 
         def remaining_time():
             if duration is None:
@@ -461,7 +479,11 @@ class MiniDialog:
 
         # Show buttons on screen before waiting (only when options are declared).
         if sp is not None and move.options:
-            await sp.show_buttons(move.options)
+            options = self._get(move, 'options')
+            for var, value in self.user_model.items():
+                for i in range(len(options)):
+                    options[i] = options[i].replace(f"%{var}%", str(value))
+            await sp.show_buttons(options)
 
         if self._bus is None:
             self._record_system(
@@ -479,7 +501,7 @@ class MiniDialog:
             return (
                     ev.type == "web_input"
                     and isinstance(ev.data, dict)
-                    and ev.data.get("value") in move.options
+                    and ev.data.get("value") in options
             )
 
         sub = self._bus.subscribe(_predicate)
@@ -584,7 +606,10 @@ class MiniDialog:
                 html_length=len(move.html) if move.html else 0,
             )
             return
-        await sp.show_html(move.html)
+        html = self._get(move, 'html')
+        for var, value in self.user_model.items():
+            html = html.replace(f"%{var}%", str(value))
+        await sp.show_html(html)
         self._record_system(
             MOVE_SHOW_HTML,
             "Showed HTML on screen.",

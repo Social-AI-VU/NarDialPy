@@ -9,8 +9,8 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, MOVE_KEYBOARD_WEB_INPUT, \
-    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardWebInput
+    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, MOVE_KEYBOARD_INPUT, \
+    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardInput
 
 from enum import Enum
 
@@ -238,8 +238,8 @@ class MiniDialog:
 
         elif move_type == MOVE_BLACK_SCREEN:
             await self.handle_move_black_screen(move)
-        elif move_type == MOVE_KEYBOARD_WEB_INPUT:
-            await self.handle_move_keyboard_web_input(move)
+        elif move_type == MOVE_KEYBOARD_INPUT:
+            await self.handle_move_keyboard_input(move)
 
     async def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
@@ -612,14 +612,14 @@ class MiniDialog:
             "Set black screen.",
         )
 
-    async def handle_move_keyboard_web_input(self, move):
+    async def handle_move_keyboard_input(self, move):
         """Wait for a web-input event containing text, or until timeout.
 
         If a screen provider is configured, a text input field is shown.
         If no event bus is wired up, resolves immediately to ``move.default_outcome``.
         """
 
-        move = MoveKeyboardWebInput.from_dict(move)
+        move = MoveKeyboardInput.from_dict(move)
         sp = self.conversation_agent.orchestrator.screen_provider
 
         # Show buttons on screen before waiting
@@ -628,7 +628,7 @@ class MiniDialog:
 
         if self._bus is None:
             self._record_system(
-                MOVE_KEYBOARD_WEB_INPUT,
+                MOVE_KEYBOARD_INPUT,
                 "No event bus available, resolving to default outcome.",
                 default_outcome=move.default_outcome,
             )
@@ -652,7 +652,7 @@ class MiniDialog:
             value = ev.data.get("value")
 
             self._record_system(
-                MOVE_KEYBOARD_WEB_INPUT,
+                MOVE_KEYBOARD_INPUT,
                 f"Received text input: {value}",
                 value=value,
             )
@@ -660,7 +660,7 @@ class MiniDialog:
 
         except asyncio.TimeoutError:
             self._record_system(
-                MOVE_KEYBOARD_WEB_INPUT,
+                MOVE_KEYBOARD_INPUT,
                 f"Timed out after {move.timeout} seconds waiting for text input.",
                 timeout=move.timeout,
                 default_outcome=move.default_outcome,

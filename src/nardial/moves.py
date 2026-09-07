@@ -20,7 +20,7 @@ MOVE_SHOW_VIDEO = "show_video"
 MOVE_SHOW_IFRAME = "show_iframe"
 MOVE_SHOW_HTML = "show_html"
 MOVE_BLACK_SCREEN = "black_screen"
-MOVE_KEYBOARD_WEB_INPUT = "keyboard_input"
+MOVE_KEYBOARD_INPUT = "keyboard_input"
 
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
@@ -633,7 +633,7 @@ class MoveBlackScreen(Move):
         """Create a MoveBlackScreen instance from a dictionary (no params)."""
         return cls()
 
-class MoveKeyboardWebInput(Move):
+class MoveKeyboardInput(Move):
     """Shows keyboard input on a web page.
     Suspend execution until a web input event arrives or the timeout elapses.
 

@@ -21,6 +21,7 @@ MOVE_SHOW_VIDEO = "show_video"
 MOVE_SHOW_IFRAME = "show_iframe"
 MOVE_SHOW_HTML = "show_html"
 MOVE_BLACK_SCREEN = "black_screen"
+MOVE_KEYBOARD_INPUT = "keyboard_input"
 
 MOVE_ANSWER_OPEN = "answer_open"
 MOVE_ANSWER_YESNO = "answer_yesno"
@@ -469,6 +470,8 @@ class MoveWaitForWebInput(Move):
         Hint text for the web UI (not spoken by the robot).
     options : list[str]
         Accepted ``value`` strings from the web input event.
+    set_variable:
+        Variable to store selected option.
     timeout : float | None
         Seconds to wait.  ``None`` means wait indefinitely.
     outcomes : dict[str, str]
@@ -477,7 +480,7 @@ class MoveWaitForWebInput(Move):
         Outcome used on timeout or when no bus is available.
     """
 
-    def __init__(self, prompt: Optional[str] = None, options: Optional[List[str]] = None,
+    def __init__(self, prompt: Optional[str] = None, options: Optional[List[str]] = None, set_variable: Optional[str] = None,
                  timeout: Optional[float] = None, outcomes: Optional[Dict[str, str]] = None,
                  default_outcome: Optional[str] = None):
         super().__init__()
@@ -485,6 +488,7 @@ class MoveWaitForWebInput(Move):
         self.prompt = prompt or ""
         # store options as list of strings
         self.options = list(options or [])
+        self.set_variable = set_variable
         self.timeout = timeout
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
@@ -499,6 +503,7 @@ class MoveWaitForWebInput(Move):
         return cls(
             prompt=data.get("prompt"),
             options=data.get("options"),
+            set_variable=data.get("set_variable"),
             timeout=data.get("timeout"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
@@ -669,3 +674,54 @@ class MoveBlackScreen(Move):
     def from_dict(cls, data: dict):
         """Create a MoveBlackScreen instance from a dictionary (no params)."""
         return cls()
+
+class MoveKeyboardInput(Move):
+    """Shows keyboard input on a web page.
+    Suspend execution until a web input event arrives or the timeout elapses.
+
+    The move listens on the event bus for ``web_input`` events containing a
+    text string in ``data["value"]``. Requires an active
+    :class:`~nardial.events.bus.EventBus`. Resolves to ``default_outcome``
+    when no bus is available or on timeout.
+
+    Parameters
+    ----------
+    prompt : str
+        Hint text for the web UI (not spoken by the robot).
+    set_variable:
+        Variable to store selected option.
+    timeout : float | None
+        Seconds to wait.  ``None`` means wait indefinitely.
+    outcomes : dict[str, str]
+        Maps option value → outcome string.
+    default_outcome : str
+        Outcome used on timeout or when no bus is available.
+        """
+
+    def __init__(self, prompt: Optional[str] = None,
+                 set_variable: Optional[str] = None,
+                 timeout: Optional[float] = None, outcomes: Optional[Dict[str, str]] = None,
+                 default_outcome: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_WAIT_FOR_WEB_INPUT
+        self.prompt = prompt or ""
+        self.set_variable = set_variable
+        self.timeout = timeout
+        self.outcomes = dict(outcomes or {})
+        self.default_outcome = default_outcome
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create a MoveShowHtml instance from a dictionary."""
+        return cls(
+            prompt=data.get("prompt"),
+            set_variable=data.get("set_variable"),
+            timeout=data.get("timeout"),
+            outcomes=data.get("outcomes"),
+            default_outcome=data.get("default_outcome"),
+        )
+        # pass

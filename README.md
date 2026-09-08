@@ -689,14 +689,15 @@ Pause execution for a fixed duration before proceeding to the next move. Useful 
 
 Suspend dialog execution until a matching web input event arrives or until a timeout elapses. The web UI can present buttons or a short input and emit `web_input` events which this move listens for.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `type` | string | ✅ | `"wait_for_web_input"` |
-| `prompt` | string | | Hint text shown in the web UI (not spoken) |
+| Field | Type | Required | Description                                                                     |
+|---|---|---|---------------------------------------------------------------------------------|
+| `type` | string | ✅ | `"wait_for_web_input"`                                                          |
+| `prompt` | string | | Hint text shown in the web UI (not spoken)                                      |
 | `options` | array of strings | | Accepted `value` strings from the web event (if omitted, any value is accepted) |
-| `timeout` | number | | Seconds to wait before falling back (omit for indefinite wait) |
-| `outcomes` | object | | Maps option value → outcome label for branching |
-| `default_outcome` | string | | Outcome used on timeout or when no event matches |
+| `timeout` | number | | Seconds to wait before falling back (omit for indefinite wait)                  |
+| `outcomes` | object | | Maps option value → outcome label for branching                                 |
+| `default_outcome` | string | | Outcome used on timeout or when no event matches                                |
+| `set_variable` | string | | Stores the user's choice in the user model                                      |
 
 ```json
 {
@@ -705,7 +706,8 @@ Suspend dialog execution until a matching web input event arrives or until a tim
   "options": ["smile","thumbs","surprised"],
   "timeout": 15,
   "outcomes": {"smile": "picked_smile"},
-  "default_outcome": "no_choice"
+  "default_outcome": "no_choice",
+  "set_variable": "sticker"
 }
 ```
 
@@ -781,6 +783,31 @@ Clear the display (show a blank/black screen). No parameters — the next displa
 
 ```json
 { "type": "black_screen" }
+```
+
+---
+
+#### `keyboard_input`
+
+Display keyboard input on screen. Suspend dialog execution until keyboard input is given or until a timeout elapses.
+
+| Field | Type | Required | Description                                                    |
+|---|---|---|----------------------------------------------------------------|
+| `type` | string | ✅ | `"keyboard_input"`                                             |
+| `prompt` | string | | Hint text shown in the web UI (not spoken)                     |
+| `timeout` | number | | Seconds to wait before falling back (omit for indefinite wait) |
+| `outcomes` | object | | Maps option value → outcome label for branching                |
+| `default_outcome` | string | | Outcome used on timeout or when no event matches               |
+| `set_variable` | string | | Stores the user's choice in the user model                     |
+
+```json
+{
+  "type": "keyboard_input",
+  "prompt": "How old are you?",
+  "timeout": 15,
+  "default_outcome": "no_age_given",
+  "set_variable": "age"
+}
 ```
 
 ---

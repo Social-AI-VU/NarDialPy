@@ -9,8 +9,8 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
     MOVE_ANIMATION, \
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
-    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
-    MoveTimedWait, MoveWaitForWebInput, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions
+    MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_WAIT_FOR_BUTTON, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, \
+    MoveTimedWait, MoveWaitForWebInput, MoveWaitForButton, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions
 
 from enum import Enum
 
@@ -226,6 +226,9 @@ class MiniDialog:
             await self.handle_move_timed_wait(move)
         elif move_type == MOVE_WAIT_FOR_WEB_INPUT:
             answer = await self.handle_move_wait_for_web_input(move)
+            self._resolve_outcome(move, answer)
+        elif move_type == MOVE_WAIT_FOR_BUTTON:
+            answer = await self.handle_move_wait_for_button(move)
             self._resolve_outcome(move, answer)
         elif move_type == MOVE_SHOW_IMAGE:
             await self.handle_move_show_image(move)
@@ -501,6 +504,60 @@ class MiniDialog:
         finally:
             self._bus.unsubscribe(sub)
             # Hide input after resolution regardless of outcome (match or timeout).
+            if sp is not None:
+                await sp.hide_input()
+
+        return value
+
+    async def handle_move_wait_for_button(self, move):
+        """Show buttons and wait for the user to click one, or until timeout.
+
+        Resolves to the clicked button label (used as outcome key), or
+        ``move.default_outcome`` on timeout or when no event bus is wired up.
+        """
+        move = MoveWaitForButton.from_dict(move)
+        sp = self.conversation_agent.orchestrator.screen_provider
+
+        if sp is not None and move.options:
+            await sp.show_buttons(move.options)
+
+        if self._bus is None:
+            self._record_system(
+                MOVE_WAIT_FOR_BUTTON,
+                "No event bus available, resolving to default outcome.",
+                default_outcome=move.default_outcome,
+            )
+            if sp is not None:
+                await sp.hide_input()
+            return None
+
+        value = None
+
+        def _predicate(ev: Any) -> bool:
+            return (
+                ev.type == "web_input"
+                and isinstance(ev.data, dict)
+                and ev.data.get("value") in move.options
+            )
+
+        sub = self._bus.subscribe(_predicate)
+        try:
+            ev = await asyncio.wait_for(sub.get(), timeout=move.timeout)
+            value = ev.data.get("value")
+            self._record_system(
+                MOVE_WAIT_FOR_BUTTON,
+                f"Button clicked: {value}",
+                value=value,
+            )
+        except asyncio.TimeoutError:
+            self._record_system(
+                MOVE_WAIT_FOR_BUTTON,
+                f"Timed out after {move.timeout}s waiting for button click. Resolving to default outcome.",
+                timeout=move.timeout,
+                default_outcome=move.default_outcome,
+            )
+        finally:
+            self._bus.unsubscribe(sub)
             if sp is not None:
                 await sp.hide_input()
 

@@ -14,6 +14,7 @@ from nardial.moves import (
     MOVE_BRANCH,
     MOVE_TIMED_WAIT,
     MOVE_WAIT_FOR_WEB_INPUT,
+    MOVE_WAIT_FOR_BUTTON,
     MOVE_SHOW_IMAGE,
     MOVE_SHOW_VIDEO,
     MOVE_SHOW_IFRAME,
@@ -35,6 +36,7 @@ ALLOWED_MOVE_TYPES = {
     MOVE_BRANCH,
     MOVE_TIMED_WAIT,
     MOVE_WAIT_FOR_WEB_INPUT,
+    MOVE_WAIT_FOR_BUTTON,
     MOVE_SHOW_IMAGE,
     MOVE_SHOW_VIDEO,
     MOVE_SHOW_IFRAME,
@@ -69,6 +71,10 @@ class MoveFactory:
             opts = move.get("options")
             if not isinstance(opts, list) or not all(isinstance(o, str) for o in opts):
                 errs.append(f"moves[{idx}].options must be a list of strings for ask_options")
+        if mt == MOVE_WAIT_FOR_BUTTON:
+            opts = move.get("options")
+            if not isinstance(opts, list) or not opts or not all(isinstance(o, str) for o in opts):
+                errs.append(f"moves[{idx}].options must be a non-empty list of strings for wait_for_button")
         if mt == MOVE_PLAY_AUDIO and not isinstance(move.get("audio"), str):
             errs.append(f"moves[{idx}].audio must be string for play")
         if mt == MOVE_MOTION_SEQUENCE and not isinstance(move.get("motion_sequence"), str):

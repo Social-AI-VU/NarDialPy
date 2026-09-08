@@ -15,6 +15,7 @@ MOVE_BRANCH = "branch"
 
 MOVE_TIMED_WAIT = "timed_wait"
 MOVE_WAIT_FOR_WEB_INPUT = "wait_for_web_input"
+MOVE_WAIT_FOR_BUTTON = "wait_for_button"
 MOVE_SHOW_IMAGE = "show_image"
 MOVE_SHOW_VIDEO = "show_video"
 MOVE_SHOW_IFRAME = "show_iframe"
@@ -497,6 +498,47 @@ class MoveWaitForWebInput(Move):
         """Create a MoveWaitForWebInput from a dictionary."""
         return cls(
             prompt=data.get("prompt"),
+            options=data.get("options"),
+            timeout=data.get("timeout"),
+            outcomes=data.get("outcomes"),
+            default_outcome=data.get("default_outcome"),
+        )
+
+
+class MoveWaitForButton(Move):
+    """Show buttons on the screen and wait for the user to click one.
+
+    Parameters
+    ----------
+    options : list[str]
+        Button labels to display.  The clicked label is used as the outcome key.
+    timeout : float | None
+        Seconds to wait before falling back to ``default_outcome``.  ``None``
+        means wait indefinitely.
+    outcomes : dict[str, str]
+        Maps button label → outcome string.  If omitted, the clicked label is
+        used directly as the outcome.
+    default_outcome : str | None
+        Outcome returned on timeout or when no event bus is available.
+    """
+
+    def __init__(self, options: Optional[List[str]] = None,
+                 timeout: Optional[float] = None,
+                 outcomes: Optional[Dict[str, str]] = None,
+                 default_outcome: Optional[str] = None):
+        super().__init__()
+        self.type = MOVE_WAIT_FOR_BUTTON
+        self.options = list(options or [])
+        self.timeout = timeout
+        self.outcomes = dict(outcomes or {})
+        self.default_outcome = default_outcome
+
+    def get_type(self):
+        return self.type
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
             options=data.get("options"),
             timeout=data.get("timeout"),
             outcomes=data.get("outcomes"),

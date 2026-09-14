@@ -1,6 +1,7 @@
 import random
+from nardial.agenda.items import AgendaContext
 from nardial.dialog_registry import DialogRegistry
-from nardial.eligibility import EligibilityContext, EligibilityPolicy
+from nardial.eligibility import EligibilityPolicy
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
@@ -27,10 +28,10 @@ class DialogLogic:
 
         Delegates to an `EligibilityPolicy` — the dialog class's own
         `DEFAULT_ELIGIBILITY` rules (see `mini_dialogs.py`) unless an explicit
-        `policy` is passed — evaluated against a small local
-        `EligibilityContext` assembled from this method's flat legacy
-        arguments. A throwaway `DialogRegistry` is built from `all_dialogs` so
-        rules like `NarrativeOrderingRule` can look up sibling dialogs.
+        `policy` is passed — evaluated against an `AgendaContext` assembled
+        from this method's flat legacy arguments. A throwaway `DialogRegistry`
+        is built from `all_dialogs` so rules like `NarrativeOrderingRule` can
+        look up sibling dialogs.
 
         Parameters
         ----------
@@ -53,7 +54,8 @@ class DialogLogic:
         if policy is None:
             policy = EligibilityPolicy(list(getattr(type(dialog), "DEFAULT_ELIGIBILITY", [])))
 
-        context = EligibilityContext(
+        completed_ids = list(completed_ids or [])
+        context = AgendaContext(
             registry=DialogRegistry.build(all_dialogs or []),
             completed_ids=completed_ids,
             session_completed_ids=completed_ids,

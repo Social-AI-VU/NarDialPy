@@ -7,7 +7,7 @@ from nardial.mini_dialogs import ChitchatDialog, DialogType, FunctionalDialog, N
 
 
 def make_chitchat(dialog_id, topics):
-    return ChitchatDialog(dialog_id=dialog_id, moves=[], theme="", topics=topics)
+    return ChitchatDialog(dialog_id=dialog_id, moves=[], topics=topics)
 
 
 def make_narrative(dialog_id, thread, position):

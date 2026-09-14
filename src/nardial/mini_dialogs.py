@@ -791,10 +791,9 @@ class ChitchatDialog(MiniDialog):
     INDEX_ATTRS = ["topics"]
     DEFAULT_ELIGIBILITY: list = [ExcludeIfSeenRule(), DependencyMetRule(), VariableDependencyMetRule()]
 
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
-        # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
+    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None):
+        # Chitchat dialogs are short, topic-based interactions.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
-        self.theme = theme
         self.topics = topics or []
 
 

@@ -1,0 +1,118 @@
+[
+  {
+    "id": "greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      {
+        "type": "say",
+        "text": "Hi there! I'm your NarDialPy guide for a little camping-trip planning chat."
+      }
+    ]
+  },
+  {
+    "id": "camp_intro",
+    "type": "narrative",
+    "thread": "camping_trip",
+    "position": 1,
+    "moves": [
+      {
+        "type": "say",
+        "text": "Let's imagine we're packing for a camping trip together."
+      }
+    ]
+  },
+  {
+    "id": "camp_choice",
+    "type": "narrative",
+    "thread": "camping_trip",
+    "position": 2,
+    "moves": [
+      {
+        "type": "ask_open",
+        "text": "What's your favorite outdoor activity?",
+        "set_variable": "favorite_activity",
+        "add_interest_from_answer": true
+      }
+    ]
+  },
+  {
+    "id": "camp_wrapup",
+    "type": "narrative",
+    "thread": "camping_trip",
+    "position": 3,
+    "moves": [
+      {
+        "type": "say",
+        "text": "Great, our packing list for %favorite_activity% is ready!"
+      }
+    ]
+  },
+  {
+    "id": "chitchat_hiking",
+    "type": "chitchat",
+    "topics": ["hiking", "trail"],
+    "moves": [
+      {
+        "type": "say",
+        "text": "Hiking is such a great way to explore nature!"
+      }
+    ]
+  },
+  {
+    "id": "chitchat_food",
+    "type": "chitchat",
+    "topics": ["food", "cooking"],
+    "variable_dependencies": ["favorite_activity"],
+    "moves": [
+      {
+        "type": "say",
+        "text": "Nothing beats a meal cooked over a campfire."
+      }
+    ]
+  },
+  {
+    "id": "chitchat_weather",
+    "type": "chitchat",
+    "topics": ["weather"],
+    "moves": [
+      {
+        "type": "say",
+        "text": "Let's hope for clear skies on our trip!"
+      }
+    ]
+  },
+  {
+    "id": "campfire_stories",
+    "type": "llm_based",
+    "prompt": "You are a friendly camp counselor swapping campfire stories with the user in a NarDialPy demo. Keep responses short and spoken-friendly, and ask one engaging follow-up question. If the user wants to stop, say a brief goodbye and include <<QUIT>>.",
+    "max_turns": 3,
+    "speak_first": false,
+    "duration": 60,
+    "quit_phrases": ["stop", "that's enough", "bye"],
+    "moves": []
+  },
+  {
+    "id": "trip_summary",
+    "type": "functional",
+    "functional_type": "summary",
+    "dependencies": ["campfire_stories"],
+    "moves": [
+      {
+        "type": "say",
+        "text": "Before we wrap up: pack light, stay curious, and enjoy the stars."
+      }
+    ]
+  },
+  {
+    "id": "farewell",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      {
+        "type": "say",
+        "text": "Thanks for trying out the NarDialPy agenda system demo. Safe travels!"
+      }
+    ]
+  }
+]

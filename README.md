@@ -823,11 +823,12 @@ Display keyboard input on screen. Suspend dialog execution until keyboard input 
 
 All you need is a minimal Python script that wires up the device, loads the dialog JSON, and runs the session. You can follow the included demos to get started quickly.
 
-Two ready-to-run demos are included in the `examples/` directory:
+Ready-to-run demos are included in the `examples/` directory:
 * Demo 1 — General Conversation (`demo_general_conversation.py`): A simple four-step conversation using a mix of narrative and functional dialogs
 * Demo 2 — Structured Conversation (`demo_structured_conversation.py`): A more complete example that demonstrates all dialog types and move types, including `ask_llm`, `play`, `motion_sequence`, and `animation`
 * Demo 3 — Screen Display (`demo_screen_provider.py`): Shows the browser-based screen UI with transcripts, images, iframes, HTML snippets, buttons, and text input
 * Demo 4 — Pepper Tablet (`demo_pepper_tablet.py`): Uses the same screen UI on Pepper's tablet through the SIC webserver
+* Demo 5 — Agenda System (`demo_agenda_system.py`): Uses every agenda-item type (`narrative_slot`, `chitchat_slot`, `functional_slot`, `llm_dialog_ref`, plain dialog ids) so `SessionManager` picks the next dialog dynamically instead of following a fixed list — see the [Agenda System Guide](docs/AGENDA_SYSTEM_GUIDE.md) for a plain-language walkthrough
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 
@@ -835,7 +836,7 @@ You can find additional demos in the [SIC Applications repository](https://githu
 
 ## Development
 
-For an architecture-level explanation of how JSON dialogs become running conversations, see [Developer Flow](docs/DEVELOPER_README.md).
+For an architecture-level explanation of how JSON dialogs become running conversations, see [Developer Flow](docs/DEVELOPER_README.md). If you're building an application and want to understand dynamic session agendas rather than runtime internals, see the [Agenda System Guide](docs/AGENDA_SYSTEM_GUIDE.md) instead.
 
 Run tests from the repository root:
 

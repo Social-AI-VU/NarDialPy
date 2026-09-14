@@ -103,6 +103,8 @@ By default, a dialog is eligible only when:
 
 ## Agenda Items and Resolution
 
+For a plain-language, example-driven introduction to this system aimed at application developers (rather than runtime internals), see [AGENDA_SYSTEM_GUIDE.md](AGENDA_SYSTEM_GUIDE.md).
+
 `SessionManager` receives:
 
 - `session_agenda`: an ordered list whose entries can be a plain dialog id string, an agenda item dict, or an `AgendaItem` instance.

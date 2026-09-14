@@ -245,6 +245,7 @@ class DialogFactory:
                 moves=moves,
                 type=doc["functional_type"],
                 dependencies=deps,
+                variable_dependencies=vdeps,
                 characters=characters,
             )
         if dtype == DialogType.LLM_BASED.value:

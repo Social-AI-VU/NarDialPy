@@ -1,6 +1,7 @@
 import json
 
 from nardial.agenda.session_plan import SessionPlan, SessionTemplate
+from nardial.conversation_state import ConversationState
 from nardial.session_manager import SessionManager
 
 GREETING_DOC = {
@@ -248,3 +249,75 @@ def test_session_plan_path_falls_back_to_given_agenda_when_plan_missing(tmp_path
     )
 
     assert manager.session_agenda == ["greeting_1"]
+
+
+def _seed_ended_sessions(tmp_path, participant_id, count):
+    """`count` ended sessions for `participant_id`, all recorded on one
+    ConversationState instance so they actually land on disk together --
+    see test_conversation_state.py's _seed_three_sessions for why a fresh
+    instance can't be used per session (self.sessions never reloads from
+    disk, and save_participant_transcript() only ever writes what's in the
+    current instance's self.sessions, so separate instances would each
+    clobber the previous one's write instead of accumulating)."""
+    state = ConversationState(base_dir=str(tmp_path), participant_id=participant_id)
+    for i in range(count):
+        sid = state.start_session(participant_id=participant_id, run_id=f"seed_{i}")
+        state.end_session(sid, completed_ids=[f"seed_dialog_{i}"])
+    return state
+
+
+def test_session_index_override_picks_template_regardless_of_actual_session_count(
+    tmp_path, monkeypatch, make_mock_agent
+):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC, FAREWELL_DOC])
+
+    plan = SessionPlan(
+        plan_id="onboarding",
+        sessions=[
+            SessionTemplate(session_index=1, agenda=["greeting_1"]),
+            SessionTemplate(session_index=2, agenda=["farewell_1"]),
+        ],
+    )
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan.to_dict()), encoding="utf-8")
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=[],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_session_index_override",
+        session_plan_path=str(plan_path),
+        # This is actually the participant's first session, but session_index
+        # forces the plan to pick session 2's template anyway.
+        session_index=2,
+    )
+
+    assert manager.session_agenda == ["farewell_1"]
+
+
+def test_reset_history_from_session_truncates_before_new_session_starts(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+    _seed_ended_sessions(tmp_path, "p_reset_history", count=3)
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_reset_history",
+        reset_history_from_session=2,
+    )
+
+    # 1 retained (seed_0) session + this new one.
+    assert manager._current_session_number() == 2
+
+    manager.run()
+
+    with open(tmp_path / "participants" / "p_reset_history.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert len(data["sessions"]) == 2
+    assert data["sessions"][0]["dialog_ids"] == ["seed_dialog_0"]
+    assert data["sessions"][1]["dialog_ids"] == ["greeting_1"]

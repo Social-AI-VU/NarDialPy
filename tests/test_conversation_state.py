@@ -1,4 +1,5 @@
 import json
+from unittest.mock import Mock
 
 from nardial.conversation_state import ConversationState
 
@@ -55,3 +56,73 @@ def test_persists_and_reloads_when_participant_id_is_none(tmp_path):
     assert reloaded.completed_dialogs == []
     assert reloaded.topics_of_interest == []
     assert len(reloaded.sessions) == 0
+
+
+def _seed_three_sessions(tmp_path):
+    """Three ended sessions for participant 'alice', all recorded on one
+    ConversationState instance (self.sessions accumulates across
+    start_session() calls on the same instance -- see
+    test_loads_and_extends_state_from_participant_file's "not auto-loaded on
+    init" note above: a *fresh* instance's self.sessions always starts empty,
+    so multi-session history has to be built this way to end up on disk)."""
+    state = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    sid1 = state.start_session(participant_id="alice", run_id="run_1")
+    state.end_session(sid1, completed_ids=["d1", "d2"], topics_of_interest=["music"])
+
+    sid2 = state.start_session(participant_id="alice", run_id="run_2")
+    state.end_session(sid2, completed_ids=["d3"], topics_of_interest=["art"])
+
+    sid3 = state.start_session(participant_id="alice", run_id="run_3")
+    state.end_session(sid3, completed_ids=["d4"], topics_of_interest=["sports"])
+    return state
+
+
+def test_count_completed_sessions_reads_persisted_transcript(tmp_path):
+    _seed_three_sessions(tmp_path)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    assert fresh.count_completed_sessions() == 3
+
+
+def test_count_completed_sessions_excludes_a_session_still_in_progress(tmp_path):
+    state = _seed_three_sessions(tmp_path)
+    sid4 = state.start_session(participant_id="alice", run_id="run_4")
+    state.add_dialog_id(sid4, "d5")
+    # Simulate a crash: flush to disk without ever calling end_session().
+    state.save_participant_transcript(state.participant_id)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    assert fresh.count_completed_sessions() == 3
+
+
+def test_count_completed_sessions_is_zero_for_unknown_participant(tmp_path):
+    state = ConversationState(base_dir=str(tmp_path), participant_id="nobody")
+    assert state.count_completed_sessions() == 0
+
+
+def test_truncate_from_session_keeps_earlier_sessions_and_recomputes_continuity(tmp_path):
+    _seed_three_sessions(tmp_path)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    fresh.truncate_from_session(2)
+
+    assert set(fresh.completed_dialogs) == {"d1", "d2"}
+    assert fresh.topics_of_interest == ["music"]
+    assert [s.session_id for s in fresh.sessions] == ["sess_0001"]
+
+    with open(tmp_path / "participants" / "alice.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["dialog_ids"] == ["d1", "d2"]
+
+
+def test_truncate_from_session_calls_save_continuity(tmp_path, monkeypatch):
+    _seed_three_sessions(tmp_path)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    spy = Mock(wraps=fresh.user_model.save_continuity)
+    monkeypatch.setattr(fresh.user_model, "save_continuity", spy)
+
+    fresh.truncate_from_session(2)
+
+    spy.assert_called_once_with(completed_dialogs=["d1", "d2"], topics_of_interest=["music"])

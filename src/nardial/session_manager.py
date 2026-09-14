@@ -37,8 +37,11 @@ class SessionManager:
             set, the template picked for this participant's current session number
             overrides `session_agenda`; falls back to `session_agenda` unchanged if
             the plan fails to load or defines no templates.
-        :param session_index: Reserved to override the auto-detected session number (not yet acted on).
-        :param reset_history_from_session: Reserved for destructive history truncation (not yet acted on).
+        :param session_index: Overrides the auto-detected session number used to pick a
+            `SessionPlan` template. Ignored when `session_plan_path` is not set.
+        :param reset_history_from_session: When set, destructively truncates this
+            participant's persisted history from this 1-based session number onward
+            before the new session starts. Irreversible.
         :param resume: Reserved for crash-resume behavior (not yet acted on).
         """
         self.session_agenda = session_agenda
@@ -46,12 +49,18 @@ class SessionManager:
         self.agent = agent
 
         self.session_plan_path = session_plan_path
-        # Stored but not yet acted on; steps 15/16 implement the behavior behind these.
         self.session_index = session_index
         self.reset_history_from_session = reset_history_from_session
+        # Stored but not yet acted on; step 16 implements the behavior behind this.
         self.resume = resume
 
         self.conversation_state = ConversationState(participant_id=participant_id)
+
+        if self.reset_history_from_session is not None:
+            print(f"[WARN] Destructively resetting history for participant_id={participant_id!r} "
+                  f"from session {self.reset_history_from_session} onward. This cannot be undone.")
+            self.conversation_state.truncate_from_session(self.reset_history_from_session)
+
         self.session_id = self.start_session()
 
         if self.session_plan_path:
@@ -114,6 +123,7 @@ class SessionManager:
 
         Returns `None` (leaving `session_agenda` as given) when no plan path
         was set, the plan fails to load, or it defines no templates at all.
+        `session_index`, when set, overrides the auto-detected session number.
         """
         plan, errors = load_session_plan(self.session_plan_path)
         if errors:
@@ -121,7 +131,7 @@ class SessionManager:
         if plan is None:
             return None
 
-        session_number = self._current_session_number()
+        session_number = self.session_index if self.session_index is not None else self._current_session_number()
         template = plan.get_template(session_number)
         if template is None:
             print(f"[WARN] Session plan {plan.plan_id!r} has no templates; keeping the given session_agenda.")

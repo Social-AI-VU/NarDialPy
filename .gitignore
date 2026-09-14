@@ -40,9 +40,8 @@ conf/.env
 *.rdb
 *.manifest
 
-# Ignore Claude
+# Ignore Claude settings
 .claude/
-CLAUDE.md
 
 # ignore assets
 examples/assets/

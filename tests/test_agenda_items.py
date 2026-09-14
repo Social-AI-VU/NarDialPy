@@ -2,10 +2,10 @@ import random
 
 import pytest
 
-from nardial.agenda.items import AgendaContext, AgendaItem, DialogRef, NarrativeSlot, coerce_agenda_item
+from nardial.agenda.items import AgendaContext, AgendaItem, ChitchatSlot, DialogRef, NarrativeSlot, coerce_agenda_item
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.dialog_registry import DialogRegistry
-from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog
+from nardial.mini_dialogs import ChitchatDialog, FunctionalDialog, NarrativeDialog
 
 
 def make_functional(dialog_id, functional_type="greeting"):
@@ -14,6 +14,10 @@ def make_functional(dialog_id, functional_type="greeting"):
 
 def make_narrative(dialog_id, thread, position):
     return NarrativeDialog(dialog_id=dialog_id, moves=[], thread=thread, position=position)
+
+
+def make_chitchat(dialog_id, topics=None, variable_dependencies=None):
+    return ChitchatDialog(dialog_id=dialog_id, moves=[], topics=topics, variable_dependencies=variable_dependencies)
 
 
 def test_coerce_agenda_item_from_string():
@@ -153,3 +157,59 @@ def test_coerce_agenda_item_narrative_slot_default_bounds():
 
     assert isinstance(item.bounds, SlotBounds)
     assert item.bounds.to_dict() == SlotBounds().to_dict()
+
+
+def test_chitchat_slot_picks_highest_topic_overlap():
+    low_overlap = make_chitchat("low_overlap", topics=["pizza"])
+    high_overlap = make_chitchat("high_overlap", topics=["pizza", "pasta"])
+    no_overlap = make_chitchat("no_overlap", topics=["weather"])
+    registry = DialogRegistry.build([low_overlap, high_overlap, no_overlap])
+    context = AgendaContext(registry=registry, topics_of_interest=["pizza", "pasta"])
+
+    assert ChitchatSlot().resolve(context) is high_overlap
+
+
+def test_chitchat_slot_topics_filter_restricts_candidates():
+    pizza = make_chitchat("pizza_chat", topics=["pizza"])
+    weather = make_chitchat("weather_chat", topics=["weather"])
+    registry = DialogRegistry.build([pizza, weather])
+    context = AgendaContext(registry=registry)
+
+    result = ChitchatSlot(topics_filter=["pizza"]).resolve(context)
+
+    assert result is pizza
+
+
+def test_chitchat_slot_no_eligible_candidates_warns_and_returns_none(caplog):
+    registry = DialogRegistry.build([])
+    context = AgendaContext(registry=registry)
+
+    with caplog.at_level("WARNING"):
+        result = ChitchatSlot().resolve(context)
+
+    assert result is None
+
+
+def test_chitchat_slot_respects_real_user_model_via_variable_dependency_rule():
+    """Regression: previously insert_chitchat_into_session() hardcoded user_model={},
+    so a VariableDependencyMetRule could never actually block selection."""
+    gated = make_chitchat(
+        "pet_chat",
+        topics=["pets"],
+        variable_dependencies=[{"variable": "has_pet", "required": True}],
+    )
+    registry = DialogRegistry.build([gated])
+
+    context_without_var = AgendaContext(registry=registry, user_model={})
+    assert ChitchatSlot().resolve(context_without_var) is None
+
+    context_with_var = AgendaContext(registry=registry, user_model={"has_pet": True})
+    assert ChitchatSlot().resolve(context_with_var) is gated
+
+
+def test_coerce_agenda_item_from_chitchat_slot_dict():
+    item = coerce_agenda_item({"type": "chitchat_slot", "topics_filter": ["pizza"], "bounds": {"count_max": 2}})
+
+    assert isinstance(item, ChitchatSlot)
+    assert item.topics_filter == ["pizza"]
+    assert item.bounds.count_max == 2

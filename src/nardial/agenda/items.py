@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.eligibility import EligibilityPolicy
+from nardial.mini_dialogs import DialogType
 
 if TYPE_CHECKING:
     from nardial.dialog_registry import DialogRegistry
@@ -98,6 +99,49 @@ class NarrativeSlot(AgendaItem):
         return random.choice(lowest)
 
 
+class ChitchatSlot(AgendaItem):
+    """Resolves to the eligible `ChitchatDialog` with the most topic overlap with `context.topics_of_interest`.
+
+    Ties are broken randomly (shuffle before the stable sort by overlap
+    count). `topics_filter`, when given, restricts candidates to dialogs
+    that share at least one topic with it before ranking.
+    """
+
+    def __init__(self, bounds: Optional[SlotBounds] = None, topics_filter: Optional[List[str]] = None,
+                 eligibility_policy: Optional[EligibilityPolicy] = None):
+        self.bounds = bounds or SlotBounds()
+        self.topics_filter = list(topics_filter) if topics_filter else None
+        self.eligibility_policy = eligibility_policy
+
+    def resolve(self, context: AgendaContext) -> Optional["MiniDialog"]:
+        if context.registry is None:
+            logger.warning("ChitchatSlot: no registry on context")
+            return None
+
+        candidates = context.registry.get_by_type(DialogType.CHITCHAT)
+        if self.topics_filter:
+            filter_set = {str(t).lower() for t in self.topics_filter}
+            candidates = [
+                d for d in candidates
+                if filter_set & {str(t).lower() for t in getattr(d, "topics", [])}
+            ]
+
+        eligible = [d for d in candidates if _is_eligible(d, context, self.eligibility_policy)]
+        if not eligible:
+            logger.warning("ChitchatSlot: no eligible candidates")
+            return None
+
+        random.shuffle(eligible)
+        interests = {str(t).lower() for t in (context.topics_of_interest or [])}
+
+        def overlap(dialog: "MiniDialog") -> int:
+            topics = {str(t).lower() for t in getattr(dialog, "topics", [])}
+            return len(topics & interests)
+
+        eligible.sort(key=overlap, reverse=True)
+        return eligible[0]
+
+
 def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaItem:
     """Coerce a raw agenda entry (string id, dict, or AgendaItem) into an AgendaItem.
 
@@ -115,5 +159,10 @@ def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaIt
             return DialogRef(id=item["id"])
         if item_type == "narrative_slot":
             return NarrativeSlot(thread=item["thread"], bounds=SlotBounds.from_dict(item.get("bounds")))
+        if item_type == "chitchat_slot":
+            return ChitchatSlot(
+                bounds=SlotBounds.from_dict(item.get("bounds")),
+                topics_filter=item.get("topics_filter"),
+            )
         raise ValueError(f"Unknown agenda item type: {item_type!r}")
     raise ValueError(f"Unsupported agenda item: {item!r}")

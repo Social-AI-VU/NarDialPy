@@ -155,6 +155,11 @@ class MiniDialog:
             return tokens[-1]
         return text
 
+    def _replace_variables(self, text):
+        for var, value in self.user_model.items():
+            text = text.replace(f"%{var}%", str(value))
+        return text
+
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -260,9 +265,7 @@ class MiniDialog:
             self._record_robot(MOVE_LLM_FOLLOWUP, llm_text)
 
     async def handle_move_say(self, move):
-        text = self._get(move, 'text')
-        for var, value in self.user_model.items():
-            text = text.replace(f"%{var}%", str(value))
+        text = self._replace_variables(self._get(move, 'text'))
         voice_settings = self._get_voice_settings(move)
         await self.conversation_agent.say(text, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY, text)
@@ -275,8 +278,7 @@ class MiniDialog:
         choice = random.choice(options)
         if not isinstance(choice, str):
             raise ValueError("say_options options must be strings")
-        for var, value in self.user_model.items():
-            choice = choice.replace(f"%{var}%", str(value))
+        choice = self._replace_variables(choice)
         voice_settings = self._get_voice_settings(move)
         await self.conversation_agent.say(choice, voice_settings=voice_settings)
         self._record_robot(MOVE_SAY_OPTIONS, choice, options=options)
@@ -285,8 +287,9 @@ class MiniDialog:
         move = MoveAskYesNo.from_dict(move)
         voice_settings = self._get_voice_settings(move)
         # Pass voice settings into the ask call so the device speaks with the correct character voice
-        answer = await self.conversation_agent.ask_yesno(move.text, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_YESNO, move.text)
+        text = self._replace_variables(self._get(move, 'text'))
+        answer = await self.conversation_agent.ask_yesno(text, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_YESNO, text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
 
@@ -305,8 +308,9 @@ class MiniDialog:
     async def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = await self.conversation_agent.ask_open(move.text, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_OPEN, move.text)
+        text = self._replace_variables(self._get(move, 'text'))
+        answer = await self.conversation_agent.ask_open(text, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
@@ -324,8 +328,12 @@ class MiniDialog:
     async def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         voice_settings = self._get_voice_settings(move)
-        answer = await self.conversation_agent.ask_options(move.text, move.options, voice_settings=voice_settings)
-        self._record_robot(MOVE_ASK_OPTIONS, move.text, options=move.options)
+        text = self._replace_variables(self._get(move, 'text'))
+        options = self._get(move, 'options')
+        for i in range(len(options)):
+            options[i] = self._replace_variables(options[i])
+        answer = await self.conversation_agent.ask_options(text, move.options, voice_settings=voice_settings)
+        self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")
 
@@ -378,6 +386,9 @@ class MiniDialog:
         dialog_history = []
         user_input = ""
         start_time = monotonic()
+        prompt = self._replace_variables(prompt)
+        for i in range(len(quit_phrases)):
+            quit_phrases[i] = self._replace_variables(quit_phrases[i])
 
         def remaining_time():
             if duration is None:
@@ -466,7 +477,10 @@ class MiniDialog:
 
         # Show buttons on screen before waiting (only when options are declared).
         if sp is not None and move.options:
-            await sp.show_buttons(move.options)
+            options = self._get(move, 'options')
+            for i in range(len(options)):
+                options[i] = self._replace_variables(options[i])
+            await sp.show_buttons(options)
 
         if self._bus is None:
             self._record_system(
@@ -484,7 +498,7 @@ class MiniDialog:
             return (
                     ev.type == "web_input"
                     and isinstance(ev.data, dict)
-                    and ev.data.get("value") in move.options
+                    and ev.data.get("value") in options
             )
 
         sub = self._bus.subscribe(_predicate)
@@ -644,7 +658,8 @@ class MiniDialog:
                 html_length=len(move.html) if move.html else 0,
             )
             return
-        await sp.show_html(move.html)
+        html = self._replace_variables(self._get(move, 'html'))
+        await sp.show_html(html)
         self._record_system(
             MOVE_SHOW_HTML,
             "Showed HTML on screen.",

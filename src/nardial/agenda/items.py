@@ -209,8 +209,9 @@ def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaIt
     """Coerce a raw agenda entry (string id, dict, or AgendaItem) into an AgendaItem.
 
     Mirrors `DialogFactory.from_json()`'s manual type-string dispatch rather
-    than a Pydantic discriminated union. Only `"dialog_ref"` is registered
-    here; later agenda item types register their own branch.
+    than a Pydantic discriminated union. Recognized dict `"type"` values:
+    `"dialog_ref"`, `"narrative_slot"`, `"chitchat_slot"`, `"functional_slot"`,
+    `"llm_dialog_ref"`.
     """
     if isinstance(item, AgendaItem):
         return item

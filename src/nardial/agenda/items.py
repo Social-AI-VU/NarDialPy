@@ -1,3 +1,4 @@
+import copy
 import logging
 import random
 from abc import ABC, abstractmethod
@@ -6,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.eligibility import EligibilityPolicy
-from nardial.mini_dialogs import DialogType
+from nardial.mini_dialogs import DialogType, LLMDialog
 
 if TYPE_CHECKING:
     from nardial.dialog_registry import DialogRegistry
@@ -170,6 +171,40 @@ class FunctionalSlot(AgendaItem):
         return random.choice(eligible)
 
 
+class LLMDialogRef(AgendaItem):
+    """Pins a specific `LLMDialog` by id, with optional per-slot overrides.
+
+    No `bounds` attribute: always resolves at most once. Warns and returns
+    `None` if the id is missing or doesn't refer to an `LLMDialog`, never
+    raises. When `max_turns`/`duration` overrides are set, the resolved
+    dialog is a shallow copy so the registry's original is left untouched.
+    """
+
+    def __init__(self, id: str, max_turns: Optional[int] = None, duration: Optional[float] = None):
+        self.id = id
+        self.max_turns = max_turns
+        self.duration = duration
+
+    def resolve(self, context: AgendaContext) -> Optional["MiniDialog"]:
+        dialog = context.registry.get_by_id(self.id) if context.registry else None
+        if dialog is None:
+            logger.warning("LLMDialogRef: no dialog found for id %r", self.id)
+            return None
+        if not isinstance(dialog, LLMDialog):
+            logger.warning("LLMDialogRef: dialog %r is not an LLMDialog (got %s)", self.id, type(dialog).__name__)
+            return None
+
+        if self.max_turns is None and self.duration is None:
+            return dialog
+
+        dialog = copy.copy(dialog)
+        if self.max_turns is not None:
+            dialog.max_turns = self.max_turns
+        if self.duration is not None:
+            dialog.duration = self.duration
+        return dialog
+
+
 def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaItem:
     """Coerce a raw agenda entry (string id, dict, or AgendaItem) into an AgendaItem.
 
@@ -196,6 +231,12 @@ def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaIt
             return FunctionalSlot(
                 functional_type=item["functional_type"],
                 bounds=SlotBounds.from_dict(item.get("bounds")),
+            )
+        if item_type == "llm_dialog_ref":
+            return LLMDialogRef(
+                id=item["id"],
+                max_turns=item.get("max_turns"),
+                duration=item.get("duration"),
             )
         raise ValueError(f"Unknown agenda item type: {item_type!r}")
     raise ValueError(f"Unsupported agenda item: {item!r}")

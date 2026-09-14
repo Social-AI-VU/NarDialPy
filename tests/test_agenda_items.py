@@ -8,12 +8,17 @@ from nardial.agenda.items import (
     ChitchatSlot,
     DialogRef,
     FunctionalSlot,
+    LLMDialogRef,
     NarrativeSlot,
     coerce_agenda_item,
 )
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.dialog_registry import DialogRegistry
-from nardial.mini_dialogs import ChitchatDialog, FunctionalDialog, NarrativeDialog
+from nardial.mini_dialogs import ChitchatDialog, FunctionalDialog, LLMDialog, NarrativeDialog
+
+
+def make_llm_dialog(dialog_id, prompt="hi", max_turns=3, duration=None):
+    return LLMDialog(dialog_id=dialog_id, moves=[], prompt=prompt, max_turns=max_turns, duration=duration)
 
 
 def make_functional(dialog_id, functional_type="greeting"):
@@ -258,3 +263,65 @@ def test_coerce_agenda_item_from_functional_slot_dict():
 
     assert isinstance(item, FunctionalSlot)
     assert item.functional_type == "greeting"
+
+
+def test_llm_dialog_ref_resolves_hit():
+    dialog = make_llm_dialog("llm_1")
+    registry = DialogRegistry.build([dialog])
+    context = AgendaContext(registry=registry)
+
+    assert LLMDialogRef(id="llm_1").resolve(context) is dialog
+
+
+def test_llm_dialog_ref_missing_id_warns_and_returns_none(caplog):
+    registry = DialogRegistry.build([])
+    context = AgendaContext(registry=registry)
+
+    with caplog.at_level("WARNING"):
+        result = LLMDialogRef(id="missing").resolve(context)
+
+    assert result is None
+    assert "missing" in caplog.text
+
+
+def test_llm_dialog_ref_wrong_type_warns_and_returns_none(caplog):
+    greeting = make_functional("greeting_1")
+    registry = DialogRegistry.build([greeting])
+    context = AgendaContext(registry=registry)
+
+    with caplog.at_level("WARNING"):
+        result = LLMDialogRef(id="greeting_1").resolve(context)
+
+    assert result is None
+    assert "greeting_1" in caplog.text
+
+
+def test_llm_dialog_ref_override_produces_distinct_copy():
+    dialog = make_llm_dialog("llm_1", max_turns=3, duration=None)
+    registry = DialogRegistry.build([dialog])
+    context = AgendaContext(registry=registry)
+
+    result = LLMDialogRef(id="llm_1", max_turns=7, duration=30.0).resolve(context)
+
+    assert result is not dialog
+    assert result.max_turns == 7
+    assert result.duration == 30.0
+    assert dialog.max_turns == 3
+    assert dialog.duration is None
+
+
+def test_llm_dialog_ref_without_overrides_returns_original():
+    dialog = make_llm_dialog("llm_1")
+    registry = DialogRegistry.build([dialog])
+    context = AgendaContext(registry=registry)
+
+    assert LLMDialogRef(id="llm_1").resolve(context) is dialog
+
+
+def test_coerce_agenda_item_from_llm_dialog_ref_dict():
+    item = coerce_agenda_item({"type": "llm_dialog_ref", "id": "llm_1", "max_turns": 5})
+
+    assert isinstance(item, LLMDialogRef)
+    assert item.id == "llm_1"
+    assert item.max_turns == 5
+    assert item.duration is None

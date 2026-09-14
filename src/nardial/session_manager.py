@@ -42,7 +42,10 @@ class SessionManager:
         :param reset_history_from_session: When set, destructively truncates this
             participant's persisted history from this 1-based session number onward
             before the new session starts. Irreversible.
-        :param resume: Reserved for crash-resume behavior (not yet acted on).
+        :param resume: When True, checks for an incomplete session (one whose `ended_at`
+            is still `None`, e.g. left behind by a crash) and resumes it by reusing its
+            session id and skipping the dialogs it already ran. Proceeds as a fresh
+            session when no incomplete session is found.
         """
         self.session_agenda = session_agenda
         self.registry = self.load_dialog_registry_from_json(dialog_json_path)
@@ -51,8 +54,12 @@ class SessionManager:
         self.session_plan_path = session_plan_path
         self.session_index = session_index
         self.reset_history_from_session = reset_history_from_session
-        # Stored but not yet acted on; step 16 implements the behavior behind this.
         self.resume = resume
+        # Dialog ids already run in an incomplete session being resumed; kept
+        # separate from conversation_state.completed_dialogs (see
+        # _build_agenda_context()) so a crash-free session behaves identically
+        # to before this attribute existed.
+        self._resume_completed_ids: set = set()
 
         self.conversation_state = ConversationState(participant_id=participant_id)
 
@@ -61,7 +68,25 @@ class SessionManager:
                   f"from session {self.reset_history_from_session} onward. This cannot be undone.")
             self.conversation_state.truncate_from_session(self.reset_history_from_session)
 
-        self.session_id = self.start_session()
+        if self.resume:
+            incomplete = self.conversation_state.find_incomplete_session()
+            if incomplete is not None:
+                # find_incomplete_session() reads it from the persisted
+                # transcript, not from conversation_state.sessions (which is
+                # empty on a fresh instance) -- register it in-memory too, or
+                # every later add_dialog_id()/add_events()/end_session() call
+                # for this session_id raises KeyError.
+                self.conversation_state.sessions.append(incomplete)
+                self.session_id = incomplete.session_id
+                self._resume_completed_ids = set(incomplete.dialog_ids or [])
+                print(f"[INFO] Resuming incomplete session_id={self.session_id}; "
+                      f"{len(self._resume_completed_ids)} dialog(s) already completed: "
+                      f"{sorted(self._resume_completed_ids)}")
+            else:
+                print("[INFO] resume=True but no incomplete session was found; starting a fresh session.")
+                self.session_id = self.start_session()
+        else:
+            self.session_id = self.start_session()
 
         if self.session_plan_path:
             plan_agenda = self._resolve_session_plan_agenda()
@@ -148,11 +173,25 @@ class SessionManager:
         `conversation_state` and dialog moves already read/write, so
         `context.mark_completed()` and in-dialog interest tracking stay in
         sync with the rest of session bookkeeping without any extra copying.
+
+        When resuming an incomplete session, dialogs already run before the
+        crash (`_resume_completed_ids`) are folded into `completed_ids` as a
+        fresh list -- not by mutating `conversation_state.completed_dialogs`
+        itself -- so the normal `ExcludeIfSeenRule` machinery treats them as
+        already done, same as it would for a prior session's completions.
+        They're also exposed via `session_completed_ids` directly. A
+        crash-free session (`_resume_completed_ids` empty) is unaffected:
+        `completed_ids` stays the same object as before.
         """
+        completed_ids = self.conversation_state.completed_dialogs
+        if self._resume_completed_ids:
+            completed_ids = list(completed_ids) + [
+                dialog_id for dialog_id in self._resume_completed_ids if dialog_id not in completed_ids
+            ]
         return AgendaContext(
             registry=self.registry,
-            completed_ids=self.conversation_state.completed_dialogs,
-            session_completed_ids=[],
+            completed_ids=completed_ids,
+            session_completed_ids=list(self._resume_completed_ids),
             user_model=self.conversation_state.user_model,
             topics_of_interest=self.conversation_state.topics_of_interest,
         )
@@ -219,8 +258,14 @@ class SessionManager:
             # Final safety-net gate: resolve_agenda() already checks eligibility
             # for slot-based agenda items, but a plain dialog id (DialogRef)
             # resolves regardless of eligibility, so this still guards every
-            # existing list[str] agenda.
-            if not is_dialog_eligible(dialog, context):
+            # existing list[str] agenda. The explicit session_completed_ids
+            # check additionally catches a resumed session's already-run
+            # dialogs even when the dialog type's own DEFAULT_ELIGIBILITY has
+            # no ExcludeIfSeenRule at all (e.g. FunctionalDialog) -- outside
+            # of a resume, session_completed_ids only ever contains dialogs
+            # this same loop already ran, so this is a no-op for a normal
+            # session.
+            if not is_dialog_eligible(dialog, context) or dialog.dialog_id in context.session_completed_ids:
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
                 continue
 

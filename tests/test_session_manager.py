@@ -321,3 +321,91 @@ def test_reset_history_from_session_truncates_before_new_session_starts(tmp_path
     assert len(data["sessions"]) == 2
     assert data["sessions"][0]["dialog_ids"] == ["seed_dialog_0"]
     assert data["sessions"][1]["dialog_ids"] == ["greeting_1"]
+
+
+def test_resume_skips_already_run_dialogs_and_continues_same_session(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(
+        tmp_path, [GREETING_DOC, NARRATIVE_STEP1_DOC, NARRATIVE_STEP2_DOC, FAREWELL_DOC]
+    )
+
+    # Simulate a crash mid-session: greeting_1 and step_1 already ran, but
+    # end_session() was never reached, so nothing merged into
+    # completed_dialogs/topics_of_interest yet.
+    seed = ConversationState(base_dir=str(tmp_path), participant_id="p_resume")
+    crashed_session_id = seed.start_session(participant_id="p_resume", run_id="crashed_run")
+    seed.add_dialog_id(crashed_session_id, "greeting_1")
+    seed.add_dialog_id(crashed_session_id, "step_1")
+    seed.save_participant_transcript(seed.participant_id)
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=["greeting_1", "step_1", "step_2", "farewell_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_resume",
+        resume=True,
+    )
+
+    assert manager.session_id == crashed_session_id
+
+    manager.run()
+
+    # greeting_1 and step_1 are skipped even though greeting_1's dialog type
+    # (functional) has no ExcludeIfSeenRule of its own.
+    assert say_texts(agent) == ["Step 2", "Bye!"]
+
+    with open(tmp_path / "participants" / "p_resume.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["session_id"] == crashed_session_id
+    assert data["sessions"][0]["dialog_ids"] == ["greeting_1", "step_1", "step_2", "farewell_1"]
+    assert data["sessions"][0]["ended_at"] is not None
+
+
+def test_resume_with_nothing_to_resume_behaves_like_fresh_session(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+    agent = make_mock_agent()
+
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_resume_nothing",
+        resume=True,
+    )
+
+    assert manager.session_id == "sess_0001"
+    manager.run()
+
+    assert say_texts(agent) == ["Hello!"]
+
+
+def test_resume_false_default_does_not_check_for_incomplete_sessions(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+
+    seed = ConversationState(base_dir=str(tmp_path), participant_id="p_resume_disabled")
+    crashed_session_id = seed.start_session(participant_id="p_resume_disabled", run_id="crashed_run")
+    seed.add_dialog_id(crashed_session_id, "greeting_1")
+    seed.save_participant_transcript(seed.participant_id)
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_resume_disabled",
+    )
+
+    # A brand-new, empty session is started -- the crashed one's dialog_ids
+    # were never merged in (unlike resume=True, which would append the
+    # incomplete Session object itself into conversation_state.sessions).
+    assert len(manager.conversation_state.sessions) == 1
+    assert manager.conversation_state.sessions[0].run_id != "crashed_run"
+    assert manager.conversation_state.sessions[0].dialog_ids == []
+
+    manager.run()
+
+    assert say_texts(agent) == ["Hello!"]

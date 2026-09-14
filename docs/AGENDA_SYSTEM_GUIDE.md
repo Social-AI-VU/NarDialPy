@@ -193,7 +193,7 @@ This block is commented out in the script (uncomment it, and remove the `sys.exi
 
 Run the script twice with the same `participant_id` and `session_plan_path` set, and the second run picks up this shorter `session_index: 2` agenda automatically — no code change needed, just a different session number.
 
-`SessionManager` also accepts `session_index`, `reset_history_from_session`, and `resume` constructor parameters. They exist today but are **reserved for upcoming functionality** and don't do anything yet — this guide and the demo intentionally leave them alone.
+`SessionManager` also accepts `session_index`, `reset_history_from_session`, and `resume` constructor parameters. These are session-management concerns rather than agenda-system ones (they don't change how an agenda resolves, only which session number it resolves *for*), so this guide and the demo intentionally leave them alone — in short: `session_index` overrides the auto-detected session number used above, `reset_history_from_session` destructively truncates a participant's history from a given session onward, and `resume` continues an interrupted session instead of starting a new one. See the `SessionManager` docstring in `src/nardial/session_manager.py` for details.
 
 ## Run it yourself
 

@@ -170,6 +170,7 @@ if __name__ == "__main__":
     # session_manager.run()
     #
     # SessionManager also accepts session_index, reset_history_from_session,
-    # and resume constructor parameters. They exist today but are reserved
-    # for upcoming functionality and don't do anything yet, so they're
-    # intentionally left out of this demo.
+    # and resume constructor parameters -- session-management concerns
+    # (which session number you're on, discarding history, continuing after
+    # a crash) rather than agenda-system ones, so they're intentionally left
+    # out of this demo. See the SessionManager docstring for details.

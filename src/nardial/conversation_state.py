@@ -533,6 +533,23 @@ class ConversationState:
         print(f"[WARN] History truncated to {len(retained)} session(s) for "
               f"participant_id={self.participant_id!r}; completed_dialogs={self.completed_dialogs}")
 
+    def find_incomplete_session(self) -> Optional[Session]:
+        """Return the participant's last persisted session if it never ended.
+
+        Reads the persisted transcript (see `_load_participant_transcript()`)
+        since `self.sessions` starts empty on every new `ConversationState`
+        instance -- a real crash mid-session means the *next* process's
+        in-memory `sessions` list can't know about it otherwise. Returns
+        `None` when there is no persisted history, or the last session
+        already completed (`ended_at` is set).
+        """
+        data = self._load_participant_transcript()
+        sessions_data = data.get("sessions") or []
+        if not sessions_data:
+            return None
+        last = Session(**sessions_data[-1])
+        return last if last.ended_at is None else None
+
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
         """

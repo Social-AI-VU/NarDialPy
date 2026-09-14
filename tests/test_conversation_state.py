@@ -126,3 +126,31 @@ def test_truncate_from_session_calls_save_continuity(tmp_path, monkeypatch):
     fresh.truncate_from_session(2)
 
     spy.assert_called_once_with(completed_dialogs=["d1", "d2"], topics_of_interest=["music"])
+
+
+def test_find_incomplete_session_returns_none_with_no_history(tmp_path):
+    state = ConversationState(base_dir=str(tmp_path), participant_id="bob")
+    assert state.find_incomplete_session() is None
+
+
+def test_find_incomplete_session_returns_none_once_last_session_ended(tmp_path):
+    _seed_three_sessions(tmp_path)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    assert fresh.find_incomplete_session() is None
+
+
+def test_find_incomplete_session_returns_the_unended_session(tmp_path):
+    state = _seed_three_sessions(tmp_path)
+    sid4 = state.start_session(participant_id="alice", run_id="run_4")
+    state.add_dialog_id(sid4, "d5")
+    # Simulate a crash: flush to disk without ever calling end_session().
+    state.save_participant_transcript(state.participant_id)
+
+    fresh = ConversationState(base_dir=str(tmp_path), participant_id="alice")
+    incomplete = fresh.find_incomplete_session()
+
+    assert incomplete is not None
+    assert incomplete.session_id == sid4
+    assert incomplete.dialog_ids == ["d5"]
+    assert incomplete.ended_at is None

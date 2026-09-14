@@ -22,7 +22,6 @@ def make_chitchat(dialog_id, topics=None, dependencies=None, variable_dependenci
     return ChitchatDialog(
         dialog_id=dialog_id,
         moves=[],
-        theme="",
         topics=topics,
         dependencies=dependencies,
         variable_dependencies=variable_dependencies,

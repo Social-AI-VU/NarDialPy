@@ -151,8 +151,6 @@ class DialogFactory:
             except Exception:
                 errs.append("position must be integer for narrative dialogs")
         elif t == "chitchat":
-            if not isinstance(doc.get("theme"), str):
-                errs.append("theme must be string for chitchat dialogs")
             topics = doc.get("topics")
             if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
                 errs.append("topics must be a list of strings for chitchat dialogs")
@@ -233,7 +231,6 @@ class DialogFactory:
             return ChitchatDialog(
                 dialog_id=did,
                 moves=moves,
-                theme=doc.get("theme") or "",
                 topics=list(doc.get("topics") or []),
                 dependencies=deps,
                 variable_dependencies=vdeps,
@@ -286,7 +283,6 @@ class DialogFactory:
         elif isinstance(d, ChitchatDialog):
             base.update({
                 "type": "chitchat",
-                "theme": getattr(d, "theme", ""),
                 "topics": list(getattr(d, "topics", []) or []),
             })
         elif isinstance(d, FunctionalDialog):

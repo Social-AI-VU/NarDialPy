@@ -1,6 +1,7 @@
 import random
+from nardial.agenda.items import AgendaContext
 from nardial.dialog_registry import DialogRegistry
-from nardial.eligibility import EligibilityContext, EligibilityPolicy
+from nardial.eligibility import EligibilityPolicy
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
@@ -27,10 +28,10 @@ class DialogLogic:
 
         Delegates to an `EligibilityPolicy` — the dialog class's own
         `DEFAULT_ELIGIBILITY` rules (see `mini_dialogs.py`) unless an explicit
-        `policy` is passed — evaluated against a small local
-        `EligibilityContext` assembled from this method's flat legacy
-        arguments. A throwaway `DialogRegistry` is built from `all_dialogs` so
-        rules like `NarrativeOrderingRule` can look up sibling dialogs.
+        `policy` is passed — evaluated against an `AgendaContext` assembled
+        from this method's flat legacy arguments. A throwaway `DialogRegistry`
+        is built from `all_dialogs` so rules like `NarrativeOrderingRule` can
+        look up sibling dialogs.
 
         Parameters
         ----------
@@ -53,7 +54,8 @@ class DialogLogic:
         if policy is None:
             policy = EligibilityPolicy(list(getattr(type(dialog), "DEFAULT_ELIGIBILITY", [])))
 
-        context = EligibilityContext(
+        completed_ids = list(completed_ids or [])
+        context = AgendaContext(
             registry=DialogRegistry.build(all_dialogs or []),
             completed_ids=completed_ids,
             session_completed_ids=completed_ids,
@@ -88,7 +90,7 @@ class DialogLogic:
         return any(topic in interests for topic in dialog_topics)
 
     @staticmethod
-    def sort_chitchat_dialogs(pool, theme=None, topics_of_interest=None):
+    def sort_chitchat_dialogs(pool, topics_of_interest=None):
         """
         Rank chitchat dialogs by relevance and readiness.
 
@@ -102,8 +104,6 @@ class DialogLogic:
         ----------
         pool : list of MiniDialog
             Available dialogs.
-        theme : str, optional
-            Restrict dialogs to a specific theme.
         topics_of_interest : list of str, optional
             User interest keywords.
 
@@ -113,7 +113,7 @@ class DialogLogic:
             Sorted list of candidate dialogs.
         Prioritize chitchat candidates by deps&interests > interests > deps > others
         """
-        cands = [d for d in pool if isinstance(d, ChitchatDialog) and (theme is None or d.theme == theme)]
+        cands = [d for d in pool if isinstance(d, ChitchatDialog)]
         if not cands:
             return []
 
@@ -179,7 +179,7 @@ class DialogLogic:
         return None
 
     @staticmethod
-    def insert_chitchat_into_session(session, pool, theme=None, topics_of_interest=None, all_dialogs=None,
+    def insert_chitchat_into_session(session, pool, topics_of_interest=None, all_dialogs=None,
                                       completed_ids=None, user_model=None):
         """
         Attempt to insert a suitable chitchat dialog into the session.
@@ -195,8 +195,6 @@ class DialogLogic:
             Current session sequence.
         pool : list of MiniDialog
             Remaining dialogs to choose from.
-        theme : str, optional
-            Preferred theme.
         topics_of_interest : list of str, optional
             User interests.
         all_dialogs : list of MiniDialog, optional
@@ -215,7 +213,7 @@ class DialogLogic:
         """
         all_dialogs = all_dialogs or []
         user_model = user_model or {}
-        cands = DialogLogic.sort_chitchat_dialogs(pool, theme=theme, topics_of_interest=topics_of_interest)
+        cands = DialogLogic.sort_chitchat_dialogs(pool, topics_of_interest=topics_of_interest)
 
         if not cands:
             return False
@@ -288,7 +286,7 @@ class DialogLogic:
         return None
 
     @staticmethod
-    def build_dialog_session(mini_dialogs, thread=None, theme=None, topics_of_interest=None, completed_ids=None):
+    def build_dialog_session(mini_dialogs, thread=None, topics_of_interest=None, completed_ids=None):
         """
         Construct a full dialog session sequence.
 
@@ -306,8 +304,6 @@ class DialogLogic:
             All available dialogs.
         thread : str, optional
             Narrative thread to follow.
-        theme : str, optional
-            Preferred chitchat theme.
         topics_of_interest : list of str, optional
             User interests.
         completed_ids : list or set, optional
@@ -344,15 +340,10 @@ class DialogLogic:
             session.append(n1)
             pool.remove(n1)
 
-        added_c1 = DialogLogic.insert_chitchat_into_session(session, pool, theme=theme,
+        added_c1 = DialogLogic.insert_chitchat_into_session(session, pool,
                                                             topics_of_interest=topics_of_interest,
                                                             all_dialogs=mini_dialogs,
                                                             completed_ids=completed_ids)
-        if not added_c1:
-            added_c1 = DialogLogic.insert_chitchat_into_session(session, pool, theme=None,
-                                                                topics_of_interest=topics_of_interest,
-                                                                all_dialogs=mini_dialogs,
-                                                                completed_ids=completed_ids)
         if not added_c1:
             print("[INFO] Chitchats not available for this participant (after narrative 1).")
 
@@ -364,15 +355,9 @@ class DialogLogic:
             pool.remove(n2)
 
         added_c2 = DialogLogic.insert_chitchat_into_session(session, pool,
-                                                            theme=None if topics_of_interest else theme,
                                                             topics_of_interest=topics_of_interest,
                                                             all_dialogs=mini_dialogs,
                                                             completed_ids=completed_ids)
-        if not added_c2:
-            added_c2 = DialogLogic.insert_chitchat_into_session(session, pool, theme=theme,
-                                                                topics_of_interest=topics_of_interest,
-                                                                all_dialogs=mini_dialogs,
-                                                                completed_ids=completed_ids)
         if not added_c2:
             print("[INFO] Chitchats not available for this participant (after narrative 2).")
 

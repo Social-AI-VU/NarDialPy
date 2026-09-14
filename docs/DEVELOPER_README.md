@@ -46,7 +46,7 @@ Dialog authors write one dialog object, or an array of dialog objects, in JSON. 
 | --- | --- | --- |
 | `functional` | `FunctionalDialog` | `functional_type` |
 | `narrative` | `NarrativeDialog` | `thread`, `position` |
-| `chitchat` | `ChitchatDialog` | `theme`, optional `topics` |
+| `chitchat` | `ChitchatDialog` | optional `topics` |
 | `llm_based` | `LLMDialog` | `prompt`, optional LLM settings |
 
 Important design detail: normal move JSON is not converted into move objects at load time. It stays as dictionaries in `MiniDialog.moves`. Individual handlers convert a move dictionary with `MoveX.from_dict()` when they need typed access.

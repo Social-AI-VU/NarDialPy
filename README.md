@@ -254,6 +254,20 @@ manager = SessionManager(
 manager.run()
 ```
 
+If a previous run crashed mid-session, pass `resume=True` to continue that same incomplete session (one whose `ended_at` is still `None`) instead of starting a new one — dialogs already completed in it are skipped:
+
+```python
+manager = SessionManager(
+    agent=agent,
+    dialog_file="dialogs/my_dialogs.json",
+    participant_id="user_42",
+    resume=True,
+)
+manager.run()
+```
+
+See [Developer Flow](docs/DEVELOPER_README.md) for more on session/state handling.
+
 ---
 
 ## Defining Dialogs in JSON

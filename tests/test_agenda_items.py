@@ -1,12 +1,19 @@
+import random
+
 import pytest
 
-from nardial.agenda.items import AgendaContext, AgendaItem, DialogRef, coerce_agenda_item
+from nardial.agenda.items import AgendaContext, AgendaItem, DialogRef, NarrativeSlot, coerce_agenda_item
+from nardial.agenda.slot_bounds import SlotBounds
 from nardial.dialog_registry import DialogRegistry
-from nardial.mini_dialogs import FunctionalDialog
+from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog
 
 
 def make_functional(dialog_id, functional_type="greeting"):
     return FunctionalDialog(dialog_id=dialog_id, moves=[], type=functional_type)
+
+
+def make_narrative(dialog_id, thread, position):
+    return NarrativeDialog(dialog_id=dialog_id, moves=[], thread=thread, position=position)
 
 
 def test_coerce_agenda_item_from_string():
@@ -86,3 +93,63 @@ def test_agenda_context_mark_completed_is_idempotent():
 def test_agenda_item_is_abstract():
     with pytest.raises(TypeError):
         AgendaItem()
+
+
+def test_narrative_slot_resolves_lowest_eligible_position():
+    step1 = make_narrative("thread_a_step_1", thread="thread_a", position=1)
+    step2 = make_narrative("thread_a_step_2", thread="thread_a", position=2)
+    registry = DialogRegistry.build([step1, step2])
+    context = AgendaContext(registry=registry)
+
+    assert NarrativeSlot(thread="thread_a").resolve(context) is step1
+
+    context.mark_completed("thread_a_step_1")
+    assert NarrativeSlot(thread="thread_a").resolve(context) is step2
+
+
+def test_narrative_slot_breaks_ties_randomly():
+    tied_a = make_narrative("thread_a_step_1a", thread="thread_a", position=1)
+    tied_b = make_narrative("thread_a_step_1b", thread="thread_a", position=1)
+    registry = DialogRegistry.build([tied_a, tied_b])
+    context = AgendaContext(registry=registry)
+
+    random.seed(0)
+    results = {NarrativeSlot(thread="thread_a").resolve(context).dialog_id for _ in range(20)}
+
+    assert results == {"thread_a_step_1a", "thread_a_step_1b"}
+
+
+def test_narrative_slot_no_candidates_warns_and_returns_none(caplog):
+    registry = DialogRegistry.build([])
+    context = AgendaContext(registry=registry)
+
+    with caplog.at_level("WARNING"):
+        result = NarrativeSlot(thread="missing_thread").resolve(context)
+
+    assert result is None
+    assert "missing_thread" in caplog.text
+
+
+def test_narrative_slot_no_registry_warns_and_returns_none(caplog):
+    context = AgendaContext(registry=None)
+
+    with caplog.at_level("WARNING"):
+        result = NarrativeSlot(thread="thread_a").resolve(context)
+
+    assert result is None
+
+
+def test_coerce_agenda_item_from_narrative_slot_dict():
+    item = coerce_agenda_item({"type": "narrative_slot", "thread": "thread_a", "bounds": {"count_min": 2, "count_max": 3}})
+
+    assert isinstance(item, NarrativeSlot)
+    assert item.thread == "thread_a"
+    assert item.bounds.count_min == 2
+    assert item.bounds.count_max == 3
+
+
+def test_coerce_agenda_item_narrative_slot_default_bounds():
+    item = coerce_agenda_item({"type": "narrative_slot", "thread": "thread_a"})
+
+    assert isinstance(item.bounds, SlotBounds)
+    assert item.bounds.to_dict() == SlotBounds().to_dict()

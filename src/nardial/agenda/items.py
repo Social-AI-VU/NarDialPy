@@ -142,6 +142,34 @@ class ChitchatSlot(AgendaItem):
         return eligible[0]
 
 
+class FunctionalSlot(AgendaItem):
+    """Resolves to a random eligible `FunctionalDialog` of `functional_type`.
+
+    `FunctionalDialog.DEFAULT_ELIGIBILITY` deliberately has no
+    `ExcludeIfSeenRule` (see `mini_dialogs.py`), so a functional dialog like
+    a greeting or farewell stays eligible even after it has already run.
+    """
+
+    def __init__(self, functional_type: str, bounds: Optional[SlotBounds] = None,
+                 eligibility_policy: Optional[EligibilityPolicy] = None):
+        self.functional_type = functional_type
+        self.bounds = bounds or SlotBounds()
+        self.eligibility_policy = eligibility_policy
+
+    def resolve(self, context: AgendaContext) -> Optional["MiniDialog"]:
+        if context.registry is None:
+            logger.warning("FunctionalSlot(functional_type=%r): no registry on context", self.functional_type)
+            return None
+
+        candidates = context.registry.get_by_attr("functional_type", self.functional_type)
+        eligible = [d for d in candidates if _is_eligible(d, context, self.eligibility_policy)]
+        if not eligible:
+            logger.warning("FunctionalSlot(functional_type=%r): no eligible candidates", self.functional_type)
+            return None
+
+        return random.choice(eligible)
+
+
 def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaItem:
     """Coerce a raw agenda entry (string id, dict, or AgendaItem) into an AgendaItem.
 
@@ -163,6 +191,11 @@ def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaIt
             return ChitchatSlot(
                 bounds=SlotBounds.from_dict(item.get("bounds")),
                 topics_filter=item.get("topics_filter"),
+            )
+        if item_type == "functional_slot":
+            return FunctionalSlot(
+                functional_type=item["functional_type"],
+                bounds=SlotBounds.from_dict(item.get("bounds")),
             )
         raise ValueError(f"Unknown agenda item type: {item_type!r}")
     raise ValueError(f"Unsupported agenda item: {item!r}")

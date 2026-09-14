@@ -2,7 +2,15 @@ import random
 
 import pytest
 
-from nardial.agenda.items import AgendaContext, AgendaItem, ChitchatSlot, DialogRef, NarrativeSlot, coerce_agenda_item
+from nardial.agenda.items import (
+    AgendaContext,
+    AgendaItem,
+    ChitchatSlot,
+    DialogRef,
+    FunctionalSlot,
+    NarrativeSlot,
+    coerce_agenda_item,
+)
 from nardial.agenda.slot_bounds import SlotBounds
 from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import ChitchatDialog, FunctionalDialog, NarrativeDialog
@@ -213,3 +221,40 @@ def test_coerce_agenda_item_from_chitchat_slot_dict():
     assert isinstance(item, ChitchatSlot)
     assert item.topics_filter == ["pizza"]
     assert item.bounds.count_max == 2
+
+
+def test_functional_slot_resolves_correct_type():
+    greeting = make_functional("greeting_1", functional_type="greeting")
+    farewell = make_functional("farewell_1", functional_type="farewell")
+    registry = DialogRegistry.build([greeting, farewell])
+    context = AgendaContext(registry=registry)
+
+    assert FunctionalSlot(functional_type="greeting").resolve(context) is greeting
+    assert FunctionalSlot(functional_type="farewell").resolve(context) is farewell
+
+
+def test_functional_slot_still_resolves_when_already_completed():
+    """Regression: FunctionalDialog.DEFAULT_ELIGIBILITY deliberately has no
+    ExcludeIfSeenRule, so greetings/farewells re-run every session."""
+    greeting = make_functional("greeting_1", functional_type="greeting")
+    registry = DialogRegistry.build([greeting])
+    context = AgendaContext(registry=registry, completed_ids=["greeting_1"])
+
+    assert FunctionalSlot(functional_type="greeting").resolve(context) is greeting
+
+
+def test_functional_slot_no_candidates_warns_and_returns_none(caplog):
+    registry = DialogRegistry.build([])
+    context = AgendaContext(registry=registry)
+
+    with caplog.at_level("WARNING"):
+        result = FunctionalSlot(functional_type="greeting").resolve(context)
+
+    assert result is None
+
+
+def test_coerce_agenda_item_from_functional_slot_dict():
+    item = coerce_agenda_item({"type": "functional_slot", "functional_type": "greeting"})
+
+    assert isinstance(item, FunctionalSlot)
+    assert item.functional_type == "greeting"

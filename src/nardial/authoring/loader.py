@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 from nardial.authoring.factory import DialogFactory
+from nardial.dialog_registry import DialogRegistry
 from nardial.mini_dialogs import MiniDialog
 
 
@@ -45,6 +46,17 @@ def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
         errors.append(str(e))
 
     return dialogs, errors
+
+
+def load_dialog_registry(path_or_dir: str) -> Tuple[DialogRegistry, List[str]]:
+    """Load dialogs from a JSON file or directory and build a DialogRegistry.
+
+    Returns (registry, errors); per-file/per-doc errors are collected the
+    same way as `load_dialogs` and never raise.
+    """
+    dialogs, errors = load_dialogs(path_or_dir)
+    registry = DialogRegistry.build(dialogs)
+    return registry, errors
 
 
 def dialog_to_doc(d: MiniDialog) -> Dict[str, Any]:

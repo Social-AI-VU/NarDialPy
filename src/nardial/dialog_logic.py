@@ -1,4 +1,6 @@
 import random
+from nardial.dialog_registry import DialogRegistry
+from nardial.eligibility import EligibilityContext, EligibilityPolicy
 from nardial.mini_dialogs import NarrativeDialog, ChitchatDialog, FunctionalDialog, MiniDialog
 
 
@@ -19,15 +21,16 @@ class DialogLogic:
     """
 
     @staticmethod
-    def is_dialog_eligible(dialog, completed_ids, user_model, all_dialogs=None):
+    def is_dialog_eligible(dialog, completed_ids, user_model, all_dialogs=None, policy=None):
         """
         Determine whether a dialog can be executed.
 
-        A dialog is considered eligible if:
-        - It has not already been completed
-        - All its dependencies are satisfied
-        - Required user model variables are present
-        - (For narrative dialogs) earlier steps in the same thread are completed
+        Delegates to an `EligibilityPolicy` — the dialog class's own
+        `DEFAULT_ELIGIBILITY` rules (see `mini_dialogs.py`) unless an explicit
+        `policy` is passed — evaluated against a small local
+        `EligibilityContext` assembled from this method's flat legacy
+        arguments. A throwaway `DialogRegistry` is built from `all_dialogs` so
+        rules like `NarrativeOrderingRule` can look up sibling dialogs.
 
         Parameters
         ----------
@@ -39,36 +42,24 @@ class DialogLogic:
             Current user state (used for variable dependencies).
         all_dialogs : list of MiniDialog, optional
             Full dialog set (required for narrative ordering checks).
+        policy : EligibilityPolicy, optional
+            Overrides the dialog class's `DEFAULT_ELIGIBILITY` rules.
 
         Returns
         -------
         bool
             True if the dialog can be executed, False otherwise.
         """
-        if dialog.dialog_id in completed_ids:
-            return False
+        if policy is None:
+            policy = EligibilityPolicy(list(getattr(type(dialog), "DEFAULT_ELIGIBILITY", [])))
 
-        for dep in dialog.dependencies:
-            if dep not in completed_ids:
-                return False
-
-        for var_dep in dialog.variable_dependencies:
-            var = var_dep["variable"]
-            required = var_dep.get("required", True)
-            if required and not user_model.get(var):
-                return False
-
-        if isinstance(dialog, NarrativeDialog):
-            if all_dialogs is None:
-                all_dialogs = []
-            for d in all_dialogs:
-                if (isinstance(d, NarrativeDialog) and
-                        d.thread == dialog.thread and
-                        d.position < dialog.position and
-                        d.dialog_id not in completed_ids):
-                    return False
-
-        return True
+        context = EligibilityContext(
+            registry=DialogRegistry.build(all_dialogs or []),
+            completed_ids=completed_ids,
+            session_completed_ids=completed_ids,
+            user_model=user_model,
+        )
+        return policy.is_eligible(dialog, context)
 
     @staticmethod
     def matches_user_interests(dialog, topics_of_interest):
@@ -188,7 +179,8 @@ class DialogLogic:
         return None
 
     @staticmethod
-    def insert_chitchat_into_session(session, pool, theme=None, topics_of_interest=None, all_dialogs=None, completed_ids=None):
+    def insert_chitchat_into_session(session, pool, theme=None, topics_of_interest=None, all_dialogs=None,
+                                      completed_ids=None, user_model=None):
         """
         Attempt to insert a suitable chitchat dialog into the session.
 
@@ -211,6 +203,10 @@ class DialogLogic:
             Full dialog set.
         completed_ids : list or set, optional
             Previously completed dialogs.
+        user_model : dict, optional
+            Current user state (used for variable dependencies). Previously
+            hardcoded to `{}` here, silently discarding any real user model
+            a caller had available.
 
         Returns
         -------
@@ -218,6 +214,7 @@ class DialogLogic:
             True if a chitchat dialog was successfully inserted.
         """
         all_dialogs = all_dialogs or []
+        user_model = user_model or {}
         cands = DialogLogic.sort_chitchat_dialogs(pool, theme=theme, topics_of_interest=topics_of_interest)
 
         if not cands:
@@ -235,7 +232,7 @@ class DialogLogic:
             if greeted:
                 effective_completed.add("greeting")
 
-            if DialogLogic.is_dialog_eligible(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
+            if DialogLogic.is_dialog_eligible(c, effective_completed, user_model=user_model, all_dialogs=all_dialogs):
                 session.append(c)
                 pool.remove(c)
                 return True
@@ -245,12 +242,12 @@ class DialogLogic:
                 if not dep:
                     continue
 
-                if DialogLogic.is_dialog_eligible(dep, effective_completed, user_model={}, all_dialogs=all_dialogs):
+                if DialogLogic.is_dialog_eligible(dep, effective_completed, user_model=user_model, all_dialogs=all_dialogs):
                     session.append(dep)
                     pool.remove(dep)
                     effective_completed.add(dep.dialog_id)
 
-                    if DialogLogic.is_dialog_eligible(c, effective_completed, user_model={}, all_dialogs=all_dialogs):
+                    if DialogLogic.is_dialog_eligible(c, effective_completed, user_model=user_model, all_dialogs=all_dialogs):
                         session.append(c)
                         pool.remove(c)
                         return True

@@ -204,8 +204,8 @@ def test_chitchat_slot_no_eligible_candidates_warns_and_returns_none(caplog):
 
 
 def test_chitchat_slot_respects_real_user_model_via_variable_dependency_rule():
-    """Regression: previously insert_chitchat_into_session() hardcoded user_model={},
-    so a VariableDependencyMetRule could never actually block selection."""
+    """Regression: the pre-agenda chitchat-selection helper this replaced hardcoded
+    user_model={}, so a VariableDependencyMetRule could never actually block selection."""
     gated = make_chitchat(
         "pet_chat",
         topics=["pets"],

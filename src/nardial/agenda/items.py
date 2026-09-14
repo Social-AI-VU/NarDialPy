@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from nardial.agenda.slot_bounds import SlotBounds
-from nardial.eligibility import EligibilityPolicy
+from nardial.eligibility import EligibilityPolicy, is_dialog_eligible
 from nardial.mini_dialogs import DialogType, LLMDialog
 
 if TYPE_CHECKING:
@@ -37,12 +37,6 @@ class AgendaContext:
             self.completed_ids.append(dialog_id)
         if dialog_id not in self.session_completed_ids:
             self.session_completed_ids.append(dialog_id)
-
-
-def _is_eligible(dialog: "MiniDialog", context: AgendaContext, policy: Optional[EligibilityPolicy]) -> bool:
-    """Evaluate `dialog` against `policy`, falling back to its class's `DEFAULT_ELIGIBILITY`."""
-    effective_policy = policy or EligibilityPolicy(list(getattr(type(dialog), "DEFAULT_ELIGIBILITY", [])))
-    return effective_policy.is_eligible(dialog, context)
 
 
 class AgendaItem(ABC):
@@ -89,7 +83,7 @@ class NarrativeSlot(AgendaItem):
             return None
 
         candidates = context.registry.get_by_attr("thread", self.thread)
-        eligible = [d for d in candidates if _is_eligible(d, context, self.eligibility_policy)]
+        eligible = [d for d in candidates if is_dialog_eligible(d, context, self.eligibility_policy)]
         positioned = [d for d in eligible if getattr(d, "position", None) is not None]
         if not positioned:
             logger.warning("NarrativeSlot(thread=%r): no eligible candidates", self.thread)
@@ -127,7 +121,7 @@ class ChitchatSlot(AgendaItem):
                 if filter_set & {str(t).lower() for t in getattr(d, "topics", [])}
             ]
 
-        eligible = [d for d in candidates if _is_eligible(d, context, self.eligibility_policy)]
+        eligible = [d for d in candidates if is_dialog_eligible(d, context, self.eligibility_policy)]
         if not eligible:
             logger.warning("ChitchatSlot: no eligible candidates")
             return None
@@ -163,7 +157,7 @@ class FunctionalSlot(AgendaItem):
             return None
 
         candidates = context.registry.get_by_attr("functional_type", self.functional_type)
-        eligible = [d for d in candidates if _is_eligible(d, context, self.eligibility_policy)]
+        eligible = [d for d in candidates if is_dialog_eligible(d, context, self.eligibility_policy)]
         if not eligible:
             logger.warning("FunctionalSlot(functional_type=%r): no eligible candidates", self.functional_type)
             return None

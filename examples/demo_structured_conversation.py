@@ -175,8 +175,8 @@ if __name__ == '__main__':
     )
 
     # Internally, SessionManager:
-    # - Loads dialogs from JSON
-    # - Filters them based on eligibility (DialogLogic)
+    # - Loads dialogs from JSON into a DialogRegistry
+    # - Resolves the session agenda and filters it by eligibility (EligibilityPolicy)
     # - Tracks conversation state (topics, completed dialogs)
     # - Logs session history
     # - Extracts topics of interest using the LLM

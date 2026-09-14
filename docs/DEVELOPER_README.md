@@ -112,8 +112,11 @@ For a plain-language, example-driven introduction to this system aimed at applic
 - `dialog_json_path`: a JSON file or directory containing dialog definitions.
 - `participant_id`: optional persistent user identifier.
 - `session_plan_path`: optional path to a `SessionPlan` that picks a per-session-number agenda instead (see below).
+- `session_index`: optional 1-based session number override, used when picking a `SessionPlan` template instead of the auto-detected session number.
+- `reset_history_from_session`: optional 1-based session number; when set, destructively truncates this participant's persisted history from that session number onward before the new session starts (see "Conversation State" below).
+- `resume`: when `True`, reuses an incomplete session (one whose `ended_at` is still `None`, e.g. left behind by a crash) instead of starting a new one, and excludes the dialogs it already ran from the rest of this run.
 
-During initialization: dialog JSON is loaded into a `DialogRegistry`; `ConversationState` is created and prior participant continuity is restored when possible; a new session ID is created; if `session_plan_path` is set, it overrides `session_agenda` with the template for this session number.
+During initialization: dialog JSON is loaded into a `DialogRegistry`; `ConversationState` is created and prior participant continuity is restored when possible; if `reset_history_from_session` is set, history is truncated first; a new session ID is created -- or, if `resume` is `True` and an incomplete session is found, that session's ID is reused instead; if `session_plan_path` is set, it overrides `session_agenda` with the template for this session number (`session_index`, when set, overrides the auto-detected number used to pick that template).
 
 `coerce_agenda_item()` (`agenda/items.py`) normalizes any raw agenda entry into an `AgendaItem`, mirroring `DialogFactory.from_json()`'s manual type-string dispatch:
 
@@ -133,7 +136,7 @@ If `session_agenda` is empty, `SessionManager` runs every loaded dialog in loade
 
 ## Session Plans
 
-`SessionPlan`/`SessionTemplate` (`agenda/session_plan.py`) let a `SessionManager` pick a different agenda per session number instead of a single fixed `session_agenda`. `load_session_plan(path)` loads one from JSON (never raises; returns `(plan, errors)`). `SessionPlan.get_template(session_number)` picks the exact `session_index` match, or falls back to the highest-indexed template as a steady-state agenda once `session_number` exceeds every authored template.
+`SessionPlan`/`SessionTemplate` (`agenda/session_plan.py`) let a `SessionManager` pick a different agenda per session number instead of a single fixed `session_agenda`. `load_session_plan(path)` loads one from JSON (never raises; returns `(plan, errors)`). `SessionPlan.get_template(session_number)` picks the exact `session_index` match, or falls back to the highest-indexed template as a steady-state agenda once `session_number` exceeds every authored template. `SessionManager`'s own `session_index` constructor parameter, when set, overrides the auto-detected `session_number` passed into `get_template()`.
 
 ## Running Eligible Dialogs
 
@@ -143,7 +146,7 @@ Inside `run_async()`:
 
 1. A session-scoped `EventBus` is created and bound to the running asyncio loop.
 2. If a screen provider supports `set_event_bus()`, the bus is passed into it.
-3. `resolve_agenda(session_agenda, context)` yields dialogs one at a time; each is checked with `is_dialog_eligible()` as a final safety-net gate (see "Dialog Eligibility" above).
+3. `resolve_agenda(session_agenda, context)` yields dialogs one at a time; each is checked with `is_dialog_eligible()` as a final safety-net gate (see "Dialog Eligibility" above), plus an explicit `dialog.dialog_id in context.session_completed_ids` check -- the latter is what makes a resumed session (`resume=True`) skip its already-run dialogs even for dialog types with no `ExcludeIfSeenRule` of their own (e.g. `FunctionalDialog`); outside of a resume, `session_completed_ids` only ever contains dialogs this same loop already ran, so it's a no-op.
 4. Eligible dialogs are marked in `ConversationState` and receive the shared event bus.
 5. `dialog.run(agent, session_history, topics_of_interest, user_model)` is awaited.
 6. Dialog start/end events are appended to `session_history`.
@@ -254,6 +257,10 @@ It stores:
 - topics of interest
 
 Participant transcripts are written under `participants/<participant_id>.json` in the current working directory by default. When a `participant_id` is provided, continuity is restored through `UserModel` and saved back at the end of the session.
+
+`count_completed_sessions()`, `truncate_from_session(n)`, and `find_incomplete_session()` all read that persisted transcript directly (via `_load_participant_transcript()`) rather than the in-memory `sessions` list, since a fresh `ConversationState` instance's `sessions` list starts empty and is never repopulated from disk on init. `truncate_from_session(n)` keeps sessions before `n`, recomputes `completed_dialogs`/`topics_of_interest` from what's retained, and pushes that recomputation to `UserModel.save_continuity()`. `find_incomplete_session()` returns the participant's last persisted session when its `ended_at` is still `None`; `SessionManager(resume=True)` uses it to decide whether to resume.
+
+Known limitation: `save_participant_transcript()` overwrites the transcript with only the current instance's in-memory `sessions`, rather than merging with what's already on disk -- multi-session history only reliably accumulates within one `ConversationState`/`SessionManager` instance's lifetime, not automatically across separate process invocations. See [issue #166](https://github.com/Social-AI-VU/NarDialPy/issues/166).
 
 ## Adding a New Move Type
 

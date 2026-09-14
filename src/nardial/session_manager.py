@@ -6,6 +6,7 @@ import asyncio
 
 from nardial.agenda.items import AgendaContext
 from nardial.agenda.resolver import resolve_agenda
+from nardial.agenda.session_plan import load_session_plan
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
 from nardial.dialog_logic import DialogLogic
@@ -32,7 +33,10 @@ class SessionManager:
         :param agent: ConversationAgent responsible for interaction (speech, LLM, etc.).
         :param dialog_json_path: Path to JSON file or directory containing dialog definitions.
         :param participant_id: Optional identifier for the user/participant.
-        :param session_plan_path: Reserved for session-plan-driven agendas (not yet acted on).
+        :param session_plan_path: Optional path to a `SessionPlan` JSON file. When
+            set, the template picked for this participant's current session number
+            overrides `session_agenda`; falls back to `session_agenda` unchanged if
+            the plan fails to load or defines no templates.
         :param session_index: Reserved to override the auto-detected session number (not yet acted on).
         :param reset_history_from_session: Reserved for destructive history truncation (not yet acted on).
         :param resume: Reserved for crash-resume behavior (not yet acted on).
@@ -42,14 +46,20 @@ class SessionManager:
         self.dialogs = list(self.registry.by_id.values())
         self.agent = agent
 
-        # Stored but not yet acted on; steps 12/15/16 implement the behavior behind these.
         self.session_plan_path = session_plan_path
+        # Stored but not yet acted on; steps 15/16 implement the behavior behind these.
         self.session_index = session_index
         self.reset_history_from_session = reset_history_from_session
         self.resume = resume
 
         self.conversation_state = ConversationState(participant_id=participant_id)
         self.session_id = self.start_session()
+
+        if self.session_plan_path:
+            plan_agenda = self._resolve_session_plan_agenda()
+            if plan_agenda is not None:
+                self.session_agenda = plan_agenda
+
         self._bus = None
 
     @staticmethod
@@ -89,6 +99,38 @@ class SessionManager:
         )
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
         return session_id
+
+    def _current_session_number(self) -> int:
+        """1-indexed session number for the session that was just started.
+
+        `start_session()` already appended the current session to
+        `conversation_state.sessions` before this is ever called, so this is
+        simply its length -- adding 1 here would double count the current
+        session (the off-by-one this method exists to avoid).
+        """
+        return len(self.conversation_state.sessions)
+
+    def _resolve_session_plan_agenda(self):
+        """Resolve this session's agenda from `session_plan_path`, if set.
+
+        Returns `None` (leaving `session_agenda` as given) when no plan path
+        was set, the plan fails to load, or it defines no templates at all.
+        """
+        plan, errors = load_session_plan(self.session_plan_path)
+        if errors:
+            print(f"[ERROR] Problems loading session plan {self.session_plan_path}:", errors)
+        if plan is None:
+            return None
+
+        session_number = self._current_session_number()
+        template = plan.get_template(session_number)
+        if template is None:
+            print(f"[WARN] Session plan {plan.plan_id!r} has no templates; keeping the given session_agenda.")
+            return None
+
+        print(f"[INFO] Session plan {plan.plan_id!r}: using template for "
+              f"session_index={template.session_index} (session_number={session_number})")
+        return template.agenda
 
     def _build_agenda_context(self) -> AgendaContext:
         """Assemble the AgendaContext resolve_agenda() resolves this session's agenda against.

@@ -1,5 +1,6 @@
 import json
 
+from nardial.agenda.session_plan import SessionPlan, SessionTemplate
 from nardial.session_manager import SessionManager
 
 GREETING_DOC = {
@@ -142,3 +143,108 @@ def test_default_new_params_are_inert(tmp_path, monkeypatch, make_mock_agent):
     assert manager.session_index is None
     assert manager.reset_history_from_session is None
     assert manager.resume is False
+
+
+def test_current_session_number_does_not_double_count_the_just_started_session(tmp_path, monkeypatch, make_mock_agent):
+    """Regression: start_session() already appended the current session before
+    _current_session_number() ever runs, so len(sessions) must NOT get +1'd."""
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+    agent = make_mock_agent()
+
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_session_number",
+    )
+
+    assert manager._current_session_number() == 1
+
+    manager.conversation_state.start_session(participant_id="p_session_number", run_id="run_2")
+    manager.conversation_state.start_session(participant_id="p_session_number", run_id="run_3")
+
+    assert manager._current_session_number() == 3
+
+
+def test_session_plan_path_picks_template_for_current_session_number(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC, FAREWELL_DOC])
+
+    plan = SessionPlan(
+        plan_id="onboarding",
+        sessions=[
+            SessionTemplate(session_index=1, agenda=["greeting_1"]),
+            SessionTemplate(session_index=2, agenda=["farewell_1"]),
+        ],
+    )
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan.to_dict()), encoding="utf-8")
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=["farewell_1"],  # would prove the plan was never applied if this ran instead
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_session_plan",
+        session_plan_path=str(plan_path),
+    )
+
+    assert manager.session_agenda == ["greeting_1"]
+
+    manager.run()
+
+    assert say_texts(agent) == ["Hello!"]
+
+
+def test_session_plan_path_uses_correct_template_after_simulated_prior_sessions(tmp_path, monkeypatch, make_mock_agent):
+    """Off-by-one regression: a naive len(sessions) + 1 would land on the
+    wrong exact-match template once a prior session is already recorded."""
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+
+    plan = SessionPlan(
+        plan_id="onboarding",
+        sessions=[
+            SessionTemplate(session_index=1, agenda=["session_1_agenda"]),
+            SessionTemplate(session_index=2, agenda=["session_2_agenda"]),
+            SessionTemplate(session_index=3, agenda=["session_3_agenda"]),
+        ],
+    )
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan.to_dict()), encoding="utf-8")
+
+    agent = make_mock_agent()
+    manager = SessionManager(
+        session_agenda=[],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_session_plan_offbyone",
+        session_plan_path=str(plan_path),
+    )
+    assert manager.session_agenda == ["session_1_agenda"]  # this session is session_number == 1
+
+    # Simulate that one earlier session for this participant already
+    # happened before this SessionManager's session started.
+    manager.conversation_state.sessions.insert(0, manager.conversation_state.sessions[0])
+    assert manager._current_session_number() == 2
+
+    resolved = manager._resolve_session_plan_agenda()
+
+    assert resolved == ["session_2_agenda"]
+
+
+def test_session_plan_path_falls_back_to_given_agenda_when_plan_missing(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+    agent = make_mock_agent()
+
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_session_plan_missing",
+        session_plan_path=str(tmp_path / "does_not_exist.json"),
+    )
+
+    assert manager.session_agenda == ["greeting_1"]

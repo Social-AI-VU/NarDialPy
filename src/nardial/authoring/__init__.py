@@ -1,1 +1,1 @@
-from .loader import load_dialogs
+from .loader import load_dialogs, load_dialog_registry

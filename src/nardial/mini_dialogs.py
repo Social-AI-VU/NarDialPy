@@ -747,19 +747,31 @@ class MiniDialog:
 
 
 class FunctionalDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.FUNCTIONAL
+    INDEX_ATTRS = ["functional_type"]
+    DEFAULT_ELIGIBILITY: list = []
+
     def __init__(self, dialog_id, moves, type, dependencies=None, characters=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
         super().__init__(dialog_id, moves, dependencies, characters=characters)
         self.type = type
 
+    @property
+    def functional_type(self):
+        return self.type
+
     def is_greeting_dialog(self):
-        return self.type == FunctionalType.GREETING
+        return self.type == FunctionalType.GREETING.value
 
     def is_farewell_dialog(self):
-        return self.type == FunctionalType.FAREWELL
+        return self.type == FunctionalType.FAREWELL.value
 
 
 class NarrativeDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.NARRATIVE
+    INDEX_ATTRS = ["thread"]
+    DEFAULT_ELIGIBILITY: list = []
+
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
@@ -768,6 +780,10 @@ class NarrativeDialog(MiniDialog):
 
 
 class ChitchatDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.CHITCHAT
+    INDEX_ATTRS = ["topics"]
+    DEFAULT_ELIGIBILITY: list = []
+
     def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
         # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
@@ -776,6 +792,10 @@ class ChitchatDialog(MiniDialog):
 
 
 class LLMDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.LLM_BASED
+    INDEX_ATTRS: list = []
+    DEFAULT_ELIGIBILITY: list = []
+
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,

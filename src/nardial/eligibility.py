@@ -4,6 +4,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional
 
 if TYPE_CHECKING:
+    from nardial.agenda.items import AgendaContext
     from nardial.dialog_registry import DialogRegistry
     from nardial.mini_dialogs import MiniDialog
 
@@ -100,3 +101,20 @@ class EligibilityPolicy:
 
     def is_eligible(self, dialog: "MiniDialog", context: EligibilityContext) -> bool:
         return all(rule.is_eligible(dialog, context) for rule in self.rules)
+
+
+def is_dialog_eligible(dialog: "MiniDialog", context: "AgendaContext",
+                        policy: Optional[EligibilityPolicy] = None) -> bool:
+    """Determine whether `dialog` can run right now.
+
+    Delegates to `policy` if given, otherwise the dialog class's own
+    `DEFAULT_ELIGIBILITY` rules (see `mini_dialogs.py`). Operates directly on
+    an `AgendaContext` (or any object exposing the same `registry`/
+    `completed_ids`/`session_completed_ids`/`user_model` attributes -- this
+    module never imports `AgendaContext` at runtime, only for type hints, to
+    avoid a cycle with `agenda/items.py`). Replaces the legacy flat
+    `(dialog, completed_ids, user_model, all_dialogs)` signature previously
+    exposed via a now-removed static helper class.
+    """
+    effective_policy = policy or EligibilityPolicy(list(getattr(type(dialog), "DEFAULT_ELIGIBILITY", [])))
+    return effective_policy.is_eligible(dialog, context)

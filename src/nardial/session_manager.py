@@ -9,8 +9,8 @@ from nardial.agenda.resolver import resolve_agenda
 from nardial.agenda.session_plan import load_session_plan
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
-from nardial.dialog_logic import DialogLogic
 from nardial.dialog_registry import DialogRegistry
+from nardial.eligibility import is_dialog_eligible
 
 from nardial.authoring import load_dialog_registry
 from nardial.events import EventBus
@@ -43,7 +43,6 @@ class SessionManager:
         """
         self.session_agenda = session_agenda
         self.registry = self.load_dialog_registry_from_json(dialog_json_path)
-        self.dialogs = list(self.registry.by_id.values())
         self.agent = agent
 
         self.session_plan_path = session_plan_path
@@ -184,7 +183,7 @@ class SessionManager:
         Execute the session by running each dialog in sequence.
 
         Handles:
-        - Eligibility checks via DialogLogic
+        - Eligibility checks via EligibilityPolicy
         - Session history tracking
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
@@ -211,12 +210,7 @@ class SessionManager:
             # for slot-based agenda items, but a plain dialog id (DialogRef)
             # resolves regardless of eligibility, so this still guards every
             # existing list[str] agenda.
-            if not DialogLogic.is_dialog_eligible(
-                    dialog,
-                    self.conversation_state.completed_dialogs,
-                    self.conversation_state.user_model,
-                    self.dialogs
-            ):
+            if not is_dialog_eligible(dialog, context):
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
                 continue
 

@@ -45,8 +45,9 @@ Full details: `docs/DEVELOPER_README.md` (read this before making runtime/archit
 JSON dialog files
   -> authoring loader/factory   (src/nardial/authoring/loader.py, factory.py)
   -> MiniDialog objects with move dictionaries  (src/nardial/mini_dialogs.py)
-  -> SessionManager session block / agenda      (src/nardial/session_manager.py)
-  -> DialogLogic eligibility checks              (src/nardial/dialog_logic.py)
+  -> DialogRegistry indexed by id/type/attrs    (src/nardial/dialog_registry.py)
+  -> SessionManager: resolve_agenda() over the session agenda  (src/nardial/agenda/resolver.py)
+  -> EligibilityPolicy / eligibility rules       (src/nardial/eligibility.py)
   -> MiniDialog.run() -> move dispatch handlers
   -> ConversationAgent convenience API            (src/nardial/conversation_agent.py)
   -> InteractionOrchestrator                      (src/nardial/interaction_orchestrator.py)
@@ -56,9 +57,9 @@ JSON dialog files
 
 Key design point: dialog JSON moves are **not** parsed into move objects at load time — they stay as plain dicts on `MiniDialog.moves`. Individual move handlers convert a move dict via `MoveX.from_dict()` (from `moves.py`) only when they need typed access. The dispatcher is `MiniDialog._dispatch_move()`, which reads `move["type"]` and calls a handler like `handle_move_say()`, `handle_move_ask_open()`, `handle_move_show_image()`.
 
-Four dialog types (`functional`, `chitchat`, `narrative`, `llm_based`) map to runtime classes `FunctionalDialog`, `ChitchatDialog`, `NarrativeDialog`, `LLMDialog`, each requiring type-specific fields (`functional_type`; `theme`/`topics`; `thread`/`position`; `prompt`).
+Four dialog types (`functional`, `chitchat`, `narrative`, `llm_based`) map to runtime classes `FunctionalDialog`, `ChitchatDialog`, `NarrativeDialog`, `LLMDialog`, each requiring type-specific fields (`functional_type`; `topics`; `thread`/`position`; `prompt`).
 
-Dialog eligibility (`DialogLogic.is_dialog_eligible()`) gates every dialog on: not already completed, all `dependencies` completed, all `variable_dependencies` present in the user model, and — for narrative dialogs — all earlier `position`s in the same `thread` completed. `SessionManager.run_async()` checks this before running each agenda item; the same mutable `session_history`, `topics_of_interest`, and `user_model` objects are threaded through every dialog in a session, so moves in one dialog affect later eligibility/personalization/persistence.
+Dialog eligibility is a composable `EligibilityPolicy` of `EligibilityRule`s (`src/nardial/eligibility.py`), evaluated by the free function `is_dialog_eligible(dialog, context, policy=None)` against an `AgendaContext`/`EligibilityContext`. Each dialog class declares its own default rules via `DEFAULT_ELIGIBILITY` (see `mini_dialogs.py`), gating on: not already completed (except functional dialogs, which skip this), all `dependencies` completed, all `variable_dependencies` present in the user model, and — for narrative dialogs — all earlier `position`s in the same `thread` completed. A session agenda is a list of dialog ids / agenda item dicts / `AgendaItem` instances (`src/nardial/agenda/items.py`: `DialogRef`, `NarrativeSlot`, `ChitchatSlot`, `FunctionalSlot`, `LLMDialogRef`); `resolve_agenda()` walks it yielding dialogs, and `SessionManager.run_async()` re-checks `is_dialog_eligible()` as a final safety-net gate before running each one. The same mutable `session_history`, `topics_of_interest`, and `user_model` objects are threaded through every dialog in a session, so moves in one dialog affect later eligibility/personalization/persistence.
 
 ### Providers are swappable protocol implementations
 

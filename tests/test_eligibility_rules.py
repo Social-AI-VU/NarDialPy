@@ -9,8 +9,9 @@ from nardial.eligibility import (
     ExcludeIfSeenRule,
     NarrativeOrderingRule,
     VariableDependencyMetRule,
+    is_dialog_eligible,
 )
-from nardial.mini_dialogs import NarrativeDialog
+from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog
 
 
 def make_dialog(dialog_id, dependencies=None, variable_dependencies=None):
@@ -23,6 +24,10 @@ def make_dialog(dialog_id, dependencies=None, variable_dependencies=None):
 
 def make_narrative(dialog_id, thread, position):
     return NarrativeDialog(dialog_id=dialog_id, moves=[], thread=thread, position=position)
+
+
+def make_functional(dialog_id, functional_type):
+    return FunctionalDialog(dialog_id=dialog_id, moves=[], type=functional_type)
 
 
 def test_exclude_if_seen_rule_participant_scope():
@@ -108,3 +113,35 @@ def test_eligibility_policy_requires_every_rule_to_pass():
     assert policy.is_eligible(dialog, EligibilityContext(completed_ids=[])) is False
     assert policy.is_eligible(dialog, EligibilityContext(completed_ids=["intro", "greeting"])) is False
     assert policy.is_eligible(dialog, EligibilityContext(completed_ids=["intro"])) is True
+
+
+def test_is_dialog_eligible_default_policy_excludes_completed_narrative_dialog():
+    dialog = make_narrative("step_1", thread="thread_a", position=1)
+
+    assert is_dialog_eligible(dialog, EligibilityContext(completed_ids=[])) is True
+    assert is_dialog_eligible(dialog, EligibilityContext(completed_ids=["step_1"])) is False
+
+
+def test_is_dialog_eligible_explicit_policy_overrides_default():
+    dialog = make_narrative("step_1", thread="thread_a", position=1)
+    # No ExcludeIfSeenRule here: completion should no longer exclude it.
+    permissive_policy = EligibilityPolicy([DependencyMetRule()])
+
+    assert is_dialog_eligible(
+        dialog, EligibilityContext(completed_ids=["step_1"]), policy=permissive_policy
+    ) is True
+
+
+def test_is_dialog_eligible_functional_dialog_reruns_after_completion():
+    greeting = make_functional("greeting_1", functional_type="greeting")
+
+    assert is_dialog_eligible(greeting, EligibilityContext(completed_ids=["greeting_1"])) is True
+
+
+def test_is_dialog_eligible_enforces_narrative_ordering_via_registry():
+    step1 = make_narrative("step_1", thread="thread_a", position=1)
+    step2 = make_narrative("step_2", thread="thread_a", position=2)
+    registry = DialogRegistry.build([step1, step2])
+
+    assert is_dialog_eligible(step2, EligibilityContext(registry=registry, completed_ids=[])) is False
+    assert is_dialog_eligible(step2, EligibilityContext(registry=registry, completed_ids=["step_1"])) is True

@@ -603,12 +603,12 @@ Starts a multi-turn LLM-driven exchange *within* an otherwise scripted dialog. U
 
 Selects and executes a list of sub-moves based on the current outcome or the value of a user model variable.
 
-| Field | Type | Required | Description                                                                                                                                                                                         |
-|---|---|---|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `type` | string | ✅ | `"branch"`                                                                                                                                                                                          |
-| `on` | string | ✅ | `"outcome"` to branch on the last question's result, `" variables"` to branch based on whether to variabels in the user model have the same value, or a variable name to branch on its stored value |
-| `cases` | object | ✅ | Maps condition values to arrays of sub-moves                                                                                                                                                        |
-| `variable` | list | | In case of branching on `" variables"`, a list of the variables that need to be compared | 
+| Field | Type | Required | Description                                                                                                                                                                                        |
+|---|---|---|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type` | string | ✅ | `"branch"`                                                                                                                                                                                         |
+| `on` | string | ✅ | `"outcome"` to branch on the last question's result, `"variables"` to branch based on whether to variabels in the user model have the same value, or a variable name to branch on its stored value |
+| `cases` | object | ✅ | Maps condition values to arrays of sub-moves                                                                                                                                                       |
+| `variable` | list | | In case of branching on `"variables"`, a list of the variables that need to be compared | 
 
 ```json
 {

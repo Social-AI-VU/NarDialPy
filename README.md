@@ -603,11 +603,12 @@ Starts a multi-turn LLM-driven exchange *within* an otherwise scripted dialog. U
 
 Selects and executes a list of sub-moves based on the current outcome or the value of a user model variable.
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `type` | string | ✅ | `"branch"` |
-| `on` | string | ✅ | `"outcome"` to branch on the last question's result, or a variable name to branch on its stored value |
-| `cases` | object | ✅ | Maps condition values to arrays of sub-moves |
+| Field | Type | Required | Description                                                                                                                                                                                         |
+|---|---|---|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `type` | string | ✅ | `"branch"`                                                                                                                                                                                          |
+| `on` | string | ✅ | `"outcome"` to branch on the last question's result, `" variables"` to branch based on whether to variabels in the user model have the same value, or a variable name to branch on its stored value |
+| `cases` | object | ✅ | Maps condition values to arrays of sub-moves                                                                                                                                                        |
+| `variable` | list | | In case of branching on `" variables"`, a list of the variables that need to be compared | 
 
 ```json
 {
@@ -633,6 +634,20 @@ Branching on a stored variable (e.g. to react to an answer from an earlier dialo
   "cases": {
     "high": [{ "type": "say", "text": "Start with a longer session." }],
     "low":  [{ "type": "say", "text": "Begin with just 10 calm minutes." }]
+  }
+}
+```
+
+Branching on comparison of two stored variables (e.g. to check whether a given answer is correct). Chooses branch "true" if the values of the variables are the same, branch "false" if not.
+
+```json
+{
+  "type": "branch",
+  "on": "variables",
+  "variable": ["given_answer", "correct_answer"],
+  "cases": {
+    "true": [{ "type":  "say", "text":  "That's correct!"}],
+    "false": [{ "type":  "say", "text":  "That's incorrect. Let's try again."}]
   }
 }
 ```

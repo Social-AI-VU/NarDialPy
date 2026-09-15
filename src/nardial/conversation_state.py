@@ -459,6 +459,97 @@ class ConversationState:
                         seen.add(k)
         return topics
 
+    def _load_participant_transcript(self) -> Dict[str, Any]:
+        """Load this participant's full persisted transcript (all sessions), if any.
+
+        `self.sessions` starts empty on every new `ConversationState` instance
+        (see `restore_participant_state()`) -- it is never repopulated from
+        disk on init. `count_completed_sessions()`, `truncate_from_session()`,
+        and `find_incomplete_session()` need the full session list (including
+        `ended_at`) regardless of that, so they read the persisted
+        `participants/<id>.json` transcript directly instead. Returns `{}`
+        when there is no participant, or no transcript on disk yet.
+        """
+        if self.participant_id is None:
+            return {}
+        safe_id = self._sanitize_participant_id(self.participant_id)
+        path = self.participants_dir / f"{safe_id}.json"
+        if not path.exists():
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f) or {}
+        except Exception:
+            return {}
+
+    def count_completed_sessions(self) -> int:
+        """Number of this participant's persisted sessions with `ended_at` set.
+
+        Reads the persisted transcript (see `_load_participant_transcript()`)
+        rather than the in-memory `sessions` list, so this reflects prior
+        sessions across process restarts.
+        """
+        data = self._load_participant_transcript()
+        sessions_data = data.get("sessions") or []
+        return sum(1 for s in sessions_data if s.get("ended_at") is not None)
+
+    def truncate_from_session(self, from_session: int) -> None:
+        """Destructively drop persisted sessions from `from_session` (1-based) onward.
+
+        Retains only sessions strictly before `from_session`, recomputes
+        `completed_dialogs`/`topics_of_interest` from the retained sessions
+        only, persists the truncated transcript, and pushes the recomputed
+        continuity to the user model -- mirroring the `save_continuity()`
+        call at the end of `end_session()`, so a truncated participant's
+        Redis-backed continuity doesn't keep pointing at dialogs/topics from
+        the sessions that were just dropped.
+
+        Parameters
+        ----------
+        from_session : int
+            1-based session number. Sessions at this index and beyond are
+            removed; `from_session=1` drops everything.
+        """
+        data = self._load_participant_transcript()
+        sessions_data = data.get("sessions") or []
+        retained_data = sessions_data[:max(from_session - 1, 0)]
+        retained = [Session(**s) for s in retained_data]
+
+        self.sessions = retained
+        self.completed_dialogs = self._collect_dialog_ids(retained)
+        self.topics_of_interest = self._collect_topics_from_summaries(retained)
+
+        self.save_participant_transcript(self.participant_id)
+        if self.use_json_file:
+            self.save_state_to_json()
+
+        if self.participant_id is not None:
+            self.user_model.set_participant(self.participant_id)
+            self.user_model.save_continuity(
+                completed_dialogs=list(self.completed_dialogs),
+                topics_of_interest=list(self.topics_of_interest),
+            )
+
+        print(f"[WARN] History truncated to {len(retained)} session(s) for "
+              f"participant_id={self.participant_id!r}; completed_dialogs={self.completed_dialogs}")
+
+    def find_incomplete_session(self) -> Optional[Session]:
+        """Return the participant's last persisted session if it never ended.
+
+        Reads the persisted transcript (see `_load_participant_transcript()`)
+        since `self.sessions` starts empty on every new `ConversationState`
+        instance -- a real crash mid-session means the *next* process's
+        in-memory `sessions` list can't know about it otherwise. Returns
+        `None` when there is no persisted history, or the last session
+        already completed (`ended_at` is set).
+        """
+        data = self._load_participant_transcript()
+        sessions_data = data.get("sessions") or []
+        if not sessions_data:
+            return None
+        last = Session(**sessions_data[-1])
+        return last if last.ended_at is None else None
+
     @staticmethod
     def _atomic_write_json(path: Union[str, Path], data: Dict[str, Any]) -> None:
         """

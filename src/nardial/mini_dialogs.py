@@ -4,6 +4,7 @@ from time import monotonic
 import asyncio
 import random
 
+from nardial.eligibility import DependencyMetRule, ExcludeIfSeenRule, NarrativeOrderingRule, VariableDependencyMetRule
 from nardial.events import EventBus
 from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
     MOVE_ANIMATION, \
@@ -762,19 +763,37 @@ class MiniDialog:
 
 
 class FunctionalDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, type, dependencies=None, characters=None):
+    DIALOG_TYPE = DialogType.FUNCTIONAL
+    INDEX_ATTRS = ["functional_type"]
+    # Deliberately no ExcludeIfSeenRule: greetings/farewells should re-run every session.
+    DEFAULT_ELIGIBILITY: list = [DependencyMetRule()]
+
+    def __init__(self, dialog_id, moves, type, dependencies=None, variable_dependencies=None, characters=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
         self.type = type
 
+    @property
+    def functional_type(self):
+        return self.type
+
     def is_greeting_dialog(self):
-        return self.type == FunctionalType.GREETING
+        return self.type == FunctionalType.GREETING.value
 
     def is_farewell_dialog(self):
-        return self.type == FunctionalType.FAREWELL
+        return self.type == FunctionalType.FAREWELL.value
 
 
 class NarrativeDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.NARRATIVE
+    INDEX_ATTRS = ["thread"]
+    DEFAULT_ELIGIBILITY: list = [
+        ExcludeIfSeenRule(),
+        DependencyMetRule(),
+        VariableDependencyMetRule(),
+        NarrativeOrderingRule(),
+    ]
+
     def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
         super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
@@ -783,14 +802,21 @@ class NarrativeDialog(MiniDialog):
 
 
 class ChitchatDialog(MiniDialog):
-    def __init__(self, dialog_id, moves, theme, topics=None, dependencies=None, variable_dependencies=None, characters=None):
-        # Chitchat dialogs are short, theme-based interactions that can be biased by topics.
+    DIALOG_TYPE = DialogType.CHITCHAT
+    INDEX_ATTRS = ["topics"]
+    DEFAULT_ELIGIBILITY: list = [ExcludeIfSeenRule(), DependencyMetRule(), VariableDependencyMetRule()]
+
+    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None):
+        # Chitchat dialogs are short, topic-based interactions.
         super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
-        self.theme = theme
         self.topics = topics or []
 
 
 class LLMDialog(MiniDialog):
+    DIALOG_TYPE = DialogType.LLM_BASED
+    INDEX_ATTRS: list = []
+    DEFAULT_ELIGIBILITY: list = [ExcludeIfSeenRule(), DependencyMetRule(), VariableDependencyMetRule()]
+
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,

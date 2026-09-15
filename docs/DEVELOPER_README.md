@@ -10,8 +10,9 @@ At a high level, a session moves through these layers:
 JSON dialog files
   -> authoring loader/factory
   -> MiniDialog objects with move dictionaries
-  -> SessionManager session block / agenda
-  -> DialogLogic eligibility checks
+  -> DialogRegistry (indexed by id / type / attrs)
+  -> SessionManager: resolve_agenda() over the session agenda
+  -> EligibilityPolicy / eligibility rules (per-slot + final safety-net gate)
   -> MiniDialog.run()
   -> move dispatch handlers
   -> ConversationAgent convenience API
@@ -27,7 +28,9 @@ The most important files are:
 | JSON loading and validation | `src/nardial/authoring/loader.py`, `src/nardial/authoring/factory.py` |
 | Move constants and move data classes | `src/nardial/moves.py` |
 | Runtime dialog classes and move execution | `src/nardial/mini_dialogs.py` |
-| Dialog eligibility and session planning | `src/nardial/dialog_logic.py` |
+| Dialog registry (indexed lookup) | `src/nardial/dialog_registry.py` |
+| Eligibility rules and policy | `src/nardial/eligibility.py` |
+| Agenda items, resolver, session plans | `src/nardial/agenda/*.py` |
 | Session execution and persistence | `src/nardial/session_manager.py`, `src/nardial/conversation_state.py` |
 | High-level agent API | `src/nardial/conversation_agent.py` |
 | Provider orchestration | `src/nardial/interaction_orchestrator.py` |
@@ -46,7 +49,7 @@ Dialog authors write one dialog object, or an array of dialog objects, in JSON. 
 | --- | --- | --- |
 | `functional` | `FunctionalDialog` | `functional_type` |
 | `narrative` | `NarrativeDialog` | `thread`, `position` |
-| `chitchat` | `ChitchatDialog` | `theme`, optional `topics` |
+| `chitchat` | `ChitchatDialog` | optional `topics` |
 | `llm_based` | `LLMDialog` | `prompt`, optional LLM settings |
 
 Important design detail: normal move JSON is not converted into move objects at load time. It stays as dictionaries in `MiniDialog.moves`. Individual handlers convert a move dictionary with `MoveX.from_dict()` when they need typed access.
@@ -81,42 +84,59 @@ Branching depends on these values. A `branch` move chooses `cases[current_outcom
 
 ## Dialog Eligibility
 
-Eligibility lives in `DialogLogic.is_dialog_eligible()`.
+Eligibility is expressed as small, composable `EligibilityRule`s in `eligibility.py`: `ExcludeIfSeenRule` (participant- or session-scoped), `DependencyMetRule`, `VariableDependencyMetRule`, `NarrativeOrderingRule`. Each dialog class declares its own `DEFAULT_ELIGIBILITY` list of rules (see `mini_dialogs.py`) -- e.g. `FunctionalDialog` deliberately omits `ExcludeIfSeenRule` so greetings/farewells re-run every session.
 
-A dialog can run only when:
+An `EligibilityPolicy` bundles rules together and evaluates them against a context exposing `registry`/`completed_ids`/`session_completed_ids`/`user_model` -- either the full `AgendaContext` (`agenda/items.py`) or the lighter `EligibilityContext`. The free function `is_dialog_eligible(dialog, context, policy=None)` in `eligibility.py` is the single entry point: it falls back to the dialog's own `DEFAULT_ELIGIBILITY` when no explicit `policy` is given.
 
-- Its `dialog_id` has not already been completed.
+By default, a dialog is eligible only when:
+
+- Its `dialog_id` has not already been completed (except functional dialogs, which have no `ExcludeIfSeenRule`).
 - Every `dependencies` entry appears in the completed dialog IDs.
 - Every required `variable_dependencies` entry exists in the user model.
 - For `NarrativeDialog`, all earlier dialogs in the same `thread` with lower `position` are completed.
 
-This eligibility check is used by `SessionManager.run_async()` before each agenda item. It is also used by `DialogLogic.build_dialog_session()` and helper methods that construct a suggested session flow.
+`SessionManager.run_async()` calls `is_dialog_eligible()` as a final safety-net gate on every dialog `resolve_agenda()` yields. It's a genuine gate, not a redundant check: a plain dialog-id agenda entry resolves via `DialogRef`, which ignores eligibility entirely, so this is what actually skips already-completed dialogs for a `list[str]` agenda. Slot-based agenda items (see below) additionally check eligibility themselves while picking a candidate.
 
-## Session Agenda and Session Block
+## Dialog Registry
+
+`DialogRegistry.build(dialogs)` (`dialog_registry.py`) indexes a flat list of `MiniDialog` objects by `dialog_id`, by `DIALOG_TYPE`, and by each class's declared `INDEX_ATTRS` (e.g. `ChitchatDialog.topics`, `NarrativeDialog.thread`, `FunctionalDialog.functional_type` via a property). `get_by_id`/`get_by_type`/`get_by_attr` never raise -- they return `None`/`[]` on a miss. `load_dialog_registry(path_or_dir)` in `authoring/loader.py` builds one directly from JSON, isolating per-file/per-doc load errors the same way `load_dialogs()` does.
+
+## Agenda Items and Resolution
+
+For a plain-language, example-driven introduction to this system aimed at application developers (rather than runtime internals), see [AGENDA_SYSTEM_GUIDE.md](AGENDA_SYSTEM_GUIDE.md).
 
 `SessionManager` receives:
 
-- `session_agenda`: an ordered list of dialog IDs.
+- `session_agenda`: an ordered list whose entries can be a plain dialog id string, an agenda item dict, or an `AgendaItem` instance.
 - `agent`: a configured `ConversationAgent`.
 - `dialog_json_path`: a JSON file or directory containing dialog definitions.
 - `participant_id`: optional persistent user identifier.
+- `session_plan_path`: optional path to a `SessionPlan` that picks a per-session-number agenda instead (see below).
+- `session_index`: optional 1-based session number override, used when picking a `SessionPlan` template instead of the auto-detected session number.
+- `reset_history_from_session`: optional 1-based session number; when set, destructively truncates this participant's persisted history from that session number onward before the new session starts (see "Conversation State" below).
+- `resume`: when `True`, reuses an incomplete session (one whose `ended_at` is still `None`, e.g. left behind by a crash) instead of starting a new one, and excludes the dialogs it already ran from the rest of this run.
 
-During initialization:
+During initialization: dialog JSON is loaded into a `DialogRegistry`; `ConversationState` is created and prior participant continuity is restored when possible; if `reset_history_from_session` is set, history is truncated first; a new session ID is created -- or, if `resume` is `True` and an incomplete session is found, that session's ID is reused instead; if `session_plan_path` is set, it overrides `session_agenda` with the template for this session number (`session_index`, when set, overrides the auto-detected number used to pick that template).
 
-1. Dialog JSON is loaded into `self.dialogs`.
-2. `ConversationState` is created and prior participant continuity is restored when possible.
-3. A new session ID is created.
-4. `build_session_block()` maps `session_agenda` IDs to actual dialog objects.
+`coerce_agenda_item()` (`agenda/items.py`) normalizes any raw agenda entry into an `AgendaItem`, mirroring `DialogFactory.from_json()`'s manual type-string dispatch:
 
-If `session_agenda` is empty, the current implementation runs all loaded dialogs in loaded order. If it is not empty, only matching IDs are included, in the agenda order. Missing IDs are silently ignored.
+| JSON `type` | Class | Resolves to |
+| --- | --- | --- |
+| `dialog_ref` (or a bare string) | `DialogRef` | the dialog with that id, or `None` if missing (ignores eligibility) |
+| `narrative_slot` | `NarrativeSlot` | the lowest-position eligible dialog in `thread` (random tiebreak) |
+| `chitchat_slot` | `ChitchatSlot` | the eligible `ChitchatDialog` with the most topic overlap with `topics_of_interest` |
+| `functional_slot` | `FunctionalSlot` | a random eligible `FunctionalDialog` of `functional_type` |
+| `llm_dialog_ref` | `LLMDialogRef` | a specific `LLMDialog` by id, optionally with `max_turns`/`duration` overrides (shallow-copied) |
 
-`DialogLogic.build_dialog_session()` is a separate helper for constructing a default agenda-like flow:
+Each slot type carries a `SlotBounds` (`agenda/slot_bounds.py`: `count_min`/`count_max`/`duration_min`/`duration_max`, default "resolve exactly once") controlling how many times it may resolve within one agenda pass; `DialogRef`/`LLMDialogRef` have no `bounds` and always resolve at most once.
 
-```text
-greeting -> narrative -> chitchat -> narrative -> chitchat -> farewell
-```
+`resolve_agenda(items, context)` (`agenda/resolver.py`) is a generator that walks the coerced agenda in order, re-queueing bounded items until their `count_max`/`duration_max` ceiling is hit or their `count_min`/`duration_min` floor is met -- ceilings always win over floors. A `None` resolution is skipped, never re-queued. The caller (`SessionManager.run_async()`) calls `context.mark_completed(dialog.dialog_id)` between yields so a re-queued item sees updated eligibility next time.
 
-It selects narrative dialogs by thread/position and inserts chitchat based on theme, interests, and dependencies. Callers can use this helper to create a `session_agenda`, but `SessionManager` itself does not automatically call it.
+If `session_agenda` is empty, `SessionManager` runs every loaded dialog in loaded order.
+
+## Session Plans
+
+`SessionPlan`/`SessionTemplate` (`agenda/session_plan.py`) let a `SessionManager` pick a different agenda per session number instead of a single fixed `session_agenda`. `load_session_plan(path)` loads one from JSON (never raises; returns `(plan, errors)`). `SessionPlan.get_template(session_number)` picks the exact `session_index` match, or falls back to the highest-indexed template as a steady-state agenda once `session_number` exceeds every authored template. `SessionManager`'s own `session_index` constructor parameter, when set, overrides the auto-detected `session_number` passed into `get_template()`.
 
 ## Running Eligible Dialogs
 
@@ -126,11 +146,11 @@ Inside `run_async()`:
 
 1. A session-scoped `EventBus` is created and bound to the running asyncio loop.
 2. If a screen provider supports `set_event_bus()`, the bus is passed into it.
-3. Each dialog in `session_block` is checked with `DialogLogic.is_dialog_eligible()`.
+3. `resolve_agenda(session_agenda, context)` yields dialogs one at a time; each is checked with `is_dialog_eligible()` as a final safety-net gate (see "Dialog Eligibility" above), plus an explicit `dialog.dialog_id in context.session_completed_ids` check -- the latter is what makes a resumed session (`resume=True`) skip its already-run dialogs even for dialog types with no `ExcludeIfSeenRule` of their own (e.g. `FunctionalDialog`); outside of a resume, `session_completed_ids` only ever contains dialogs this same loop already ran, so it's a no-op.
 4. Eligible dialogs are marked in `ConversationState` and receive the shared event bus.
 5. `dialog.run(agent, session_history, topics_of_interest, user_model)` is awaited.
 6. Dialog start/end events are appended to `session_history`.
-7. The dialog ID is added to `completed_dialogs`.
+7. The dialog ID is added to `completed_dialogs`, and `context.mark_completed()` keeps the `AgendaContext` in sync so re-queued slot items see it.
 8. At the end, topics are condensed through the LLM when available, events are stored, the session is ended, and state is saved.
 
 The same mutable `session_history`, `topics_of_interest`, and `user_model` objects are passed into each dialog. That is how moves in one dialog can affect later eligibility, personalization, and final persistence.
@@ -238,6 +258,10 @@ It stores:
 
 Participant transcripts are written under `participants/<participant_id>.json` in the current working directory by default. When a `participant_id` is provided, continuity is restored through `UserModel` and saved back at the end of the session.
 
+`count_completed_sessions()`, `truncate_from_session(n)`, and `find_incomplete_session()` all read that persisted transcript directly (via `_load_participant_transcript()`) rather than the in-memory `sessions` list, since a fresh `ConversationState` instance's `sessions` list starts empty and is never repopulated from disk on init. `truncate_from_session(n)` keeps sessions before `n`, recomputes `completed_dialogs`/`topics_of_interest` from what's retained, and pushes that recomputation to `UserModel.save_continuity()`. `find_incomplete_session()` returns the participant's last persisted session when its `ended_at` is still `None`; `SessionManager(resume=True)` uses it to decide whether to resume.
+
+Known limitation: `save_participant_transcript()` overwrites the transcript with only the current instance's in-memory `sessions`, rather than merging with what's already on disk -- multi-session history only reliably accumulates within one `ConversationState`/`SessionManager` instance's lifetime, not automatically across separate process invocations. See [issue #166](https://github.com/Social-AI-VU/NarDialPy/issues/166).
+
 ## Adding a New Move Type
 
 To add a new JSON move:
@@ -268,7 +292,8 @@ Provider implementations should be swappable. A session should not need differen
 
 - Change dialog authoring schema: `authoring/factory.py`
 - Change move runtime behavior: `mini_dialogs.py`
-- Change eligibility or automatic session construction: `dialog_logic.py`
+- Change eligibility rules: `eligibility.py`
+- Change agenda item types, resolution, or session plans: `agenda/*.py`
 - Change persistence and continuity: `conversation_state.py`, `user_model.py`
 - Change speech/listening/LLM orchestration: `conversation_agent.py`, `interaction_orchestrator.py`
 - Add hardware/service integrations: `providers/**`

@@ -1,0 +1,28 @@
+{
+  "plan_id": "camping_trip_arc",
+  "sessions": [
+    {
+      "session_index": 1,
+      "agenda": [
+        {"type": "functional_slot", "functional_type": "greeting"},
+        {
+          "type": "narrative_slot",
+          "thread": "camping_trip",
+          "bounds": {"count_min": 3, "count_max": 3}
+        },
+        {"type": "chitchat_slot"},
+        {"type": "llm_dialog_ref", "id": "campfire_stories", "max_turns": 2},
+        {"type": "functional_slot", "functional_type": "summary"},
+        "farewell"
+      ]
+    },
+    {
+      "session_index": 2,
+      "agenda": [
+        {"type": "functional_slot", "functional_type": "greeting"},
+        {"type": "chitchat_slot"},
+        "farewell"
+      ]
+    }
+  ]
+}

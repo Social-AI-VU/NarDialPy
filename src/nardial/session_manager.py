@@ -4,11 +4,15 @@ import os
 import numpy as np
 import asyncio
 
+from nardial.agenda.items import AgendaContext
+from nardial.agenda.resolver import resolve_agenda
+from nardial.agenda.session_plan import load_session_plan
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
-from nardial.dialog_logic import DialogLogic
+from nardial.dialog_registry import DialogRegistry
+from nardial.eligibility import is_dialog_eligible
 
-from nardial.authoring import load_dialogs
+from nardial.authoring import load_dialog_registry
 from nardial.events import EventBus
 
 
@@ -18,44 +22,100 @@ class SessionManager:
     and logging dialogs according to a session agenda and conversation state.
     """
 
-    def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str, participant_id=None):
+    def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str, participant_id=None,
+                 session_plan_path=None, session_index=None, reset_history_from_session=None, resume: bool = False):
         """
         Initialize a session manager.
 
-        :param session_agenda: Ordered list of dialog IDs to execute.
+        :param session_agenda: Ordered list of dialog IDs and/or agenda item
+            dicts/AgendaItem instances to resolve via `resolve_agenda()`. An
+            empty list runs every loaded dialog, in loaded order.
         :param agent: ConversationAgent responsible for interaction (speech, LLM, etc.).
-        :param dialog_json_path: Path to JSON file containing dialog definitions.
+        :param dialog_json_path: Path to JSON file or directory containing dialog definitions.
         :param participant_id: Optional identifier for the user/participant.
+        :param session_plan_path: Optional path to a `SessionPlan` JSON file. When
+            set, the template picked for this participant's current session number
+            overrides `session_agenda`; falls back to `session_agenda` unchanged if
+            the plan fails to load or defines no templates.
+        :param session_index: Overrides the auto-detected session number used to pick a
+            `SessionPlan` template. Ignored when `session_plan_path` is not set.
+        :param reset_history_from_session: When set, destructively truncates this
+            participant's persisted history from this 1-based session number onward
+            before the new session starts. Irreversible.
+        :param resume: When True, checks for an incomplete session (one whose `ended_at`
+            is still `None`, e.g. left behind by a crash) and resumes it by reusing its
+            session id and skipping the dialogs it already ran. Proceeds as a fresh
+            session when no incomplete session is found.
         """
         self.session_agenda = session_agenda
-        self.dialogs = self.load_dialogs_from_json(dialog_json_path)
+        self.registry = self.load_dialog_registry_from_json(dialog_json_path)
         self.agent = agent
 
+        self.session_plan_path = session_plan_path
+        self.session_index = session_index
+        self.reset_history_from_session = reset_history_from_session
+        self.resume = resume
+        # Dialog ids already run in an incomplete session being resumed; kept
+        # separate from conversation_state.completed_dialogs (see
+        # _build_agenda_context()) so a crash-free session behaves identically
+        # to before this attribute existed.
+        self._resume_completed_ids: set = set()
+
         self.conversation_state = ConversationState(participant_id=participant_id)
-        self.session_id = self.start_session()
-        self.session_block = self.build_session_block()
+
+        if self.reset_history_from_session is not None:
+            print(f"[WARN] Destructively resetting history for participant_id={participant_id!r} "
+                  f"from session {self.reset_history_from_session} onward. This cannot be undone.")
+            self.conversation_state.truncate_from_session(self.reset_history_from_session)
+
+        if self.resume:
+            incomplete = self.conversation_state.find_incomplete_session()
+            if incomplete is not None:
+                # find_incomplete_session() reads it from the persisted
+                # transcript, not from conversation_state.sessions (which is
+                # empty on a fresh instance) -- register it in-memory too, or
+                # every later add_dialog_id()/add_events()/end_session() call
+                # for this session_id raises KeyError.
+                self.conversation_state.sessions.append(incomplete)
+                self.session_id = incomplete.session_id
+                self._resume_completed_ids = set(incomplete.dialog_ids or [])
+                print(f"[INFO] Resuming incomplete session_id={self.session_id}; "
+                      f"{len(self._resume_completed_ids)} dialog(s) already completed: "
+                      f"{sorted(self._resume_completed_ids)}")
+            else:
+                print("[INFO] resume=True but no incomplete session was found; starting a fresh session.")
+                self.session_id = self.start_session()
+        else:
+            self.session_id = self.start_session()
+
+        if self.session_plan_path:
+            plan_agenda = self._resolve_session_plan_agenda()
+            if plan_agenda is not None:
+                self.session_agenda = plan_agenda
+
         self._bus = None
 
     @staticmethod
-    def load_dialogs_from_json(path):
+    def load_dialog_registry_from_json(path):
         """
-        Load dialogs from a JSON file using the authoring loader.
+        Load a DialogRegistry from a JSON file or directory using the authoring loader.
 
-        :param path: Path to the dialog JSON file.
-        :return: List of dialog objects, or empty list if loading fails.
+        Per-file/per-doc errors are logged but never discard dialogs that
+        loaded successfully (unlike the old all-or-nothing `load_dialogs()`
+        wrapper this replaces).
+
+        :param path: Path to the dialog JSON file or directory.
+        :return: DialogRegistry (possibly partially populated if some files/docs failed).
         """
         try:
-            dialogs, errors = load_dialogs(path)
+            registry, errors = load_dialog_registry(path)
             if errors:
                 print("[ERROR] Failed to fully load dialogs:", errors)
-                return []
-            if dialogs:
-                print(f"[INFO] Loaded {len(dialogs)} dialogs from {path}")
-                return dialogs
-            return []
+            print(f"[INFO] Loaded {len(registry.by_id)} dialogs from {path}")
+            return registry
         except Exception as e:
             print(f"[ERROR] Failed to load dialogs: {e}")
-            return []
+            return DialogRegistry()
 
     def start_session(self):
         """
@@ -73,28 +133,68 @@ class SessionManager:
         print(f"[INFO] Started session_id={session_id} run_id={run_id}")
         return session_id
 
-    def build_session_block(self):
+    def _current_session_number(self) -> int:
+        """1-indexed session number for the session that was just started.
+
+        `start_session()` already appended the current session to
+        `conversation_state.sessions` before this is ever called, so this is
+        simply its length -- adding 1 here would double count the current
+        session (the off-by-one this method exists to avoid).
         """
-        Construct the ordered list of dialogs to execute in this session.
+        return len(self.conversation_state.sessions)
 
-        If a session agenda is provided, only those dialogs are selected
-        (in order). Otherwise, all available dialogs are used.
+    def _resolve_session_plan_agenda(self):
+        """Resolve this session's agenda from `session_plan_path`, if set.
 
-        :return: List of dialog objects to execute.
+        Returns `None` (leaving `session_agenda` as given) when no plan path
+        was set, the plan fails to load, or it defines no templates at all.
+        `session_index`, when set, overrides the auto-detected session number.
         """
-        if len(self.session_agenda) == 0:
-            print("[INFO] Session agenda is empty, running all dialogs.")
-            return self.dialogs
+        plan, errors = load_session_plan(self.session_plan_path)
+        if errors:
+            print(f"[ERROR] Problems loading session plan {self.session_plan_path}:", errors)
+        if plan is None:
+            return None
 
-        dialog_map = {d.dialog_id: d for d in self.dialogs}
+        session_number = self.session_index if self.session_index is not None else self._current_session_number()
+        template = plan.get_template(session_number)
+        if template is None:
+            print(f"[WARN] Session plan {plan.plan_id!r} has no templates; keeping the given session_agenda.")
+            return None
 
-        session_block = [
-            dialog_map[dialog_id]
-            for dialog_id in self.session_agenda
-            if dialog_id in dialog_map
-        ]
+        print(f"[INFO] Session plan {plan.plan_id!r}: using template for "
+              f"session_index={template.session_index} (session_number={session_number})")
+        return template.agenda
 
-        return session_block
+    def _build_agenda_context(self) -> AgendaContext:
+        """Assemble the AgendaContext resolve_agenda() resolves this session's agenda against.
+
+        `completed_ids` and `topics_of_interest` are the same mutable objects
+        `conversation_state` and dialog moves already read/write, so
+        `context.mark_completed()` and in-dialog interest tracking stay in
+        sync with the rest of session bookkeeping without any extra copying.
+
+        When resuming an incomplete session, dialogs already run before the
+        crash (`_resume_completed_ids`) are folded into `completed_ids` as a
+        fresh list -- not by mutating `conversation_state.completed_dialogs`
+        itself -- so the normal `ExcludeIfSeenRule` machinery treats them as
+        already done, same as it would for a prior session's completions.
+        They're also exposed via `session_completed_ids` directly. A
+        crash-free session (`_resume_completed_ids` empty) is unaffected:
+        `completed_ids` stays the same object as before.
+        """
+        completed_ids = self.conversation_state.completed_dialogs
+        if self._resume_completed_ids:
+            completed_ids = list(completed_ids) + [
+                dialog_id for dialog_id in self._resume_completed_ids if dialog_id not in completed_ids
+            ]
+        return AgendaContext(
+            registry=self.registry,
+            completed_ids=completed_ids,
+            session_completed_ids=list(self._resume_completed_ids),
+            user_model=self.conversation_state.user_model,
+            topics_of_interest=self.conversation_state.topics_of_interest,
+        )
 
     def run(self):
         """Run the session synchronously and ensure a graceful shutdown.
@@ -132,7 +232,7 @@ class SessionManager:
         Execute the session by running each dialog in sequence.
 
         Handles:
-        - Eligibility checks via DialogLogic
+        - Eligibility checks via EligibilityPolicy
         - Session history tracking
         - Updating conversation state (completed dialogs, topics, user model)
         - Persisting session results
@@ -146,14 +246,26 @@ class SessionManager:
         if sp is not None and hasattr(sp, "set_event_bus"):
             sp.set_event_bus(self._bus)
 
+        # An empty agenda runs every loaded dialog, in loaded order (same
+        # fallback build_session_block() used to provide).
+        agenda = self.session_agenda if self.session_agenda else list(self.registry.by_id.keys())
+        if not self.session_agenda:
+            print("[INFO] Session agenda is empty, running all dialogs.")
+
         session_history = []
-        for dialog in self.session_block:
-            if not DialogLogic.is_dialog_eligible(
-                    dialog,
-                    self.conversation_state.completed_dialogs,
-                    self.conversation_state.user_model,
-                    self.dialogs
-            ):
+        context = self._build_agenda_context()
+        for dialog in resolve_agenda(agenda, context):
+            # Final safety-net gate: resolve_agenda() already checks eligibility
+            # for slot-based agenda items, but a plain dialog id (DialogRef)
+            # resolves regardless of eligibility, so this still guards every
+            # existing list[str] agenda. The explicit session_completed_ids
+            # check additionally catches a resumed session's already-run
+            # dialogs even when the dialog type's own DEFAULT_ELIGIBILITY has
+            # no ExcludeIfSeenRule at all (e.g. FunctionalDialog) -- outside
+            # of a resume, session_completed_ids only ever contains dialogs
+            # this same loop already ran, so this is a no-op for a normal
+            # session.
+            if not is_dialog_eligible(dialog, context) or dialog.dialog_id in context.session_completed_ids:
                 print(f"[DEBUG] Skipped {dialog.dialog_id} (cannot run now)")
                 continue
 
@@ -185,6 +297,7 @@ class SessionManager:
             })
 
             self.conversation_state.completed_dialogs.append(dialog.dialog_id)
+            context.mark_completed(dialog.dialog_id)
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

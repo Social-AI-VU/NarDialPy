@@ -197,14 +197,15 @@ class MiniDialog:
         if move.on == "outcome":
             key = self.current_outcome
         elif move.on == "compare_user_model":
-            variable = self.user_model.get(move.variable)
-            user_answer = self.session_history[-1]['text']
-            print("VARIABLE", move.variable)
-            print("OUTCOME", user_answer)
-            print("TYPES", type(move.variable), type(user_answer))
-            print("HISTORY", self.session_history)
-            print("???", move.variable == user_answer)
-            if variable == user_answer:
+            variable_1 = self.user_model.get(move.variable[0])
+            variable_2 = self.user_model.get(move.variable[1])
+            # user_answer = self.session_history[-1]['text']
+            print("VARIABLE 1", variable_1)
+            print("VARIABLE 2", variable_2)
+            print("TYPES", type(move.variable[0]), type(move.variable[1]))
+            # print("HISTORY", self.session_history)
+            print("???", variable_1 == variable_2)
+            if variable_1 == variable_2:
                 key = "true"
             else:
                 key = "false"

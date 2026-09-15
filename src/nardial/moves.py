@@ -409,7 +409,7 @@ class MoveBranch(Move):
         """
         super().__init__()
         self.type = MOVE_BRANCH
-        self.on = on or "outcome" or "compare_user_model"
+        self.on = on or "outcome" or "variables"
         self.variable = variable
         self.cases = dict(cases or {})
 

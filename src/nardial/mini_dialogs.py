@@ -196,15 +196,9 @@ class MiniDialog:
         move = MoveBranch.from_dict(move)
         if move.on == "outcome":
             key = self.current_outcome
-        elif move.on == "compare_user_model":
+        elif move.on == "variables":
             variable_1 = self.user_model.get(move.variable[0])
             variable_2 = self.user_model.get(move.variable[1])
-            # user_answer = self.session_history[-1]['text']
-            print("VARIABLE 1", variable_1)
-            print("VARIABLE 2", variable_2)
-            print("TYPES", type(move.variable[0]), type(move.variable[1]))
-            # print("HISTORY", self.session_history)
-            print("???", variable_1 == variable_2)
             if variable_1 == variable_2:
                 key = "true"
             else:
@@ -212,9 +206,6 @@ class MiniDialog:
         else:
             key = self.user_model.get(move.on)
         case_moves = move.cases.get(key, [])
-        print("PRINT", move.cases)
-        print("KEY", key)
-        print("MOVES", case_moves)
         for sub_move in case_moves:
             await self._dispatch_move(sub_move)
 

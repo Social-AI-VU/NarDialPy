@@ -252,6 +252,8 @@ class SessionManager:
         if not self.session_agenda:
             print("[INFO] Session agenda is empty, running all dialogs.")
 
+        print(self.registry)
+
         session_history = []
         context = self._build_agenda_context()
         for dialog in resolve_agenda(agenda, context):
@@ -286,6 +288,7 @@ class SessionManager:
                     session_history,
                     self.conversation_state.topics_of_interest,
                     self.conversation_state.user_model,
+                    self.registry
                 )
             except Exception as e:
                 print(f"[ERROR] Running dialog {dialog.dialog_id} failed: {e}")

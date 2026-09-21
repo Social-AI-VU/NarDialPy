@@ -11,7 +11,9 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
     MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_WAIT_FOR_BUTTON, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, MOVE_KEYBOARD_INPUT, \
-    MoveTimedWait, MoveWaitForWebInput, MoveWaitForButton, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardInput
+    MoveTimedWait, MoveWaitForWebInput, MoveWaitForButton, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardInput, \
+    MOVE_GO_TO_DIALOG, \
+    MoveGoToDialog
 
 from enum import Enum
 
@@ -161,9 +163,10 @@ class MiniDialog:
             text = text.replace(f"%{var}%", str(value))
         return text
 
-    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None, registry=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        self.registry = registry
 
         idx = 0
 
@@ -249,6 +252,8 @@ class MiniDialog:
             await self.handle_move_black_screen(move)
         elif move_type == MOVE_KEYBOARD_INPUT:
             await self.handle_move_keyboard_input(move)
+        elif move_type == MOVE_GO_TO_DIALOG:
+            await self.handle_move_go_to_dialog(move)
 
     async def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
@@ -745,6 +750,20 @@ class MiniDialog:
                 await sp.hide_input()
 
         return value
+
+    async def handle_move_go_to_dialog(self, move):
+        dialog_id = move.get("dialog_id")
+        # self.
+        dialog = self.registry.get_by_id(dialog_id)
+        print("go to dialog")
+        await dialog.run(
+            agent=self.conversation_agent,
+            session_history=self.session_history,
+            topics_of_interest=self.topics_of_interest,
+            user_model=self.user_model,
+            registry=self.registry,
+        )
+        print("ran?")
 
 
 class FunctionalDialog(MiniDialog):

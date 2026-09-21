@@ -20,7 +20,8 @@ from nardial.moves import (
     MOVE_SHOW_IFRAME,
     MOVE_SHOW_HTML,
     MOVE_BLACK_SCREEN,
-    MOVE_KEYBOARD_INPUT
+    MOVE_KEYBOARD_INPUT,
+    MOVE_GO_TO_DIALOG
 )
 
 ALLOWED_MOVE_TYPES = {
@@ -42,7 +43,8 @@ ALLOWED_MOVE_TYPES = {
     MOVE_SHOW_IFRAME,
     MOVE_SHOW_HTML,
     MOVE_BLACK_SCREEN,
-    MOVE_KEYBOARD_INPUT
+    MOVE_KEYBOARD_INPUT,
+    MOVE_GO_TO_DIALOG
 }
 
 
@@ -93,6 +95,10 @@ class MoveFactory:
                 errs.append(f"moves[{idx}].cases must be an object for branch")
             elif not all(isinstance(v, list) for v in cases.values()):
                 errs.append(f"moves[{idx}].cases values must be lists of moves for branch")
+        if mt == MOVE_GO_TO_DIALOG:
+            dialog_id = move.get("dialog_id")
+            if not isinstance(dialog_id, str):
+                errs.append(f"moves[{idx}].dialog_id must be a string")
         return errs
 
     @staticmethod

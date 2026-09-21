@@ -216,6 +216,7 @@ class DialogFactory:
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
         characters = dict(doc.get("characters") or {})
+        prerequisites = list(doc.get("prerequisites") or [])
 
         if dtype == DialogType.NARRATIVE.value:
             return NarrativeDialog(
@@ -226,6 +227,7 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
                 characters=characters,
+                prerequisites=prerequisites
             )
         if dtype == DialogType.CHITCHAT.value:
             return ChitchatDialog(
@@ -235,6 +237,7 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
                 characters=characters,
+                prerequisites=prerequisites
             )
         if dtype == DialogType.FUNCTIONAL.value:
             return FunctionalDialog(
@@ -244,6 +247,7 @@ class DialogFactory:
                 dependencies=deps,
                 variable_dependencies=vdeps,
                 characters=characters,
+                prerequisites=prerequisites
             )
         if dtype == DialogType.LLM_BASED.value:
             return LLMDialog(
@@ -260,8 +264,9 @@ class DialogFactory:
                 rag_enabled=doc.get("rag_enabled", False),
                 index_name=doc.get("index_name"),
                 characters=characters,
+                prerequisites=prerequisites
             )
-        return MiniDialog(did, moves, deps, vdeps, characters=characters)
+        return MiniDialog(did, moves, deps, vdeps, characters=characters, prerequisites=prerequisites)
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:

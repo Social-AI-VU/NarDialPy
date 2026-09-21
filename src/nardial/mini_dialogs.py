@@ -29,7 +29,9 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
+    _function_registry = {}
+
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
@@ -40,6 +42,8 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
         self.characters = characters or {}
+        self.prerequisites = prerequisites or None
+        # self.function_registry = {}
 
         # Use a session-shared EventBus when wired; The SessionManager or caller
         # should call `set_event_bus()` to wire the shared bus before running.
@@ -63,6 +67,35 @@ class MiniDialog:
         self.session_history = session_history if session_history is not None else []
         self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
         self.user_model = user_model if user_model is not None else {}
+
+    @classmethod
+    def register(cls, name):
+        """Decorator to register a function into the central dictionary."""
+
+        def decorator(func):
+            cls._function_registry[name] = func
+            return func
+
+        return decorator
+
+    def _execute_prerequisites(self):
+        print("running prerequisites")
+        if not self.prerequisites:
+            return
+
+        for prerequisite in self.prerequisites:
+            func_name = prerequisite.get('execute')
+            args = prerequisite.get('args')
+            print("executing", func_name, args)
+            # Look in the global registry
+            func = MiniDialog._function_registry.get(func_name)
+            if func:
+                if args is None:
+                    func()
+                elif isinstance(args, list):
+                    func(*args)
+                else:
+                    func(args)
 
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod
@@ -164,6 +197,11 @@ class MiniDialog:
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        print("here now *^*^*")
+        print(self.prerequisites)
+        if self.prerequisites:
+            print("running prerequisites")
+            self._execute_prerequisites()
 
         idx = 0
 
@@ -753,9 +791,9 @@ class FunctionalDialog(MiniDialog):
     # Deliberately no ExcludeIfSeenRule: greetings/farewells should re-run every session.
     DEFAULT_ELIGIBILITY: list = [DependencyMetRule()]
 
-    def __init__(self, dialog_id, moves, type, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.type = type
 
     @property
@@ -779,9 +817,9 @@ class NarrativeDialog(MiniDialog):
         NarrativeOrderingRule(),
     ]
 
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.thread = thread
         self.position = position
 
@@ -791,9 +829,9 @@ class ChitchatDialog(MiniDialog):
     INDEX_ATTRS = ["topics"]
     DEFAULT_ELIGIBILITY: list = [ExcludeIfSeenRule(), DependencyMetRule(), VariableDependencyMetRule()]
 
-    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Chitchat dialogs are short, topic-based interactions.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.topics = topics or []
 
 
@@ -805,8 +843,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None, prerequisites=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first

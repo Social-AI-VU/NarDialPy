@@ -287,9 +287,13 @@ class MiniDialog:
     async def handle_move_ask_yesno(self, move):
         move = MoveAskYesNo.from_dict(move)
         voice_settings = self._get_voice_settings(move)
+        kwargs = {'voice_settings': voice_settings}
         # Pass voice settings into the ask call so the device speaks with the correct character voice
         text = self._replace_variables(self._get(move, 'text'))
-        answer = await self.conversation_agent.ask_yesno(text, voice_settings=voice_settings)
+        if self._get(move, 'timeout'):
+            timeout = self._get(move, 'timeout')
+            kwargs['timeout'] = timeout
+        answer = await self.conversation_agent.ask_yesno(text, **kwargs)
         self._record_robot(MOVE_ASK_YESNO, text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
         print(f"User answered: {answer}")
@@ -309,8 +313,12 @@ class MiniDialog:
     async def handle_move_ask_open(self, move):
         move = MoveAskOpen.from_dict(move)
         voice_settings = self._get_voice_settings(move)
+        kwargs = {'voice_settings': voice_settings}
         text = self._replace_variables(self._get(move, 'text'))
-        answer = await self.conversation_agent.ask_open(text, voice_settings=voice_settings)
+        if self._get(move, 'timeout'):
+            timeout = self._get(move, 'timeout')
+            kwargs['timeout'] = timeout
+        answer = await self.conversation_agent.ask_open(text, **kwargs)
         self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
@@ -329,11 +337,14 @@ class MiniDialog:
     async def handle_move_ask_options(self, move):
         move = MoveAskOptions.from_dict(move)
         voice_settings = self._get_voice_settings(move)
+        kwargs = {'voice_settings': voice_settings}
         text = self._replace_variables(self._get(move, 'text'))
         options = self._get(move, 'options')
         for i in range(len(options)):
             options[i] = self._replace_variables(options[i])
-        answer = await self.conversation_agent.ask_options(text, move.options, voice_settings=voice_settings)
+        if self._get(move, 'timeout'):
+            timeout = self._get(move, 'timeout')
+        answer = await self.conversation_agent.ask_options(text, move.options, **kwargs)
         self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
         print(f"User answered: {answer}")

@@ -112,7 +112,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    async def ask_yesno(self, question, max_attempts=1, **kwargs):
+    async def ask_yesno(self, question, max_attempts=1, timeout=10, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -131,7 +131,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen()
+            result = await self.orchestrator.listen(timeout=timeout)
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -143,7 +143,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_open(self, question, max_attempts=2, **kwargs):
+    async def ask_open(self, question, max_attempts=2, timeout=10, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -162,13 +162,13 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen()
+            result = await self.orchestrator.listen(timeout=timeout)
             if result.transcript:
                 return result.transcript
             attempts += 1
         return None
 
-    async def ask_options(self, question, options, max_attempts=2, **kwargs):
+    async def ask_options(self, question, options, max_attempts=2, timeout=10, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -190,7 +190,7 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = await self.ask_open(question, max_attempts=max_attempts, **kwargs)
+        answer = await self.ask_open(question, max_attempts=max_attempts, timeout=timeout, **kwargs)
         if answer:
             answer_lower = answer.lower()
             for opt in options:

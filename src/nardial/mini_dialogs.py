@@ -84,18 +84,24 @@ class MiniDialog:
             return
 
         for prerequisite in self.prerequisites:
-            func_name = prerequisite.get('execute')
-            args = prerequisite.get('args')
-            print("executing", func_name, args)
-            # Look in the global registry
-            func = MiniDialog._function_registry.get(func_name)
-            if func:
-                if args is None:
-                    func()
-                elif isinstance(args, list):
-                    func(*args)
-                else:
-                    func(args)
+            if prerequisite.get('execute'):
+                try:
+                    func_name = prerequisite.get('execute')
+                    args = prerequisite.get('args')
+                    func = MiniDialog._function_registry.get(func_name)
+                    if args is None:
+                        func()
+                    elif isinstance(args, list):
+                        func(*args)
+                    else:
+                        func(args)
+                except Exception as e:
+                    print(f"[ERROR] Could not execute {func_name}: {e}")
+            elif prerequisite.get('set_variable'):
+                try:
+                    self.user_model.update(prerequisite.get('set_variable'))
+                except Exception as e:
+                    print(f"[ERROR] Could not set variable {prerequisite.get('set_variable')}: {e}")
 
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod

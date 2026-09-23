@@ -79,7 +79,6 @@ class MiniDialog:
         return decorator
 
     def _execute_prerequisites(self):
-        print("running prerequisites")
         if not self.prerequisites:
             return
 
@@ -203,10 +202,8 @@ class MiniDialog:
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
-        print("here now *^*^*")
-        print(self.prerequisites)
+
         if self.prerequisites:
-            print("running prerequisites")
             self._execute_prerequisites()
 
         idx = 0
@@ -428,6 +425,9 @@ class MiniDialog:
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
                           rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None):
+        if self.prerequisites:
+            self._execute_prerequisites()
+
         dialog_history = []
         user_input = ""
         start_time = monotonic()

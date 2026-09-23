@@ -279,6 +279,9 @@ class DialogFactory:
         characters = dict(getattr(d, "characters", {}) or {})
         if characters:
             base["characters"] = characters
+        prerequisites = list(getattr(d, "prerequisites", None) or [])
+        if prerequisites:
+            base["prerequisites"] = prerequisites
         if isinstance(d, NarrativeDialog):
             base.update({
                 "type": "narrative",

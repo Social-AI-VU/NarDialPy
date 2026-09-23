@@ -425,9 +425,6 @@ class MiniDialog:
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
                           rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None):
-        if self.prerequisites:
-            self._execute_prerequisites()
-
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -863,6 +860,8 @@ class LLMDialog(MiniDialog):
 
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        if self.prerequisites:
+            self._execute_prerequisites()
 
         await self._run_llm_exchange(
             prompt=self.prompt,

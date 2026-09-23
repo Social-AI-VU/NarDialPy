@@ -753,9 +753,8 @@ class MiniDialog:
 
     async def handle_move_go_to_dialog(self, move):
         dialog_id = move.get("dialog_id")
-        # self.
         dialog = self.registry.get_by_id(dialog_id)
-        print("go to dialog")
+
         await dialog.run(
             agent=self.conversation_agent,
             session_history=self.session_history,
@@ -763,7 +762,6 @@ class MiniDialog:
             user_model=self.user_model,
             registry=self.registry,
         )
-        print("ran?")
 
 
 class FunctionalDialog(MiniDialog):

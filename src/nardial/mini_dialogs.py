@@ -96,11 +96,18 @@ class MiniDialog:
                         func(args)
                 except Exception as e:
                     print(f"[ERROR] Could not execute {func_name}: {e}")
+                    if prerequisite.get('skip_dialog'):
+                        print(f"[INFO]: Skipped dialog {self.dialog_id}")
+                        return False
             elif prerequisite.get('set_variable'):
                 try:
                     self.user_model.update(prerequisite.get('set_variable'))
                 except Exception as e:
                     print(f"[ERROR] Could not set variable {prerequisite.get('set_variable')}: {e}")
+                    if prerequisite.get('skip_dialog'):
+                        print(f"[INFO]: Skipped dialog {self.dialog_id}")
+                        return False
+        return True
 
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod
@@ -204,7 +211,9 @@ class MiniDialog:
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
 
         if self.prerequisites:
-            self._execute_prerequisites()
+            completed_prerequisites = self._execute_prerequisites()
+            if not completed_prerequisites:
+                return
 
         idx = 0
 

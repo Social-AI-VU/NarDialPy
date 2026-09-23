@@ -334,7 +334,7 @@ Dialogs can list actions to run just before their first move, each time the dial
   "id": "multiplication",
   "type": "chitchat",
   "prerequisites": [
-    { "execute": "choose_math_level", "args": [true, false] },
+    { "execute": "choose_math_level", "args": [true, false] , "skip_dialog":  true},
     { "set_variable": { "math_left": 4, "math_right": 3 } }
   ],
   "moves": [
@@ -350,6 +350,7 @@ Each entry does one of two things:
 | `execute` | name of a registered function | Calls that Python function. Optional `args`: a list is passed as separate arguments (`[3, 4]` calls `f(3, 4)`), any other value as a single argument, and without `args` the function is called with none. |
 | `set_variable` | object | Merges the object into the user model, so its values can be used in `%variable%` placeholders and later dialogs. |
 
+In every prerequisite, `"skip_dialog` can be set to `true` of `false`, based on whether the dialog needs to be skipped if the prerequisite cannot be completed. `"skip_dialog:true` means that the dialog will be skipped if the prerequisite is not completed. If `"skip_dialog: false` is chosen, the dialog will still run, even if the prerequisite could not be completed. The default is `false`.
 Functions are registered in Python under the name used in `execute`, before the session runs:
 
 ```python

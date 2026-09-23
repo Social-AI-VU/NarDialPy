@@ -164,6 +164,13 @@ for each move in self.moves:
     await self._dispatch_move(move)
 ```
 
+Before the move loop, `run()` calls `_execute_prerequisites()` when the dialog has `prerequisites` (a list of dicts, kept as loaded from JSON). Each entry is either:
+
+- `{"execute": name, "args": ...}`: looks `name` up in `MiniDialog._function_registry` and calls it synchronously. A list `args` is unpacked; any other value is passed as one argument; no `args` means no arguments. Functions are added to the registry with the `@MiniDialog.register(name)` decorator. The registry is a class attribute shared by all dialogs in the process.
+- `{"set_variable": {...}}`: `user_model.update(...)` with the given object.
+
+Failures (an unregistered name, an exception in the function, a non-object `set_variable`) are printed and skipped, so the remaining prerequisites and the dialog still run. Prerequisites run after eligibility has been checked, so they can't make the dialog itself eligible. `LLMDialog` overrides `run()` and currently does not call `_execute_prerequisites()`. `DialogFactory.from_json()` passes `prerequisites` through without validating it, and `to_json()` doesn't write it back out yet.
+
 The dialog keeps runtime references to:
 
 - `conversation_agent`: the high-level agent for speech, NLU, LLM, media, motion, and screen helpers.
@@ -292,6 +299,7 @@ Provider implementations should be swappable. A session should not need differen
 
 - Change dialog authoring schema: `authoring/factory.py`
 - Change move runtime behavior: `mini_dialogs.py`
+- Add functions for dialog `prerequisites`: `@MiniDialog.register(name)` (`mini_dialogs.py`)
 - Change eligibility rules: `eligibility.py`
 - Change agenda item types, resolution, or session plans: `agenda/*.py`
 - Change persistence and continuity: `conversation_state.py`, `user_model.py`

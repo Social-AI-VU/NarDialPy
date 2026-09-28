@@ -14,6 +14,7 @@ It lets you author complete conversations declaratively in JSON, then drive them
 4. [Defining Dialogs in JSON](#defining-dialogs-in-json)
    - [Dialog Structure](#dialog-structure)
    - [Dialog Types](#dialog-types)
+     - [Custom dialog types](#custom-dialog-types)
    - [Move Types](#move-types)
    - [Key JSON Attributes](#key-json-attributes)
 5. [Demos / Creating a Session](#demos--creating-a-session)
@@ -281,7 +282,7 @@ Every dialog has the following shared fields:
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `id` | string | ✅ | Unique identifier referenced in `session_agenda` and `dependencies` |
-| `type` | string | ✅ | Dialog type: `"functional"`, `"chitchat"`, `"narrative"`, or `"llm_based"` |
+| `type` | string | ✅ | Dialog type: `"functional"`, `"chitchat"`, `"narrative"`, `"llm_based"`, or a [custom type](#custom-dialog-types) |
 | `moves` | array | ✅ | Ordered list of move objects the robot will perform |
 | `dependencies` | array of strings | | Dialog IDs that must have been completed before this dialog may run |
 | `variable_dependencies` | array | | Variables that must exist in the user model before this dialog may run |
@@ -496,6 +497,95 @@ A fully LLM-driven dialog where the robot and user engage in a free-form multi-t
   "moves": []
 }
 ```
+
+#### Custom dialog types
+
+You can define your own dialog type in JSON. A custom type is based on an existing type and changes the rules that decide when its dialogs may run.
+
+Type definitions go in their own JSON file (or a directory of them), separate from your dialogs. Mixing them is an error: a type definition in a dialog file, or a dialog in a types file, is reported and skipped. Pass the types file to `SessionManager` as `dialog_types_path`. It is loaded before the dialogs, so dialogs can use the new types:
+
+```python
+manager = SessionManager(
+    session_agenda=[...],
+    agent=agent,
+    dialog_types_path="dialog_types/my_types.json",
+    dialog_json_path="dialog_json/my_dialogs.json",
+)
+```
+
+Without `SessionManager`, call `load_dialog_types(path)` (from `nardial.authoring`) before loading the dialogs. Within the types file(s), the order of definitions doesn't matter, even when one type extends another.
+
+A type definition looks like this:
+
+```json
+{
+  "define_type": "repeatable_chitchat",
+  "extends": "chitchat",
+  "description": "Chitchat that may come back in later sessions, but runs at most once per session.",
+  "remove_rules": ["exclude_if_seen"],
+  "add_rules": [{ "rule": "exclude_if_seen", "scope": "session" }]
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `define_type` | string | ✅ | Name of the new type, used as `type` in dialogs |
+| `extends` | string | ✅ | Type it is based on: a built-in type or another custom type |
+| `description` | string | | Free-text description |
+| `remove_rules` | array of strings | | Names of the base type's rules to drop |
+| `add_rules` | array | | Rules to add: a rule name, or an object with `"rule"` plus that rule's settings |
+
+Dialogs of the new type use the same fields as dialogs of the type it extends:
+
+```json
+{
+  "id": "music_lately",
+  "type": "repeatable_chitchat",
+  "topics": ["music"],
+  "moves": [{ "type": "say", "text": "What music have you been listening to lately?" }]
+}
+```
+
+They are also picked by the same agenda slots. For example, a `chitchat_slot` can choose a `repeatable_chitchat` dialog.
+
+**Built-in types and their rules:**
+
+| Type | Rules |
+|---|---|
+| `functional` | `dependency_met` |
+| `narrative` | `exclude_if_seen`, `dependency_met`, `variable_dependency_met`, `narrative_ordering` |
+| `chitchat` | `exclude_if_seen`, `dependency_met`, `variable_dependency_met` |
+| `llm_based` | `exclude_if_seen`, `dependency_met`, `variable_dependency_met` |
+
+**Available rules.** A dialog may run only when all of its type's rules allow it.
+
+| Rule | Settings | Allows the dialog to run when |
+|---|---|---|
+| `exclude_if_seen` | `scope`: `"participant"` (default) or `"session"` | it hasn't been completed before (by this participant, or in this session) |
+| `dependency_met` | | every dialog in its `dependencies` has been completed |
+| `variable_dependency_met` | | every required variable in its `variable_dependencies` is set in the user model |
+| `narrative_ordering` | | every earlier `position` in its `thread` has been completed |
+
+**Your own rules.** Any other rule is written in Python and registered under a name, which `add_rules` can then use. Settings from the JSON are passed to the constructor:
+
+```python
+from nardial.eligibility import EligibilityRule, register_rule
+
+@register_rule("from_session")
+class FromSessionRule(EligibilityRule):
+    def __init__(self, min):
+        self.min = min
+
+    def is_eligible(self, dialog, context):
+        # context.session_index: session number starting at 1, or None when unknown
+        return context.session_index is not None and context.session_index >= self.min
+```
+
+```json
+{ "define_type": "returning_chitchat", "extends": "chitchat", "add_rules": [{ "rule": "from_session", "min": 2 }] }
+```
+
+Import the module that registers the rule before loading your dialogs. A rule can read `context.user_model`, `context.completed_ids`, `context.session_completed_ids`, `context.session_index` and `context.registry`. See `docs/DEVELOPER_README.md` for more, including defining types directly in Python.
 
 ---
 
@@ -889,6 +979,7 @@ Ready-to-run demos are included in the `examples/` directory:
 * Demo 3 — Screen Display (`demo_screen_provider.py`): Shows the browser-based screen UI with transcripts, images, iframes, HTML snippets, buttons, and text input
 * Demo 4 — Pepper Tablet (`demo_pepper_tablet.py`): Uses the same screen UI on Pepper's tablet through the SIC webserver
 * Demo 5 — Agenda System (`demo_agenda_system.py`): Uses every agenda-item type (`narrative_slot`, `chitchat_slot`, `functional_slot`, `llm_dialog_ref`, plain dialog ids) so `SessionManager` picks the next dialog dynamically instead of following a fixed list — see the [Agenda System Guide](docs/AGENDA_SYSTEM_GUIDE.md) for a plain-language walkthrough
+* Demo 6 — Custom Dialog Type (`demo_custom_dialog_type.py`): Writes a custom eligibility rule in Python and defines two new dialog types in JSON (see [Custom dialog types](#custom-dialog-types)): a chitchat that comes back every session, and one that only runs for participants who said they have a pet
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 

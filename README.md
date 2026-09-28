@@ -129,23 +129,24 @@ NarDialPy is built around a set of provider protocols. Each protocol defines a r
 
 ### Available Providers
 
-| Role | Provider | Import path | Requires |
-|---|---|---|---|
-| **Device** | `DesktopAdapter` | `nardial.providers.device.desktop` | base |
-| | `PepperAdapter` | `nardial.providers.device.pepper` | base |
-| | `NaoAdapter` | `nardial.providers.device.nao` | base |
-| | `AlphaminiAdapter` | `nardial.providers.device.alphamini` | `social-interaction-cloud[alphamini]` |
-| **TTS** | `GoogleTTSProvider` | `nardial.providers.tts.google` | `nardial[google-tts]` |
-| | `ElevenLabsTTSProvider` | `nardial.providers.tts.elevenlabs` | `nardial[elevenlabs]` |
-| | `NaoqiTTSProvider` | `nardial.providers.tts.naoqi` | base (uses device's built-in TTS) |
-| | `NullTTSProvider` | `nardial.providers.tts.null` | base (prints to terminal) |
-| **NLU** | `DialogflowNLUProvider` | `nardial.providers.nlu.dialogflow` | `nardial[dialogflow]` |
-| | `WrittenKeywordNLUProvider` | `nardial.providers.nlu.written_keyword` | base (keyboard input) |
-| **LLM** | `OpenAIGPTProvider` | `nardial.providers.llm.openai_gpt` | `nardial[openai]` |
-| | `EchoLLMProvider` | `nardial.providers.llm.echo` | base (echoes user input) |
-| **Screen** | `ScreenProvider` / `SICScreenAdapter` / `PepperTabletScreenAdapter` | `nardial.providers.screen` | browser display via SIC webserver |
+| Role | Provider | Import path                                  | Requires |
+|---|---|----------------------------------------------|---|
+| **Device** | `DesktopAdapter` | `nardial.providers.device.desktop`           | base |
+| | `PepperAdapter` | `nardial.providers.device.pepper`            | base |
+| | `NaoAdapter` | `nardial.providers.device.nao`               | base |
+| | `AlphaminiAdapter` | `nardial.providers.device.alphamini`         | `social-interaction-cloud[alphamini]` |
+| | `ReachyMiniAdapter` | `nardial.providers.reachy_mini`              | `social-interaction-cloud[reachy-mini]` | 
+| **TTS** | `GoogleTTSProvider` | `nardial.providers.tts.google`               | `nardial[google-tts]` |
+| | `ElevenLabsTTSProvider` | `nardial.providers.tts.elevenlabs`           | `nardial[elevenlabs]` |
+| | `NaoqiTTSProvider` | `nardial.providers.tts.naoqi`                | base (uses device's built-in TTS) |
+| | `NullTTSProvider` | `nardial.providers.tts.null`                 | base (prints to terminal) |
+| **NLU** | `DialogflowNLUProvider` | `nardial.providers.nlu.dialogflow`           | `nardial[dialogflow]` |
+| | `WrittenKeywordNLUProvider` | `nardial.providers.nlu.written_keyword`      | base (keyboard input) |
+| **LLM** | `OpenAIGPTProvider` | `nardial.providers.llm.openai_gpt`           | `nardial[openai]` |
+| | `EchoLLMProvider` | `nardial.providers.llm.echo`                 | base (echoes user input) |
+| **Screen** | `ScreenProvider` / `SICScreenAdapter` / `PepperTabletScreenAdapter` | `nardial.providers.screen`                   | browser display via SIC webserver |
 | **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
-| | `NullVectorStoreProvider` | `nardial.providers.vector_store.null` | base |
+| | `NullVectorStoreProvider` | `nardial.providers.vector_store.null`        | base |
 
 ---
 

@@ -963,6 +963,24 @@ Display keyboard input on screen. Suspend dialog execution until keyboard input 
 
 ---
 
+#### `go_to_dialog`
+
+Move to a specified new minidialog.
+
+| Field             | Type | Required | Description                                                    |
+|-------------------|---|----------|----------------------------------------------------------------|
+| `type`            | string | ✅        | `"go_to_dialog"`                                               |
+| `dialog_id`       | string |✅          | ID of the dialog to go to                                      |
+
+```json
+{
+  "type": "go_to_dialog",
+  "dialog_id": "favorite_animal"
+}
+```
+
+---
+
 ### Key JSON Attributes
 
 | Attribute | Where used | Description |

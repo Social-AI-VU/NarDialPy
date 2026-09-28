@@ -32,6 +32,8 @@ MOVE_LLM_FOLLOWUP = "llm_followup"
 
 LLM_QUIT_SIGNAL = "<<QUIT>>"
 
+MOVE_GO_TO_DIALOG = "go_to_dialog"
+
 
 class Move:
     """
@@ -725,3 +727,20 @@ class MoveKeyboardInput(Move):
             default_outcome=data.get("default_outcome"),
         )
         # pass
+
+class MoveGoToDialog(Move):
+    """
+    Execute specified next dialog.
+    """
+
+    def __init__(self, dialog_id: str):
+        """
+        :param dialog_id: The id of the dialog that should be executed next.
+        """
+        super().__init__()
+        self.type = MOVE_GO_TO_DIALOG
+        self.dialog_id = dialog_id
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type

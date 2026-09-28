@@ -318,6 +318,7 @@ class SessionManager:
                     session_history,
                     self.conversation_state.topics_of_interest,
                     self.conversation_state.user_model,
+                    self.registry
                 )
             except Exception as e:
                 print(f"[ERROR] Running dialog {dialog.dialog_id} failed: {e}")

@@ -1,6 +1,11 @@
-from typing import Any, Dict, List
+import copy
+import re
+from typing import Any, Dict, List, Type
 
-from nardial.mini_dialogs import MiniDialog, NarrativeDialog, ChitchatDialog, FunctionalDialog, LLMDialog, DialogType
+from nardial.dialog_types import dialog_type_names, get_dialog_type, register_dialog_type
+from nardial.eligibility import build_rule
+# Importing mini_dialogs registers the built-in dialog types.
+from nardial.mini_dialogs import MiniDialog
 from nardial.moves import (
     MOVE_SAY,
     MOVE_SAY_OPTIONS,
@@ -128,8 +133,9 @@ class DialogFactory:
         did = doc.get("id")
         if not isinstance(did, str) or not did:
             errs.append("id must be non-empty string")
-        if t not in {"functional", "narrative", "chitchat", "llm_based"}:
-            errs.append("type must be 'functional' | 'narrative' | 'chitchat' | 'llm_based'")
+        dialog_cls = get_dialog_type(t) if isinstance(t, str) else None
+        if dialog_cls is None:
+            errs.append("type must be " + " | ".join(f"'{name}'" for name in dialog_type_names()))
         # shared
         deps = doc.get("dependencies")
         if deps is not None and (not isinstance(deps, list) or not all(isinstance(x, str) for x in deps)):
@@ -146,37 +152,8 @@ class DialogFactory:
                     if not isinstance(vd, dict) or "variable" not in vd:
                         errs.append(f"variable_dependencies[{idx}] must be string or object with 'variable'")
         # type-specific
-        if t == "functional":
-            if not isinstance(doc.get("functional_type"), str):
-                errs.append("functional_type must be string for functional dialogs")
-        elif t == "narrative":
-            if not isinstance(doc.get("thread"), str):
-                errs.append("thread must be string for narrative dialogs")
-            try:
-                int(doc.get("position"))
-            except Exception:
-                errs.append("position must be integer for narrative dialogs")
-        elif t == "chitchat":
-            topics = doc.get("topics")
-            if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
-                errs.append("topics must be a list of strings for chitchat dialogs")
-        elif t == "llm_based":
-            if not isinstance(doc.get("prompt"), str):
-                errs.append("prompt must be string for llm_based dialogs")
-            if "max_turns" in doc and not isinstance(doc.get("max_turns"), int):
-                errs.append("max_turns must be integer for llm_based dialogs")
-            if "speak_first" in doc and not isinstance(doc.get("speak_first"), bool):
-                errs.append("speak_first must be boolean for llm_based dialogs")
-            if "duration" in doc and not isinstance(doc.get("duration"), (int, float)):
-                errs.append("duration must be numeric seconds for llm_based dialogs")
-            if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
-                errs.append("rag_enabled must be boolean for llm_based dialogs")
-            quit_phrases = doc.get("quit_phrases")
-            if quit_phrases is not None and (
-                    not isinstance(quit_phrases, list) or not all(isinstance(x, str) for x in quit_phrases)):
-                errs.append("quit_phrases must be a list of strings for llm_based dialogs")
-            if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
-                errs.append("quit_signal must be string for llm_based dialogs")
+        if dialog_cls is not None:
+            errs.extend(dialog_cls.validate_doc(doc))
 
         characters = doc.get("characters")
         if characters is not None:
@@ -222,52 +199,17 @@ class DialogFactory:
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
         characters = dict(doc.get("characters") or {})
+        prerequisites = list(doc.get("prerequisites") or [])
 
-        if dtype == DialogType.NARRATIVE.value:
-            return NarrativeDialog(
-                dialog_id=did,
-                moves=moves,
-                thread=doc["thread"],
-                position=int(doc["position"]),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-                characters=characters,
-            )
-        if dtype == DialogType.CHITCHAT.value:
-            return ChitchatDialog(
-                dialog_id=did,
-                moves=moves,
-                topics=list(doc.get("topics") or []),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-                characters=characters,
-            )
-        if dtype == DialogType.FUNCTIONAL.value:
-            return FunctionalDialog(
-                dialog_id=did,
-                moves=moves,
-                type=doc["functional_type"],
-                dependencies=deps,
-                variable_dependencies=vdeps,
-                characters=characters,
-            )
-        if dtype == DialogType.LLM_BASED.value:
-            return LLMDialog(
-                dialog_id=did,
-                moves=moves,
-                prompt=doc["prompt"],
-                max_turns=doc.get("max_turns"),
-                dependencies=deps,
-                variable_dependencies=vdeps,
-                quit_phrases=doc.get("quit_phrases"),
-                quit_signal=doc.get("quit_signal"),
-                speak_first=doc.get("speak_first", True),
-                duration=doc.get("duration"),
-                rag_enabled=doc.get("rag_enabled", False),
-                index_name=doc.get("index_name"),
-                characters=characters,
-            )
-        return MiniDialog(did, moves, deps, vdeps, characters=characters)
+        return get_dialog_type(dtype).from_doc(
+            doc,
+            dialog_id=did,
+            moves=moves,
+            dependencies=deps,
+            variable_dependencies=vdeps,
+            characters=characters,
+            prerequisites=prerequisites
+        )
 
     @staticmethod
     def to_json(d: MiniDialog) -> Dict[str, Any]:
@@ -280,34 +222,95 @@ class DialogFactory:
         characters = dict(getattr(d, "characters", {}) or {})
         if characters:
             base["characters"] = characters
-        if isinstance(d, NarrativeDialog):
-            base.update({
-                "type": "narrative",
-                "thread": getattr(d, "thread", ""),
-                "position": int(getattr(d, "position", 0)),
-            })
-        elif isinstance(d, ChitchatDialog):
-            base.update({
-                "type": "chitchat",
-                "topics": list(getattr(d, "topics", []) or []),
-            })
-        elif isinstance(d, FunctionalDialog):
-            base.update({
-                "type": "functional",
-                "functional_type": getattr(d, "type", ""),
-            })
-        elif isinstance(d, LLMDialog):
-            base.update({
-                "type": "llm_based",
-                "prompt": getattr(d, "prompt", ""),
-                "max_turns": getattr(d, "max_turns", None),
-                "quit_phrases": list(getattr(d, "quit_phrases", []) or []),
-                "quit_signal": getattr(d, "quit_signal", None),
-                "speak_first": getattr(d, "speak_first", True),
-                "duration": getattr(d, "duration", None),
-                "rag_enabled": getattr(d, "rag_enabled", False),
-                "index_name": getattr(d, "index_name", None),
-            })
-        else:
-            base.update({"type": "unknown"})
+        base["type"] = getattr(d, "TYPE_NAME", None) or "unknown"
+        base.update(d.to_doc())
         return base
+
+
+class DialogTypeFactory:
+    """Builds dialog types from `define_type` JSON documents.
+
+    A definition derives a new type from a registered one (`extends`) by
+    dropping some of its default eligibility rules (`remove_rules`, by rule
+    name) and appending new ones (`add_rules`, rule specs as accepted by
+    `eligibility.build_rule`). The result is a real subclass, registered
+    under the new name, so dialogs of that type load, run and select exactly
+    like dialogs of the parent type.
+    """
+
+    ALLOWED_KEYS = {"define_type", "extends", "description", "add_rules", "remove_rules"}
+
+    @staticmethod
+    def is_type_definition(doc: Any) -> bool:
+        return isinstance(doc, dict) and "define_type" in doc
+
+    @staticmethod
+    def validate_doc(doc: Dict[str, Any]) -> List[str]:
+        errs: List[str] = []
+        name = doc.get("define_type")
+        if not isinstance(name, str) or not name:
+            errs.append("define_type must be non-empty string")
+        for key in doc:
+            if key not in DialogTypeFactory.ALLOWED_KEYS:
+                errs.append(f"unknown key {key!r} in type definition")
+        if "description" in doc and not isinstance(doc.get("description"), str):
+            errs.append("description must be string")
+
+        base_name = doc.get("extends")
+        base = get_dialog_type(base_name) if isinstance(base_name, str) else None
+        if base is None:
+            errs.append("extends must be one of " + " | ".join(f"'{n}'" for n in dialog_type_names()))
+
+        add_rules = doc.get("add_rules")
+        if add_rules is not None:
+            if not isinstance(add_rules, list):
+                errs.append("add_rules must be a list")
+            else:
+                for idx, spec in enumerate(add_rules):
+                    try:
+                        build_rule(spec)
+                    except ValueError as e:
+                        errs.append(f"add_rules[{idx}]: {e}")
+
+        remove_rules = doc.get("remove_rules")
+        if remove_rules is not None:
+            if not isinstance(remove_rules, list) or not all(isinstance(x, str) for x in remove_rules):
+                errs.append("remove_rules must be a list of rule names")
+            elif base is not None:
+                base_rule_names = [rule.RULE_NAME for rule in base.DEFAULT_ELIGIBILITY]
+                for idx, rule_name in enumerate(remove_rules):
+                    if rule_name not in base_rule_names:
+                        errs.append(f"remove_rules[{idx}]: {rule_name!r} is not a rule of {base_name!r} "
+                                    f"(its rules: {', '.join(map(str, base_rule_names)) or 'none'})")
+        return errs
+
+    @staticmethod
+    def from_json(doc: Dict[str, Any]) -> Type[MiniDialog]:
+        """Create and register the type described by `doc`, returning its class.
+
+        Loading the same definition again returns the already-registered
+        class; a different definition under a taken name raises `ValueError`.
+        """
+        errors = DialogTypeFactory.validate_doc(doc)
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        name = doc["define_type"]
+        existing = get_dialog_type(name)
+        if existing is not None and getattr(existing, "TYPE_DEFINITION", None) == doc:
+            return existing
+
+        base = get_dialog_type(doc["extends"])
+        removed = set(doc.get("remove_rules") or [])
+        rules = [rule for rule in base.DEFAULT_ELIGIBILITY if rule.RULE_NAME not in removed]
+        rules += [build_rule(spec) for spec in doc.get("add_rules") or []]
+
+        class_name = "".join(part[:1].upper() + part[1:] for part in re.split(r"[^0-9A-Za-z]+", name) if part)
+        if not class_name[:1].isalpha():
+            class_name = "Dialog" + class_name
+        cls = type(class_name, (base,), {
+            "__doc__": doc.get("description") or f"Dialog type {name!r}, defined in JSON (extends {base.TYPE_NAME!r}).",
+            "DEFAULT_ELIGIBILITY": rules,
+            "TYPE_DEFINITION": copy.deepcopy(doc),
+        })
+        return register_dialog_type(name)(cls)

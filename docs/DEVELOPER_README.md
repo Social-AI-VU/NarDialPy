@@ -253,14 +253,14 @@ It owns:
 
 Providers are protocol-based adapters. Each provider role has a small required interface in `src/nardial/providers/<role>/__init__.py`, with concrete implementations beside it.
 
-| Role | Protocol responsibility | Examples |
-| --- | --- | --- |
-| Device | Hardware setup, microphone, audio playback, animations, LEDs, listening signals, disconnect | `DesktopAdapter`, `PepperAdapter`, `NaoAdapter`, `AlphaminiAdapter` |
-| TTS | Convert text into speech/audio and play it on the configured device | `GoogleTTSProvider`, `ElevenLabsTTSProvider`, `NaoqiTTSProvider`, `NullTTSProvider` |
-| NLU | Listen for user input and return `NLUResult(transcript, intent, confidence)` | `DialogflowNLUProvider`, `WrittenKeywordNLUProvider` |
-| LLM | Complete a list of chat-like `Message` objects under a system prompt | `OpenAIGPTProvider`, `EchoLLMProvider` |
-| Vector store | Ingest/query retrieval snippets for RAG | `RedisVectorStoreProvider`, `NullVectorStoreProvider` |
-| Screen | Display transcripts/media/HTML and collect browser input | `SICScreenAdapter`, `PepperTabletScreenAdapter`, `NullScreenProvider` |
+| Role | Protocol responsibility | Examples                                                                                |
+| --- | --- |-----------------------------------------------------------------------------------------|
+| Device | Hardware setup, microphone, audio playback, animations, LEDs, listening signals, disconnect | `DesktopAdapter`, `PepperAdapter`, `NaoAdapter`, `AlphaminiAdapter`, `ReachyMiniAdapter` |
+| TTS | Convert text into speech/audio and play it on the configured device | `GoogleTTSProvider`, `ElevenLabsTTSProvider`, `NaoqiTTSProvider`, `NullTTSProvider`     |
+| NLU | Listen for user input and return `NLUResult(transcript, intent, confidence)` | `DialogflowNLUProvider`, `WrittenKeywordNLUProvider`                                    |
+| LLM | Complete a list of chat-like `Message` objects under a system prompt | `OpenAIGPTProvider`, `EchoLLMProvider`                                                  |
+| Vector store | Ingest/query retrieval snippets for RAG | `RedisVectorStoreProvider`, `NullVectorStoreProvider`                                   |
+| Screen | Display transcripts/media/HTML and collect browser input | `SICScreenAdapter`, `PepperTabletScreenAdapter`, `NullScreenProvider`                   |
 
 Providers should hide service-specific details. The rest of the runtime should only rely on the protocol methods.
 

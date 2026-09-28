@@ -252,8 +252,6 @@ class SessionManager:
         if not self.session_agenda:
             print("[INFO] Session agenda is empty, running all dialogs.")
 
-        print(self.registry)
-
         session_history = []
         context = self._build_agenda_context()
         for dialog in resolve_agenda(agenda, context):

@@ -730,12 +730,12 @@ class MoveKeyboardInput(Move):
 
 class MoveGoToDialog(Move):
     """
-    A move that makes the agent say a piece of text.
+    Execute specified next dialog.
     """
 
     def __init__(self, dialog_id: str):
         """
-        :param text: The text the agent should speak.
+        :param dialog_id: The id of the dialog that should be executed next.
         """
         super().__init__()
         self.type = MOVE_GO_TO_DIALOG

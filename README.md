@@ -286,6 +286,7 @@ Every dialog has the following shared fields:
 | `moves` | array | ✅ | Ordered list of move objects the robot will perform |
 | `dependencies` | array of strings | | Dialog IDs that must have been completed before this dialog may run |
 | `variable_dependencies` | array | | Variables that must exist in the user model before this dialog may run |
+| `prerequisites` | array | | Actions run just before the dialog's first move: call a registered Python function, or set user-model variables (see [below](#optional-top-level-prerequisites)) |
 
 Example: 
 ```json
@@ -324,6 +325,51 @@ Dialogs can define reusable character voices:
 - Each key is a character name.
 - Each value must contain a `voice_settings` object.
 - `voice_settings` is validated at runtime against the active TTS provider.
+
+#### Optional Top-Level `prerequisites`
+
+Dialogs can list actions to run just before their first move, each time the dialog runs:
+
+```json
+{
+  "id": "multiplication",
+  "type": "chitchat",
+  "prerequisites": [
+    { "execute": "choose_math_level", "args": [true, false] , "skip_dialog":  true},
+    { "set_variable": { "math_left": 4, "math_right": 3 } }
+  ],
+  "moves": [
+    { "type": "say", "text": "What is %math_left% times %math_right%?" }
+  ]
+}
+```
+
+Each entry does one of two things:
+
+| Key | Value | What happens |
+|---|---|---|
+| `execute` | name of a registered function | Calls that Python function. Optional `args`: a list is passed as separate arguments (`[3, 4]` calls `f(3, 4)`), any other value as a single argument, and without `args` the function is called with none. |
+| `set_variable` | object | Merges the object into the user model, so its values can be used in `%variable%` placeholders and later dialogs. |
+
+In every prerequisite, `"skip_dialog` can be set to `true` of `false`, based on whether the dialog needs to be skipped if the prerequisite cannot be completed. `"skip_dialog:true` means that the dialog will be skipped if the prerequisite is not completed. If `"skip_dialog: false` is chosen, the dialog will still run, even if the prerequisite could not be completed. The default is `false`.
+Functions are registered in Python under the name used in `execute`, before the session runs:
+
+```python
+from nardial.mini_dialogs import MiniDialog
+
+@MiniDialog.register("choose_math_level")
+def choose_math_level(last_correct, needed_help):
+    if last_correct and not needed_help:
+        level = 2
+    else:
+        level = 1
+    return level
+
+```
+
+- Prerequisites run in the order listed, after the dialog has been picked. They can't change whether the dialog itself is eligible, only what happens once it runs.
+- Registered functions must be regular (not `async`) functions. They get only the `args` from the JSON, not the dialog or the user model.
+- If a function isn't registered or raises an error, the error is printed and the remaining prerequisites and the dialog still run.
 
 ---
 

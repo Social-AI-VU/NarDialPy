@@ -193,6 +193,7 @@ class DialogFactory:
         vdeps = DialogFactory._normalize_variable_dependencies(doc.get("variable_dependencies"))
         moves = [MoveFactory.normalize(m) for m in (doc.get("moves") or [])]
         characters = dict(doc.get("characters") or {})
+        prerequisites = list(doc.get("prerequisites") or [])
 
         return get_dialog_type(dtype).from_doc(
             doc,
@@ -201,6 +202,7 @@ class DialogFactory:
             dependencies=deps,
             variable_dependencies=vdeps,
             characters=characters,
+            prerequisites=prerequisites
         )
 
     @staticmethod

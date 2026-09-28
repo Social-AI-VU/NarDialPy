@@ -97,3 +97,26 @@ def test_roundtrip_preserves_characters():
     dialog = DialogFactory.from_json(doc)
     serialized = DialogFactory.to_json(dialog)
     assert serialized["characters"] == doc["characters"]
+
+
+def test_roundtrip_preserves_prerequisites():
+    prerequisites = [
+        {"execute": "load_pet_names"},
+        {"execute": "log_sum", "args": [3, 4]},
+        {"set_variable": {"math_left": 4, "math_right": 3}},
+    ]
+    doc = {
+        "id": "multiplication",
+        "type": "chitchat",
+        "prerequisites": prerequisites,
+        "moves": [{"type": "say", "text": "What is %math_left% times %math_right%?"}],
+    }
+
+    serialized = DialogFactory.to_json(DialogFactory.from_json(doc))
+    assert serialized["prerequisites"] == prerequisites
+    assert DialogFactory.from_json(serialized).prerequisites == prerequisites
+
+
+def test_to_json_omits_prerequisites_when_there_are_none():
+    doc = {"id": "plain", "type": "chitchat", "moves": []}
+    assert "prerequisites" not in DialogFactory.to_json(DialogFactory.from_json(doc))

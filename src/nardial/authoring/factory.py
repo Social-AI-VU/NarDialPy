@@ -85,7 +85,9 @@ class MoveFactory:
         if "set_variable" in move and not isinstance(move.get("set_variable"), str):
             errs.append(f"moves[{idx}].set_variable must be string if present")
         if mt == MOVE_BRANCH:
-            on_val = move.get("on", "outcome")
+            on_val = move.get("on")
+            if not on_val:
+                errs.append(f"moves[{idx}].on must specify what to branch on")
             if not isinstance(on_val, str):
                 errs.append(f"moves[{idx}].on must be a string for branch")
             if on_val == "variables" and move.get("variables") is None:

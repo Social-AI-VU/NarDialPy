@@ -410,7 +410,7 @@ class MoveBranch(Move):
         """
         super().__init__()
         self.type = MOVE_BRANCH
-        self.on = on or "outcome"
+        self.on = on
         self.variables = variables
         self.cases = dict(cases or {})
 
@@ -427,7 +427,7 @@ class MoveBranch(Move):
         :return: MoveBranch instance.
         """
         return cls(
-            on=data.get("on", "outcome"),
+            on=data.get("on"),
             cases=data.get("cases", {}),
             variables=data.get("variables", []),
         )

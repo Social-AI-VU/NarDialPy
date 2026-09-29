@@ -402,14 +402,15 @@ class MoveBranch(Move):
     based on a condition (either the current dialog outcome or a user model variable).
     """
 
-    def __init__(self, on: str, variable: Optional[str] = None, cases: Optional[Dict[str, List]] = None):
+    def __init__(self, on: str, variable: Optional[List[str]] = None, cases: Optional[Dict[str, List]] = None):
         """
         :param on: Source of branching condition ("outcome" or variable name).
+        :param variable: Two variables to branch on based on whether they are the same
         :param cases: Mapping from condition values to lists of sub-moves.
         """
         super().__init__()
         self.type = MOVE_BRANCH
-        self.on = on or "outcome" or "variables"
+        self.on = on or "outcome"
         self.variable = variable
         self.cases = dict(cases or {})
 
@@ -428,7 +429,7 @@ class MoveBranch(Move):
         return cls(
             on=data.get("on", "outcome"),
             cases=data.get("cases", {}),
-            variable=data.get("variable"),
+            variable=data.get("variable", []),
         )
 
 

@@ -88,6 +88,10 @@ class MoveFactory:
             on_val = move.get("on", "outcome")
             if not isinstance(on_val, str):
                 errs.append(f"moves[{idx}].on must be a string for branch")
+            if on_val == "variables" and move.get("variable") is None:
+                errs.append(f"moves[{idx}].variable must specify the variables to base branching on")
+            elif on_val == "variables" and len(move.get("variable")) != 2:
+                errs.append(f"moves[{idx}].variable must contain 2 variables")
             cases = move.get("cases")
             if not isinstance(cases, dict):
                 errs.append(f"moves[{idx}].cases must be an object for branch")

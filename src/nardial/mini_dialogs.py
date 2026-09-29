@@ -270,6 +270,13 @@ class MiniDialog:
         move = MoveBranch.from_dict(move)
         if move.on == "outcome":
             key = self.current_outcome
+        elif move.on == "variables":
+            variable_1 = self.user_model.get(move.variables[0])
+            variable_2 = self.user_model.get(move.variables[1])
+            if variable_1 == variable_2:
+                key = "true"
+            else:
+                key = "false"
         else:
             key = self.user_model.get(move.on)
         case_moves = move.cases.get(key, [])

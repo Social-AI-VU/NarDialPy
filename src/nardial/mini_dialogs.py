@@ -4,6 +4,7 @@ from time import monotonic
 import asyncio
 import random
 
+from nardial.dialog_types import register_dialog_type
 from nardial.eligibility import DependencyMetRule, ExcludeIfSeenRule, NarrativeOrderingRule, VariableDependencyMetRule
 from nardial.events import EventBus
 from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS, MOVE_PLAY_AUDIO, MOVE_MOTION_SEQUENCE, \
@@ -11,7 +12,9 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
     MoveAskYesNo, MoveAskOpen, MoveAskOptions, MovePlayAudio, MoveMotionSequence, MoveAnimation, MoveBranch, \
     MOVE_ANSWER_OPEN, MOVE_ANSWER_YESNO, MOVE_ANSWER_OPTIONS, MoveAskLLM, MOVE_ASK_LLM, MOVE_ANSWER_LLM, \
     MOVE_LLM_FOLLOWUP, MOVE_BRANCH, MOVE_TIMED_WAIT, MOVE_WAIT_FOR_WEB_INPUT, MOVE_WAIT_FOR_BUTTON, MOVE_SHOW_IMAGE, MOVE_SHOW_VIDEO, MOVE_SHOW_IFRAME, MOVE_SHOW_HTML, MOVE_BLACK_SCREEN, MOVE_KEYBOARD_INPUT, \
-    MoveTimedWait, MoveWaitForWebInput, MoveWaitForButton, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardInput
+    MoveTimedWait, MoveWaitForWebInput, MoveWaitForButton, MoveShowImage, MoveShowVideo, MoveShowIframe, MoveShowHtml, MoveSayOptions, MoveKeyboardInput, \
+    MOVE_GO_TO_DIALOG, \
+    MoveGoToDialog
 
 from enum import Enum
 
@@ -29,7 +32,11 @@ MAX_LLM_TURNS = 5
 
 
 class MiniDialog:
-    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None):
+    _function_registry = {}
+     # JSON "type" string; set by `@register_dialog_type` (see `dialog_types.py`).
+    TYPE_NAME: Optional[str] = None
+
+    def __init__(self, dialog_id, moves, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         """
         dialog_id: str, unique identifier (e.g. 'pineapple_on_pizza')
         moves: list of dicts, each representing a dialog move
@@ -40,6 +47,8 @@ class MiniDialog:
         self.dependencies = dependencies or []
         self.variable_dependencies = variable_dependencies or []
         self.characters = characters or {}
+        self.prerequisites = prerequisites or None
+        # self.function_registry = {}
 
         # Use a session-shared EventBus when wired; The SessionManager or caller
         # should call `set_event_bus()` to wire the shared bus before running.
@@ -58,11 +67,70 @@ class MiniDialog:
         """
         self._bus = bus
 
+    # --- authoring hooks used by `DialogFactory` ---
+    # Subclasses extend these (calling `super()`) to add their own JSON fields.
+
+    @classmethod
+    def validate_doc(cls, doc: dict) -> List[str]:
+        """Return errors for this type's own fields; shared fields are validated by `DialogFactory`."""
+        return []
+
+    @classmethod
+    def from_doc(cls, doc: dict, **common) -> "MiniDialog":
+        """Build an instance from a validated doc. `common` holds the shared, already-normalized
+        fields: `dialog_id`, `moves`, `dependencies`, `variable_dependencies`, `characters`."""
+        return cls(**common)
+
+    def to_doc(self) -> dict:
+        """Return this type's own JSON fields (the inverse of `from_doc`)."""
+        return {}
+
     def set_conversation_config(self, agent, session_history, topics_of_interest, user_model):
         self.conversation_agent = agent
         self.session_history = session_history if session_history is not None else []
         self.topics_of_interest = topics_of_interest if topics_of_interest is not None else []
         self.user_model = user_model if user_model is not None else {}
+
+    @classmethod
+    def register(cls, name):
+        """Decorator to register a function into the central dictionary."""
+
+        def decorator(func):
+            cls._function_registry[name] = func
+            return func
+
+        return decorator
+
+    def _execute_prerequisites(self):
+        if not self.prerequisites:
+            return
+
+        for prerequisite in self.prerequisites:
+            if prerequisite.get('execute'):
+                try:
+                    func_name = prerequisite.get('execute')
+                    args = prerequisite.get('args')
+                    func = MiniDialog._function_registry.get(func_name)
+                    if args is None:
+                        func()
+                    elif isinstance(args, list):
+                        func(*args)
+                    else:
+                        func(args)
+                except Exception as e:
+                    print(f"[ERROR] Could not execute {func_name}: {e}")
+                    if prerequisite.get('skip_dialog'):
+                        print(f"[INFO]: Skipped dialog {self.dialog_id}")
+                        return False
+            elif prerequisite.get('set_variable'):
+                try:
+                    self.user_model.update(prerequisite.get('set_variable'))
+                except Exception as e:
+                    print(f"[ERROR] Could not set variable {prerequisite.get('set_variable')}: {e}")
+                    if prerequisite.get('skip_dialog'):
+                        print(f"[INFO]: Skipped dialog {self.dialog_id}")
+                        return False
+        return True
 
     # Helper to read either dict-style or attribute-style moves (supports MoveSay objects)
     @staticmethod
@@ -161,9 +229,15 @@ class MiniDialog:
             text = text.replace(f"%{var}%", str(value))
         return text
 
-    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None, registry=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        self.registry = registry
+
+        if self.prerequisites:
+            completed_prerequisites = self._execute_prerequisites()
+            if not completed_prerequisites:
+                return
 
         idx = 0
 
@@ -256,6 +330,8 @@ class MiniDialog:
             await self.handle_move_black_screen(move)
         elif move_type == MOVE_KEYBOARD_INPUT:
             await self.handle_move_keyboard_input(move)
+        elif move_type == MOVE_GO_TO_DIALOG:
+            await self.handle_move_go_to_dialog(move)
 
     async def _generate_llm_followup(self, user_answer: str, system_prompt: str, voice_settings=None):
         """Call the LLM to generate a contextual followup to the user's answer and speak it."""
@@ -753,17 +829,44 @@ class MiniDialog:
 
         return value
 
+    async def handle_move_go_to_dialog(self, move):
+        dialog_id = move.get("dialog_id")
+        dialog = self.registry.get_by_id(dialog_id)
 
+        await dialog.run(
+            agent=self.conversation_agent,
+            session_history=self.session_history,
+            topics_of_interest=self.topics_of_interest,
+            user_model=self.user_model,
+            registry=self.registry,
+        )
+
+
+@register_dialog_type(DialogType.FUNCTIONAL.value)
 class FunctionalDialog(MiniDialog):
     DIALOG_TYPE = DialogType.FUNCTIONAL
     INDEX_ATTRS = ["functional_type"]
     # Deliberately no ExcludeIfSeenRule: greetings/farewells should re-run every session.
     DEFAULT_ELIGIBILITY: list = [DependencyMetRule()]
 
-    def __init__(self, dialog_id, moves, type, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, type, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Functional dialogs are utility blocks such as greeting and farewell.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.type = type
+
+    @classmethod
+    def validate_doc(cls, doc: dict) -> List[str]:
+        errs = super().validate_doc(doc)
+        if not isinstance(doc.get("functional_type"), str):
+            errs.append("functional_type must be string for functional dialogs")
+        return errs
+
+    @classmethod
+    def from_doc(cls, doc: dict, **common) -> "MiniDialog":
+        return cls(type=doc["functional_type"], **common)
+
+    def to_doc(self) -> dict:
+        return {**super().to_doc(), "functional_type": getattr(self, "type", "")}
 
     @property
     def functional_type(self):
@@ -776,6 +879,7 @@ class FunctionalDialog(MiniDialog):
         return self.type == FunctionalType.FAREWELL.value
 
 
+@register_dialog_type(DialogType.NARRATIVE.value)
 class NarrativeDialog(MiniDialog):
     DIALOG_TYPE = DialogType.NARRATIVE
     INDEX_ATTRS = ["thread"]
@@ -786,24 +890,63 @@ class NarrativeDialog(MiniDialog):
         NarrativeOrderingRule(),
     ]
 
-    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, thread, position, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Narrative dialogs belong to a thread and have an explicit position (order).
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.thread = thread
         self.position = position
 
+    @classmethod
+    def validate_doc(cls, doc: dict) -> List[str]:
+        errs = super().validate_doc(doc)
+        if not isinstance(doc.get("thread"), str):
+            errs.append("thread must be string for narrative dialogs")
+        try:
+            int(doc.get("position"))
+        except Exception:
+            errs.append("position must be integer for narrative dialogs")
+        return errs
 
+    @classmethod
+    def from_doc(cls, doc: dict, **common) -> "MiniDialog":
+        return cls(thread=doc["thread"], position=int(doc["position"]), **common)
+
+    def to_doc(self) -> dict:
+        return {
+            **super().to_doc(),
+            "thread": getattr(self, "thread", ""),
+            "position": int(getattr(self, "position", 0)),
+        }
+
+
+@register_dialog_type(DialogType.CHITCHAT.value)
 class ChitchatDialog(MiniDialog):
     DIALOG_TYPE = DialogType.CHITCHAT
     INDEX_ATTRS = ["topics"]
     DEFAULT_ELIGIBILITY: list = [ExcludeIfSeenRule(), DependencyMetRule(), VariableDependencyMetRule()]
 
-    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None):
+    def __init__(self, dialog_id, moves, topics=None, dependencies=None, variable_dependencies=None, characters=None, prerequisites=None):
         # Chitchat dialogs are short, topic-based interactions.
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.topics = topics or []
 
+    @classmethod
+    def validate_doc(cls, doc: dict) -> List[str]:
+        errs = super().validate_doc(doc)
+        topics = doc.get("topics")
+        if topics is not None and (not isinstance(topics, list) or not all(isinstance(x, str) for x in topics)):
+            errs.append("topics must be a list of strings for chitchat dialogs")
+        return errs
 
+    @classmethod
+    def from_doc(cls, doc: dict, **common) -> "MiniDialog":
+        return cls(topics=list(doc.get("topics") or []), **common)
+
+    def to_doc(self) -> dict:
+        return {**super().to_doc(), "topics": list(getattr(self, "topics", []) or [])}
+
+
+@register_dialog_type(DialogType.LLM_BASED.value)
 class LLMDialog(MiniDialog):
     DIALOG_TYPE = DialogType.LLM_BASED
     INDEX_ATTRS: list = []
@@ -812,8 +955,8 @@ class LLMDialog(MiniDialog):
     def __init__(self, dialog_id, moves, prompt, max_turns=None, dependencies=None,
                  variable_dependencies=None, quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                  speak_first: bool = True, duration: Optional[float] = None,
-                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None):
-        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters)
+                 rag_enabled: bool = False, index_name: Optional[str] = None, characters=None, prerequisites=None):
+        super().__init__(dialog_id, moves, dependencies, variable_dependencies, characters=characters, prerequisites=prerequisites)
         self.prompt = prompt
         self.max_turns = max_turns or MAX_LLM_TURNS
         self.speak_first = speak_first
@@ -824,8 +967,58 @@ class LLMDialog(MiniDialog):
         self.quit_phrases = [p for p in (quit_phrases or []) if p]
         self.quit_signal = quit_signal if quit_signal is not None else "<<QUIT>>"
 
+    @classmethod
+    def validate_doc(cls, doc: dict) -> List[str]:
+        errs = super().validate_doc(doc)
+        if not isinstance(doc.get("prompt"), str):
+            errs.append("prompt must be string for llm_based dialogs")
+        if "max_turns" in doc and not isinstance(doc.get("max_turns"), int):
+            errs.append("max_turns must be integer for llm_based dialogs")
+        if "speak_first" in doc and not isinstance(doc.get("speak_first"), bool):
+            errs.append("speak_first must be boolean for llm_based dialogs")
+        if "duration" in doc and not isinstance(doc.get("duration"), (int, float)):
+            errs.append("duration must be numeric seconds for llm_based dialogs")
+        if "rag_enabled" in doc and not isinstance(doc.get("rag_enabled"), bool):
+            errs.append("rag_enabled must be boolean for llm_based dialogs")
+        quit_phrases = doc.get("quit_phrases")
+        if quit_phrases is not None and (
+                not isinstance(quit_phrases, list) or not all(isinstance(x, str) for x in quit_phrases)):
+            errs.append("quit_phrases must be a list of strings for llm_based dialogs")
+        if "quit_signal" in doc and not isinstance(doc.get("quit_signal"), str):
+            errs.append("quit_signal must be string for llm_based dialogs")
+        return errs
+
+    @classmethod
+    def from_doc(cls, doc: dict, **common) -> "MiniDialog":
+        return cls(
+            prompt=doc["prompt"],
+            max_turns=doc.get("max_turns"),
+            quit_phrases=doc.get("quit_phrases"),
+            quit_signal=doc.get("quit_signal"),
+            speak_first=doc.get("speak_first", True),
+            duration=doc.get("duration"),
+            rag_enabled=doc.get("rag_enabled", False),
+            index_name=doc.get("index_name"),
+            **common,
+        )
+
+    def to_doc(self) -> dict:
+        return {
+            **super().to_doc(),
+            "prompt": getattr(self, "prompt", ""),
+            "max_turns": getattr(self, "max_turns", None),
+            "quit_phrases": list(getattr(self, "quit_phrases", []) or []),
+            "quit_signal": getattr(self, "quit_signal", None),
+            "speak_first": getattr(self, "speak_first", True),
+            "duration": getattr(self, "duration", None),
+            "rag_enabled": getattr(self, "rag_enabled", False),
+            "index_name": getattr(self, "index_name", None),
+        }
+
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
+        if self.prerequisites:
+            self._execute_prerequisites()
 
         await self._run_llm_exchange(
             prompt=self.prompt,

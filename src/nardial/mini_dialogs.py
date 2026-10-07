@@ -253,7 +253,6 @@ class MiniDialog:
             context_messages=[],
             system_prompt=system_prompt,
         )
-        print("LLM TEXT", llm_text)
 
         if llm_text and llm_text.lower() != "none":
             return llm_text
@@ -434,7 +433,6 @@ class MiniDialog:
             answer = await self._clean_answer_llm(text, answer)
             if answer:
                 self.user_model[move.set_variable] = answer
-            print("LLM CLEANED ANSWER:", answer)
 
         # store answer and interests if configured
         else:

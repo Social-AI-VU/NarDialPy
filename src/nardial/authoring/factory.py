@@ -72,8 +72,8 @@ class MoveFactory:
         if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for {mt}")
-        if mt == MOVE_ASK_OPEN and "llm_cleaning" in move and not isinstance(move.get("llm_cleaning"), bool):
-            errs.append(f"moves[{idx}].llm_cleaning must be boolean if present")
+        if mt == MOVE_ASK_OPEN and "llm_extract_entity" in move and not isinstance(move.get("llm_extract_entity"), bool):
+            errs.append(f"moves[{idx}].llm_extract_entity must be boolean if present")
         if mt == MOVE_ASK_LLM:
             if not isinstance(move.get("prompt"), str):
                 errs.append(f"moves[{idx}].prompt must be string for ask_llm")

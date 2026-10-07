@@ -161,7 +161,7 @@ class MoveAskOpen(Move):
                  add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 llm_followup: Optional[str] = None, llm_cleaning: bool = False):
+                 llm_followup: Optional[str] = None, llm_extract_entity: bool = False):
         """
         :param text: Question text to ask the user.
         :param set_variable: Variable name to store extracted answer value.
@@ -171,7 +171,7 @@ class MoveAskOpen(Move):
         :param outcomes: Mapping from answers to outcome labels.
         :param default_outcome: Fallback outcome label.
         :param llm_followup: Optional LLM follow-up system prompt.
-        :param llm_cleaning: Whether to clean the answer with the LLM before storing it.
+        :param llm_extract_entity: Whether to let the LLM extract the key entity from the answer before storing it.
         """
         super().__init__()
         self.type = MOVE_ASK_OPEN
@@ -183,7 +183,7 @@ class MoveAskOpen(Move):
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
-        self.llm_cleaning = llm_cleaning
+        self.llm_extract_entity = llm_extract_entity
 
     def get_type(self):
         """Return the move type."""
@@ -206,7 +206,7 @@ class MoveAskOpen(Move):
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
-            llm_cleaning=data.get("llm_cleaning", False),
+            llm_extract_entity=data.get("llm_extract_entity", False),
         )
 
 

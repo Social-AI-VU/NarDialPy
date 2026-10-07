@@ -229,23 +229,23 @@ class MiniDialog:
             text = text.replace(f"%{var}%", str(value))
         return text
 
-    async def _clean_answer_llm(self, question, answer):
+    async def _extract_key_entity_llm(self, question, answer):
         system_prompt = ('You are a social robot. '
-                        'The robot asks a question about a persons interest.'
-                        'Your task is to filter out the key entity.'
+                        'The robot asks a question about a persons interest. '
+                        'Your task is to filter out the key entity. '
                         'For example, with the question: "what is your favorite animal?" '
                         'and the response "my favorite animal is a dog" '
                         'you filter out only "dog" as the key entity. '
                         'Ensure that the entity is related to the question. '
-                        'If that is not the case, return "none".'
+                        'If that is not the case, return "none". '
                         'For example, if the response is "does anyone want some coffee," '
-                        'then "coffee" is not related to the question.'
-                        'Return the key entity in the language it was given in'
-                        'If the answer is a number, please return it in digits, not written out'
-                        'So "a hundred" becomes "100"'
+                        'then "coffee" is not related to the question. '
+                        'Return the key entity in the language it was given in. '
+                        'If the answer is a number, please return it in digits, not written out. '
+                        'So "a hundred" becomes "100".'
                         )
-        user_prompt = ( f'As a robot, you have just asked the following: {question}'
-                        f'This is the childs response: {answer}'
+        user_prompt = ( f'As a robot, you have just asked the following: {question}\n'
+                        f'This is the childs response: {answer}\n'
                         f'Return only the key entity string (or none).')
 
         llm_text = await self.conversation_agent.ask_llm(
@@ -254,8 +254,9 @@ class MiniDialog:
             system_prompt=system_prompt,
         )
 
-        if llm_text and llm_text.lower() != "none":
-            return llm_text
+        entity = (llm_text or "").strip().strip('"\'.').strip()
+        if entity and entity.lower() != "none":
+            return entity
         else:
             return None
 
@@ -429,8 +430,8 @@ class MiniDialog:
         print(f"User answered: {answer}")
 
         # Optionally clean the answer with the LLM before storing it
-        if move.llm_cleaning:
-            answer = await self._clean_answer_llm(text, answer)
+        if move.llm_extract_entity:
+            answer = await self._extract_key_entity_llm(text, answer)
             if answer:
                 self.user_model[move.set_variable] = answer
 

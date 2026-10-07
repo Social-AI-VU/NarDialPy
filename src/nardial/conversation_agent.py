@@ -131,7 +131,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen()
+            result = await self.orchestrator.listen(context={'answer_yesno': 1})
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:

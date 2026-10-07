@@ -229,6 +229,37 @@ class MiniDialog:
             text = text.replace(f"%{var}%", str(value))
         return text
 
+    async def _clean_answer_llm(self, question, answer):
+        system_prompt = ('You are a social robot. '
+                        'The robot asks a question about a persons interest.'
+                        'Your task is to filter out the key entity.'
+                        'For example, with the question: "what is your favorite animal?" '
+                        'and the response "my favorite animal is a dog" '
+                        'you filter out only "dog" as the key entity. '
+                        'Ensure that the entity is related to the question. '
+                        'If that is not the case, return "none".'
+                        'For example, if the response is "does anyone want some coffee," '
+                        'then "coffee" is not related to the question.'
+                        'Return the key entity in the language it was given in'
+                        'If the answer is a number, please return it in digits, not written out'
+                        'So "a hundred" becomes "100"'
+                        )
+        user_prompt = ( f'As a robot, you have just asked the following: {question}'
+                        f'This is the childs response: {answer}'
+                        f'Return only the key entity string (or none).')
+
+        llm_text = await self.conversation_agent.ask_llm(
+            user_prompt=user_prompt,
+            context_messages=[],
+            system_prompt=system_prompt,
+        )
+        print("LLM TEXT", llm_text)
+
+        if llm_text and llm_text.lower() != "none":
+            return llm_text
+        else:
+            return None
+
     async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None, registry=None):
         # Execute mini dialogs, sending speech to the device and logging events.
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
@@ -398,8 +429,17 @@ class MiniDialog:
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
+        # Optionally clean the answer with the LLM before storing it
+        if move.llm_cleaning:
+            answer = await self._clean_answer_llm(text, answer)
+            if answer:
+                self.user_model[move.set_variable] = answer
+            print("LLM CLEANED ANSWER:", answer)
+
         # store answer and interests if configured
-        self._store_set_variable(move, answer)
+        else:
+            self._store_set_variable(move, answer)
+
         self._store_interests(move, answer)
 
         # Optional LLM-generated followup response

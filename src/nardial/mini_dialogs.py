@@ -833,6 +833,7 @@ class MiniDialog:
         dialog_id = move.get("dialog_id")
         dialog = self.registry.get_by_id(dialog_id)
 
+        dialog.set_event_bus(self._bus)
         await dialog.run(
             agent=self.conversation_agent,
             session_history=self.session_history,

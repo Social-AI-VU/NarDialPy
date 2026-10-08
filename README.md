@@ -641,6 +641,7 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
 | `default_outcome` | string | | Outcome label when no answer or no match is found |
 | `add_interest_from_answer` | boolean | | If `true`, adds the answer to the user's topics of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence after the user replies |
+| `llm_extract_entity` | boolean | | If `true`, the LLM extracts the key entity from the answer (e.g. `"dog"` from `"my favorite animal is a dog"`) before it is stored; unrelated answers store nothing. Default `false` |
 
 ```json
 {

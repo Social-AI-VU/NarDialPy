@@ -833,6 +833,7 @@ class MiniDialog:
         dialog_id = move.get("dialog_id")
         dialog = self.registry.get_by_id(dialog_id)
 
+        dialog.set_event_bus(self._bus)
         await dialog.run(
             agent=self.conversation_agent,
             session_history=self.session_history,
@@ -1015,7 +1016,7 @@ class LLMDialog(MiniDialog):
             "index_name": getattr(self, "index_name", None),
         }
 
-    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None):
+    async def run(self, agent, session_history=None, topics_of_interest=None, user_model=None, registry=None):
         self.set_conversation_config(agent, session_history, topics_of_interest, user_model)
         if self.prerequisites:
             self._execute_prerequisites()

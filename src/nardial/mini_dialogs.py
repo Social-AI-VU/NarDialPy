@@ -510,8 +510,8 @@ class MiniDialog:
         user_input = ""
         start_time = monotonic()
         prompt = self._replace_variables(prompt)
-        for i in range(len(quit_phrases)):
-            quit_phrases[i] = self._replace_variables(quit_phrases[i])
+        if quit_phrases:
+            quit_phrases = [self._replace_variables(phrase) for phrase in quit_phrases]
 
         def remaining_time():
             if duration is None:

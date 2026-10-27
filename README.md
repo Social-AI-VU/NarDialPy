@@ -549,6 +549,13 @@ Dialogs of the new type use the same fields as dialogs of the type it extends:
 
 They are also picked by the same agenda slots. For example, a `chitchat_slot` can choose a `repeatable_chitchat` dialog.
 
+To limit which chitchat types a `chitchat_slot` may choose, give it `include_types` and/or `exclude_types` (lists of type names). Names match exactly: `"chitchat"` means plain chitchat dialogs only, not types that extend it. A type listed in both is excluded.
+
+```json
+{ "type": "chitchat_slot", "include_types": ["repeatable_chitchat"] }
+{ "type": "chitchat_slot", "exclude_types": ["repeatable_chitchat"] }
+```
+
 **Built-in types and their rules:**
 
 | Type | Rules |

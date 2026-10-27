@@ -1,7 +1,7 @@
 import pytest
 
 from nardial import dialog_types
-from nardial.agenda.items import AgendaContext, ChitchatSlot
+from nardial.agenda.items import AgendaContext, ChitchatSlot, coerce_agenda_item
 from nardial.authoring.factory import DialogFactory
 from nardial.dialog_registry import DialogRegistry
 from nardial.dialog_types import dialog_type_names, get_dialog_type, register_dialog_type
@@ -105,6 +105,51 @@ def test_chitchat_slot_picks_up_custom_subtype():
     slot = ChitchatSlot()
     assert slot.resolve(AgendaContext(registry=registry, user_model={"time_of_day": "evening"})) is dialog
     assert slot.resolve(AgendaContext(registry=registry, user_model={"time_of_day": "morning"})) is None
+
+
+def _plain_and_evening_registry():
+    _register_evening_chitchat()
+    plain = ChitchatDialog(dialog_id="plain_chat", moves=[], topics=["music"])
+    evening = DialogFactory.from_json(_evening_doc())
+    return plain, evening, DialogRegistry.build([plain, evening])
+
+
+def test_chitchat_slot_include_types_keeps_only_listed_types():
+    plain, evening, registry = _plain_and_evening_registry()
+    context = AgendaContext(registry=registry, user_model={"time_of_day": "evening"})
+
+    assert ChitchatSlot(include_types=["evening_chitchat"]).resolve(context) is evening
+    assert ChitchatSlot(include_types=["chitchat"]).resolve(context) is plain
+
+
+def test_chitchat_slot_exclude_types_drops_listed_types():
+    plain, evening, registry = _plain_and_evening_registry()
+    context = AgendaContext(registry=registry, user_model={"time_of_day": "evening"})
+
+    assert ChitchatSlot(exclude_types=["evening_chitchat"]).resolve(context) is plain
+    assert ChitchatSlot(exclude_types=["chitchat", "evening_chitchat"]).resolve(context) is None
+
+
+def test_chitchat_slot_exclude_wins_over_include():
+    _, _, registry = _plain_and_evening_registry()
+    context = AgendaContext(registry=registry, user_model={"time_of_day": "evening"})
+
+    slot = ChitchatSlot(include_types=["evening_chitchat"], exclude_types=["evening_chitchat"])
+    assert slot.resolve(context) is None
+
+
+def test_chitchat_slot_type_filters_from_agenda_dict():
+    plain, evening, registry = _plain_and_evening_registry()
+    context = AgendaContext(registry=registry, user_model={"time_of_day": "evening"})
+
+    included = coerce_agenda_item({"type": "chitchat_slot", "include_types": ["evening_chitchat"]})
+    assert included.include_types == ["evening_chitchat"]
+    assert included.resolve(context) is evening
+
+    # A bare string is one type name, not a list of characters.
+    excluded = coerce_agenda_item({"type": "chitchat_slot", "exclude_types": "evening_chitchat"})
+    assert excluded.exclude_types == ["evening_chitchat"]
+    assert excluded.resolve(context) is plain
 
 
 def test_custom_type_can_add_its_own_fields():

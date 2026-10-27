@@ -32,6 +32,8 @@ MOVE_LLM_FOLLOWUP = "llm_followup"
 
 LLM_QUIT_SIGNAL = "<<QUIT>>"
 
+MOVE_GO_TO_DIALOG = "go_to_dialog"
+
 
 class Move:
     """
@@ -162,7 +164,7 @@ class MoveAskOpen(Move):
                  add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 llm_followup: Optional[str] = None, timeout: Optional[int] = None):
+                 llm_followup: Optional[str] = None, timeout: Optional[int] = None,  llm_extract_entity: bool = False):
         """
         :param text: Question text to ask the user.
         :param set_variable: Variable name to store extracted answer value.
@@ -172,6 +174,7 @@ class MoveAskOpen(Move):
         :param outcomes: Mapping from answers to outcome labels.
         :param default_outcome: Fallback outcome label.
         :param llm_followup: Optional LLM follow-up system prompt.
+        :param llm_extract_entity: Whether to let the LLM extract the key entity from the answer before storing it.
         """
         super().__init__()
         self.type = MOVE_ASK_OPEN
@@ -184,6 +187,7 @@ class MoveAskOpen(Move):
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
         self.timeout = timeout
+        self.llm_extract_entity = llm_extract_entity
 
     def get_type(self):
         """Return the move type."""
@@ -207,6 +211,7 @@ class MoveAskOpen(Move):
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
             timeout=data.get("timeout"),
+            llm_extract_entity=data.get("llm_extract_entity", False),
         )
 
 
@@ -410,14 +415,16 @@ class MoveBranch(Move):
     based on a condition (either the current dialog outcome or a user model variable).
     """
 
-    def __init__(self, on: str, cases: Optional[Dict[str, List]] = None):
+    def __init__(self, on: str, variables: Optional[List[str]] = None, cases: Optional[Dict[str, List]] = None):
         """
         :param on: Source of branching condition ("outcome" or variable name).
+        :param variable: Two variables to branch on based on whether they are the same
         :param cases: Mapping from condition values to lists of sub-moves.
         """
         super().__init__()
         self.type = MOVE_BRANCH
-        self.on = on or "outcome"
+        self.on = on
+        self.variables = variables
         self.cases = dict(cases or {})
 
     def get_type(self):
@@ -433,8 +440,9 @@ class MoveBranch(Move):
         :return: MoveBranch instance.
         """
         return cls(
-            on=data.get("on", "outcome"),
+            on=data.get("on"),
             cases=data.get("cases", {}),
+            variables=data.get("variables", []),
         )
 
 
@@ -732,3 +740,21 @@ class MoveKeyboardInput(Move):
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
         )
+        # pass
+
+class MoveGoToDialog(Move):
+    """
+    Execute specified next dialog.
+    """
+
+    def __init__(self, dialog_id: str):
+        """
+        :param dialog_id: The id of the dialog that should be executed next.
+        """
+        super().__init__()
+        self.type = MOVE_GO_TO_DIALOG
+        self.dialog_id = dialog_id
+
+    def get_type(self):
+        """Return the move type."""
+        return self.type

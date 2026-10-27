@@ -1,0 +1,56 @@
+[
+  {
+    "id": "greeting",
+    "type": "functional",
+    "functional_type": "greeting",
+    "moves": [
+      { "type": "say", "text": "Hi! Nice to see you." }
+    ]
+  },
+  {
+    "id": "ask_pet",
+    "type": "every_session_chitchat",
+    "topics": ["pets"],
+    "moves": [
+      {
+        "type": "ask_yesno",
+        "text": "Do you have a pet at home?",
+        "set_variable": "has_pet"
+      }
+    ]
+  },
+  {
+    "id": "pet_chat",
+    "type": "pet_owner_chitchat",
+    "topics": ["pets"],
+    "moves": [
+      {
+        "type": "ask_open",
+        "text": "Lovely! What is your pet's name?",
+        "set_variable": "pet_name"
+      },
+      { "type": "say", "text": "%pet_name% is a great name. Say hi to %pet_name% from me!" }
+    ]
+  },
+  {
+    "id": "weather_chat",
+    "type": "every_session_chitchat",
+    "topics": ["weather"],
+    "moves": [
+      {
+        "type": "ask_open",
+        "text": "How is the weather where you are today?",
+        "set_variable": "weather"
+      },
+      { "type": "say", "text": "Thanks for telling me. I'll ask again next time!" }
+    ]
+  },
+  {
+    "id": "farewell",
+    "type": "functional",
+    "functional_type": "farewell",
+    "moves": [
+      { "type": "say", "text": "That's all for today. Bye!" }
+    ]
+  }
+]

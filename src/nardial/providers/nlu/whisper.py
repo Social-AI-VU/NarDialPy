@@ -35,8 +35,6 @@ class LocalWhisperNLUProvider:
 
     def __init__(self, conf: LocalWhisperConf = None, mic: Any = None):
         self._whisper = LocalWhisper(ip="localhost", conf=conf or LocalWhisperConf(), input_source=mic)
-        # if mic is not None:
-        #     self._whisper.connect(mic)
 
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         try:

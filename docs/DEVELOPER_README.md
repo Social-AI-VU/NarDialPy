@@ -43,7 +43,7 @@ Dialog authors write one dialog object, or an array of dialog objects, in JSON. 
 
 `load_dialogs(path_or_dir)` in `authoring/loader.py` accepts either a single JSON file or a directory. If a directory is passed, it loads every `.json` file directly inside that directory. Each JSON object is sent to `DialogFactory.from_json()`.
 
-`DialogFactory` validates the document, normalizes `variable_dependencies`, keeps moves as dictionaries, and creates one of the runtime dialog classes:
+`DialogFactory` validates the shared fields, normalizes `variable_dependencies`, keeps moves as dictionaries, then looks the JSON `type` up in the dialog type registry (`dialog_types.py`) and delegates the type-specific work to that class's `validate_doc()` / `from_doc()` / `to_doc()` hooks. The built-in types register themselves in `mini_dialogs.py`:
 
 | JSON `type` | Runtime class | Required type-specific fields |
 | --- | --- | --- |
@@ -51,6 +51,8 @@ Dialog authors write one dialog object, or an array of dialog objects, in JSON. 
 | `narrative` | `NarrativeDialog` | `thread`, `position` |
 | `chitchat` | `ChitchatDialog` | optional `topics` |
 | `llm_based` | `LLMDialog` | `prompt`, optional LLM settings |
+
+Custom dialog types are subclasses registered under a new `type` string, either in Python or from a `define_type` JSON document (see "Adding a New Dialog Type" below). `define_type` docs live in their own files and are loaded with `load_dialog_types(path_or_dir)`, which must run before `load_dialogs()`. It registers them parents before children, whatever the file/doc order, and returns `(type classes, errors)`. The two are kept strictly apart: `load_dialogs()` reports a `define_type` doc as an error and skips it without registering it, and `load_dialog_types()` does the same for anything that isn't a `define_type` doc. Registered types are global to the process.
 
 Important design detail: normal move JSON is not converted into move objects at load time. It stays as dictionaries in `MiniDialog.moves`. Individual handlers convert a move dictionary with `MoveX.from_dict()` when they need typed access.
 
@@ -86,7 +88,31 @@ Branching depends on these values. A `branch` move chooses `cases[current_outcom
 
 Eligibility is expressed as small, composable `EligibilityRule`s in `eligibility.py`: `ExcludeIfSeenRule` (participant- or session-scoped), `DependencyMetRule`, `VariableDependencyMetRule`, `NarrativeOrderingRule`. Each dialog class declares its own `DEFAULT_ELIGIBILITY` list of rules (see `mini_dialogs.py`) -- e.g. `FunctionalDialog` deliberately omits `ExcludeIfSeenRule` so greetings/farewells re-run every session.
 
-An `EligibilityPolicy` bundles rules together and evaluates them against a context exposing `registry`/`completed_ids`/`session_completed_ids`/`user_model` -- either the full `AgendaContext` (`agenda/items.py`) or the lighter `EligibilityContext`. The free function `is_dialog_eligible(dialog, context, policy=None)` in `eligibility.py` is the single entry point: it falls back to the dialog's own `DEFAULT_ELIGIBILITY` when no explicit `policy` is given.
+An `EligibilityPolicy` bundles rules together and evaluates them against a context exposing `registry`/`completed_ids`/`session_completed_ids`/`user_model`/`session_index` -- either the full `AgendaContext` (`agenda/items.py`) or the lighter `EligibilityContext`. The free function `is_dialog_eligible(dialog, context, policy=None)` in `eligibility.py` is the single entry point: it falls back to the dialog's own `DEFAULT_ELIGIBILITY` when no explicit `policy` is given.
+
+`session_index` is the 1-indexed session number (`SessionManager` fills it in with the same number it uses to pick a session-plan template; `None` when unknown). The built-in rules don't use it; it's there for custom rules.
+
+Rules are also registered by name so they can be written in JSON. The built-in names are `exclude_if_seen`, `dependency_met`, `variable_dependency_met` and `narrative_ordering`. Anything else is left to package users to write as custom rules. `build_rule(spec)` turns a spec into a rule instance. A spec is either a bare name (`"dependency_met"`) or an object with a `"rule"` name plus that rule's params (`{"rule": "exclude_if_seen", "scope": "session"}`). `rule.to_dict()` is the inverse. Unknown names and bad params raise `ValueError`.
+
+To add a rule, subclass `EligibilityRule` and register it:
+
+```python
+from nardial.eligibility import EligibilityRule, register_rule
+
+@register_rule("user_model_contains")
+class UserModelContains(EligibilityRule):
+    def __init__(self, variable, item):
+        self.variable = variable
+        self.item = item
+
+    def is_eligible(self, dialog, context):
+        return self.item in (context.user_model.get(self.variable) or [])
+
+    def to_dict(self):
+        return {**super().to_dict(), "variable": self.variable, "item": self.item}
+```
+
+By default `from_dict(params)` passes the params straight to the constructor. Override it when a param needs converting, as `ExcludeIfSeenRule` does for `scope`. Raise `ValueError` from the constructor for bad params; `build_rule` reports it with the rule name. A custom rule must be registered (imported) before any JSON that names it is loaded. Keep rules stateless, because one instance is shared by every dialog that uses it.
 
 By default, a dialog is eligible only when:
 
@@ -110,6 +136,7 @@ For a plain-language, example-driven introduction to this system aimed at applic
 - `session_agenda`: an ordered list whose entries can be a plain dialog id string, an agenda item dict, or an `AgendaItem` instance.
 - `agent`: a configured `ConversationAgent`.
 - `dialog_json_path`: a JSON file or directory containing dialog definitions.
+- `dialog_types_path`: optional JSON file or directory of `define_type` docs, loaded (via `load_dialog_types()`) before `dialog_json_path`.
 - `participant_id`: optional persistent user identifier.
 - `session_plan_path`: optional path to a `SessionPlan` that picks a per-session-number agenda instead (see below).
 - `session_index`: optional 1-based session number override, used when picking a `SessionPlan` template instead of the auto-detected session number.
@@ -118,7 +145,7 @@ For a plain-language, example-driven introduction to this system aimed at applic
 
 During initialization: dialog JSON is loaded into a `DialogRegistry`; `ConversationState` is created and prior participant continuity is restored when possible; if `reset_history_from_session` is set, history is truncated first; a new session ID is created -- or, if `resume` is `True` and an incomplete session is found, that session's ID is reused instead; if `session_plan_path` is set, it overrides `session_agenda` with the template for this session number (`session_index`, when set, overrides the auto-detected number used to pick that template).
 
-`coerce_agenda_item()` (`agenda/items.py`) normalizes any raw agenda entry into an `AgendaItem`, mirroring `DialogFactory.from_json()`'s manual type-string dispatch:
+`coerce_agenda_item()` (`agenda/items.py`) normalizes any raw agenda entry into an `AgendaItem` via manual type-string dispatch:
 
 | JSON `type` | Class | Resolves to |
 | --- | --- | --- |
@@ -163,6 +190,13 @@ The same mutable `session_history`, `topics_of_interest`, and `user_model` objec
 for each move in self.moves:
     await self._dispatch_move(move)
 ```
+
+Before the move loop, `run()` calls `_execute_prerequisites()` when the dialog has `prerequisites` (a list of dicts, kept as loaded from JSON). Each entry is either:
+
+- `{"execute": name, "args": ...}`: looks `name` up in `MiniDialog._function_registry` and calls it synchronously. A list `args` is unpacked; any other value is passed as one argument; no `args` means no arguments. Functions are added to the registry with the `@MiniDialog.register(name)` decorator. The registry is a class attribute shared by all dialogs in the process.
+- `{"set_variable": {...}}`: `user_model.update(...)` with the given object.
+
+Failures (an unregistered name, an exception in the function, a non-object `set_variable`) are printed and skipped, so the remaining prerequisites and the dialog still run. Prerequisites run after eligibility has been checked, so they can't make the dialog itself eligible.
 
 The dialog keeps runtime references to:
 
@@ -219,14 +253,14 @@ It owns:
 
 Providers are protocol-based adapters. Each provider role has a small required interface in `src/nardial/providers/<role>/__init__.py`, with concrete implementations beside it.
 
-| Role | Protocol responsibility | Examples |
-| --- | --- | --- |
-| Device | Hardware setup, microphone, audio playback, animations, LEDs, listening signals, disconnect | `DesktopAdapter`, `PepperAdapter`, `NaoAdapter`, `AlphaminiAdapter` |
-| TTS | Convert text into speech/audio and play it on the configured device | `GoogleTTSProvider`, `ElevenLabsTTSProvider`, `NaoqiTTSProvider`, `NullTTSProvider` |
-| NLU | Listen for user input and return `NLUResult(transcript, intent, confidence)` | `DialogflowNLUProvider`, `WrittenKeywordNLUProvider` |
-| LLM | Complete a list of chat-like `Message` objects under a system prompt | `OpenAIGPTProvider`, `EchoLLMProvider` |
-| Vector store | Ingest/query retrieval snippets for RAG | `RedisVectorStoreProvider`, `NullVectorStoreProvider` |
-| Screen | Display transcripts/media/HTML and collect browser input | `SICScreenAdapter`, `PepperTabletScreenAdapter`, `NullScreenProvider` |
+| Role | Protocol responsibility | Examples                                                                                |
+| --- | --- |-----------------------------------------------------------------------------------------|
+| Device | Hardware setup, microphone, audio playback, animations, LEDs, listening signals, disconnect | `DesktopAdapter`, `PepperAdapter`, `NaoAdapter`, `AlphaminiAdapter`, `ReachyMiniAdapter` |
+| TTS | Convert text into speech/audio and play it on the configured device | `GoogleTTSProvider`, `ElevenLabsTTSProvider`, `NaoqiTTSProvider`, `NullTTSProvider`     |
+| NLU | Listen for user input and return `NLUResult(transcript, intent, confidence)` | `DialogflowNLUProvider`, `WrittenKeywordNLUProvider`                                    |
+| LLM | Complete a list of chat-like `Message` objects under a system prompt | `OpenAIGPTProvider`, `EchoLLMProvider`                                                  |
+| Vector store | Ingest/query retrieval snippets for RAG | `RedisVectorStoreProvider`, `NullVectorStoreProvider`                                   |
+| Screen | Display transcripts/media/HTML and collect browser input | `SICScreenAdapter`, `PepperTabletScreenAdapter`, `NullScreenProvider`                   |
 
 Providers should hide service-specific details. The rest of the runtime should only rely on the protocol methods.
 
@@ -275,6 +309,36 @@ To add a new JSON move:
 
 If the move talks to hardware or a service, prefer going through `ConversationAgent` or `InteractionOrchestrator` rather than importing a concrete provider.
 
+## Adding a New Dialog Type
+
+Subclass the closest existing dialog class and register it under a new JSON `type` string with `@register_dialog_type` (`dialog_types.py`):
+
+```python
+from nardial.dialog_types import register_dialog_type
+from nardial.mini_dialogs import ChitchatDialog
+
+@register_dialog_type("evening_chitchat")
+class EveningChitchat(ChitchatDialog):
+    DEFAULT_ELIGIBILITY = ChitchatDialog.DEFAULT_ELIGIBILITY + [MyEveningRule()]
+```
+
+The class must be imported (so the decorator runs) before dialog JSON is loaded. A subclass inherits:
+
+- its parent's `validate_doc()` / `from_doc()` / `to_doc()`, so JSON with `"type": "evening_chitchat"` accepts the same fields as `chitchat`. Override them, calling `super()`, to add fields of your own;
+- its parent's `DIALOG_TYPE` and `INDEX_ATTRS`, so agenda slots that select by `DIALOG_TYPE` (e.g. `ChitchatSlot`) still pick it up. `TYPE_NAME` (the JSON string) is separate from `DIALOG_TYPE` (the built-in category).
+
+Override `DEFAULT_ELIGIBILITY` to add or drop rules (see "Dialog Eligibility"). Rule instances are shared by every dialog of the class, so keep them stateless. Registering a different class under a name that's already taken raises `ValueError`.
+
+### From JSON
+
+When a type only changes eligibility rules, authors can define it without Python, using a `define_type` document (schema in the README's "Custom dialog types"). `DialogTypeFactory` (`authoring/factory.py`) validates the definition and builds it with `type()`. The result is a subclass of `extends`, with `DEFAULT_ELIGIBILITY` set to the parent's rules minus `remove_rules` (matched by `RULE_NAME`) plus the rules built from `add_rules`. It is registered under the `define_type` name. The original doc is kept as `TYPE_DEFINITION`. Loading an identical definition again returns the existing class, so loading a types file again is safe. A different definition under a taken name, including a built-in type name, raises `ValueError`.
+
+`DialogTypeFactory.validate_doc()` reports each of these as an error:
+- unknown keys;
+- an unknown `extends`;
+- an unknown rule name, or bad rule settings, in `add_rules`;
+- a `remove_rules` name that isn't one of the base type's rules.
+
 ## Adding a New Provider
 
 To add a provider:
@@ -290,9 +354,11 @@ Provider implementations should be swappable. A session should not need differen
 
 ## Common Extension Points
 
-- Change dialog authoring schema: `authoring/factory.py`
+- Change dialog authoring schema: `authoring/factory.py` (shared fields), each dialog class's `validate_doc()`/`from_doc()`/`to_doc()` (type-specific fields)
+- Add dialog types: `dialog_types.py`, `mini_dialogs.py`
 - Change move runtime behavior: `mini_dialogs.py`
-- Change eligibility rules: `eligibility.py`
+- Add functions for dialog `prerequisites`: `@MiniDialog.register(name)` (`mini_dialogs.py`)
+- Change or add eligibility rules: `eligibility.py` (`register_rule`)
 - Change agenda item types, resolution, or session plans: `agenda/*.py`
 - Change persistence and continuity: `conversation_state.py`, `user_model.py`
 - Change speech/listening/LLM orchestration: `conversation_agent.py`, `interaction_orchestrator.py`

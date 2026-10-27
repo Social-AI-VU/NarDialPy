@@ -21,16 +21,18 @@ class AgendaContext:
     """Mutable state agenda items resolve against.
 
     Exposes the same attribute names as `eligibility.EligibilityContext`
-    (`registry`, `completed_ids`, `session_completed_ids`, `user_model`) so
-    it can be passed anywhere an `EligibilityContext` is expected, plus the
-    fields agenda items themselves need (`topics_of_interest`,
-    `mark_completed`).
+    (`registry`, `completed_ids`, `session_completed_ids`, `user_model`,
+    `session_index`) so it can be passed anywhere an `EligibilityContext`
+    is expected, plus the fields agenda items themselves need
+    (`topics_of_interest`, `mark_completed`).
     """
     registry: Optional["DialogRegistry"] = None
     completed_ids: List[str] = field(default_factory=list)
     session_completed_ids: List[str] = field(default_factory=list)
     user_model: Dict[str, Any] = field(default_factory=dict)
     topics_of_interest: List[str] = field(default_factory=list)
+    # 1-indexed number of the current session, when known (see `SessionManager`).
+    session_index: Optional[int] = None
 
     def mark_completed(self, dialog_id: str) -> None:
         if dialog_id not in self.completed_ids:
@@ -202,8 +204,8 @@ class LLMDialogRef(AgendaItem):
 def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaItem:
     """Coerce a raw agenda entry (string id, dict, or AgendaItem) into an AgendaItem.
 
-    Mirrors `DialogFactory.from_json()`'s manual type-string dispatch rather
-    than a Pydantic discriminated union. Recognized dict `"type"` values:
+    Uses manual type-string dispatch rather than a Pydantic discriminated
+    union. Recognized dict `"type"` values:
     `"dialog_ref"`, `"narrative_slot"`, `"chitchat_slot"`, `"functional_slot"`,
     `"llm_dialog_ref"`.
     """

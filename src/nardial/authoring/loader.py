@@ -1,9 +1,10 @@
 import json
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Type
 
-from nardial.authoring.factory import DialogFactory
+from nardial.authoring.factory import DialogFactory, DialogTypeFactory
 from nardial.dialog_registry import DialogRegistry
+from nardial.dialog_types import get_dialog_type
 from nardial.mini_dialogs import MiniDialog
 
 
@@ -17,33 +18,88 @@ def _load_json_file(path: str) -> List[Dict[str, Any]]:
     raise ValueError(f"Unsupported JSON root in {path}: {type(data)}")
 
 
+def _read_docs(path_or_dir: str, errors: List[str]) -> List[Tuple[str, Any]]:
+    """Read every doc from a JSON file or all .json files in a directory, as (source path, doc) pairs."""
+    if os.path.isdir(path_or_dir):
+        paths = [os.path.join(path_or_dir, fn) for fn in os.listdir(path_or_dir) if fn.lower().endswith(".json")]
+    else:
+        paths = [path_or_dir]
+
+    entries: List[Tuple[str, Any]] = []
+    for p in paths:
+        try:
+            entries.extend((p, doc) for doc in _load_json_file(p))
+        except Exception as e:
+            errors.append(f"{p}: {e}")
+    return entries
+
+
+def _define_types(definitions: List[Tuple[str, Any]], errors: List[str]) -> List[Type[MiniDialog]]:
+    """Register every `define_type` doc, parents before children, regardless of file/doc order."""
+    defined: List[Type[MiniDialog]] = []
+    pending = list(definitions)
+    while pending:
+        ready = [(p, doc) for p, doc in pending
+                 if isinstance(doc.get("extends"), str) and get_dialog_type(doc["extends"]) is not None]
+        if not ready:
+            break
+        for entry in ready:
+            pending.remove(entry)
+            p, doc = entry
+            try:
+                defined.append(DialogTypeFactory.from_json(doc))
+            except Exception as e:
+                errors.append(f"{p}: {e}")
+
+    # Whatever is left extends an unknown type (or is part of a cycle); report why.
+    for p, doc in pending:
+        try:
+            defined.append(DialogTypeFactory.from_json(doc))
+        except Exception as e:
+            errors.append(f"{p}: {e}")
+    return defined
+
+
+def load_dialog_types(path_or_dir: str) -> Tuple[List[Type[MiniDialog]], List[str]]:
+    """Register the dialog types defined in a JSON file or all .json files in a directory.
+
+    Every doc must be a `define_type` doc (see `DialogTypeFactory`); types
+    may extend each other in any file/doc order. Must run before loading
+    dialogs that use these types.
+
+    Returns (registered type classes, errors).
+    """
+    errors: List[str] = []
+    definitions: List[Tuple[str, Any]] = []
+    for p, doc in _read_docs(path_or_dir, errors):
+        if DialogTypeFactory.is_type_definition(doc):
+            definitions.append((p, doc))
+        else:
+            errors.append(f"{p}: not a dialog type definition (missing 'define_type'); "
+                          f"dialogs belong in a separate dialog file")
+    return _define_types(definitions, errors), errors
+
+
 def load_dialogs(path_or_dir: str) -> Tuple[List[MiniDialog], List[str]]:
     """Load dialogs from a JSON file or all .json files in a directory.
+
+    Custom dialog types must already be registered (see `load_dialog_types`);
+    a `define_type` doc here is reported as an error.
 
     Returns (dialogs, errors).
     """
     dialogs: List[MiniDialog] = []
     errors: List[str] = []
 
-    try:
-        if os.path.isdir(path_or_dir):
-            for fn in os.listdir(path_or_dir):
-                if not fn.lower().endswith(".json"):
-                    continue
-                p = os.path.join(path_or_dir, fn)
-                try:
-                    for doc in _load_json_file(p):
-                        dialogs.append(DialogFactory.from_json(doc))
-                except Exception as e:
-                    errors.append(f"{p}: {e}")
-        else:
-            for doc in _load_json_file(path_or_dir):
-                try:
-                    dialogs.append(DialogFactory.from_json(doc))
-                except Exception as e:
-                    errors.append(f"{path_or_dir}: {e}")
-    except Exception as e:
-        errors.append(str(e))
+    for p, doc in _read_docs(path_or_dir, errors):
+        if DialogTypeFactory.is_type_definition(doc):
+            errors.append(f"{p}: dialog type definition {doc.get('define_type')!r} found in a dialog file; "
+                          f"type definitions belong in a separate file, loaded with load_dialog_types()")
+            continue
+        try:
+            dialogs.append(DialogFactory.from_json(doc))
+        except Exception as e:
+            errors.append(f"{p}: {e}")
 
     return dialogs, errors
 

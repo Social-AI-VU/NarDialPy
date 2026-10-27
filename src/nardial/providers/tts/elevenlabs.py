@@ -98,7 +98,7 @@ class ElevenLabsTTSProvider(TTSProvider):
                 self._tts_cacher.save_audio_file(tts_key, audio_bytes, sample_rate)
 
     def close(self) -> None:
-        self._tts.stop()
+        self._tts.stop_component()
 
     def cancel(self) -> None:
         pass

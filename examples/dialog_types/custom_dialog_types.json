@@ -1,0 +1,19 @@
+[
+  {
+    "define_type": "every_session_chitchat",
+    "extends": "chitchat",
+    "description": "Chitchat that runs once in every session, instead of only once per participant.",
+    "remove_rules": ["exclude_if_seen"],
+    "add_rules": [
+      { "rule": "exclude_if_seen", "scope": "session" }
+    ]
+  },
+  {
+    "define_type": "pet_owner_chitchat",
+    "extends": "every_session_chitchat",
+    "description": "Chitchat for participants who said they have a pet. Uses the custom 'user_model_is' rule from examples/demo_custom_dialog_type.py.",
+    "add_rules": [
+      { "rule": "user_model_is", "variable": "has_pet", "value": "yes" }
+    ]
+  }
+]

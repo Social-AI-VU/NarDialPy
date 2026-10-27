@@ -12,7 +12,7 @@ from nardial.conversation_state import ConversationState
 from nardial.dialog_registry import DialogRegistry
 from nardial.eligibility import is_dialog_eligible
 
-from nardial.authoring import load_dialog_registry
+from nardial.authoring import load_dialog_registry, load_dialog_types
 from nardial.events import EventBus
 
 
@@ -23,7 +23,8 @@ class SessionManager:
     """
 
     def __init__(self, session_agenda: list, agent: ConversationAgent, dialog_json_path: str, participant_id=None,
-                 session_plan_path=None, session_index=None, reset_history_from_session=None, resume: bool = False):
+                 session_plan_path=None, session_index=None, reset_history_from_session=None, resume: bool = False,
+                 dialog_types_path=None):
         """
         Initialize a session manager.
 
@@ -38,7 +39,8 @@ class SessionManager:
             overrides `session_agenda`; falls back to `session_agenda` unchanged if
             the plan fails to load or defines no templates.
         :param session_index: Overrides the auto-detected session number used to pick a
-            `SessionPlan` template. Ignored when `session_plan_path` is not set.
+            `SessionPlan` template and exposed to eligibility rules as
+            `AgendaContext.session_index`.
         :param reset_history_from_session: When set, destructively truncates this
             participant's persisted history from this 1-based session number onward
             before the new session starts. Irreversible.
@@ -46,8 +48,14 @@ class SessionManager:
             is still `None`, e.g. left behind by a crash) and resumes it by reusing its
             session id and skipping the dialogs it already ran. Proceeds as a fresh
             session when no incomplete session is found.
+        :param dialog_types_path: Optional path to a JSON file or directory of custom
+            dialog type definitions (`define_type` docs). Loaded before the dialogs in
+            `dialog_json_path`, which may then use these types.
         """
         self.session_agenda = session_agenda
+        self.dialog_types_path = dialog_types_path
+        if dialog_types_path:
+            self.load_dialog_types_from_json(dialog_types_path)
         self.registry = self.load_dialog_registry_from_json(dialog_json_path)
         self.agent = agent
 
@@ -94,6 +102,22 @@ class SessionManager:
                 self.session_agenda = plan_agenda
 
         self._bus = None
+
+    @staticmethod
+    def load_dialog_types_from_json(path):
+        """
+        Register the custom dialog types defined in a JSON file or directory.
+
+        Errors are logged; types that loaded successfully stay registered.
+
+        :param path: Path to the dialog types JSON file or directory.
+        :return: List of registered dialog type classes.
+        """
+        types, errors = load_dialog_types(path)
+        if errors:
+            print("[ERROR] Failed to fully load dialog types:", errors)
+        print(f"[INFO] Loaded {len(types)} dialog types from {path}")
+        return types
 
     @staticmethod
     def load_dialog_registry_from_json(path):
@@ -143,6 +167,13 @@ class SessionManager:
         """
         return len(self.conversation_state.sessions)
 
+    def _session_number(self) -> int:
+        """Session number used for plan templates and session-based eligibility rules.
+
+        `session_index`, when set, overrides the auto-detected number.
+        """
+        return self.session_index if self.session_index is not None else self._current_session_number()
+
     def _resolve_session_plan_agenda(self):
         """Resolve this session's agenda from `session_plan_path`, if set.
 
@@ -156,7 +187,7 @@ class SessionManager:
         if plan is None:
             return None
 
-        session_number = self.session_index if self.session_index is not None else self._current_session_number()
+        session_number = self._session_number()
         template = plan.get_template(session_number)
         if template is None:
             print(f"[WARN] Session plan {plan.plan_id!r} has no templates; keeping the given session_agenda.")
@@ -194,6 +225,7 @@ class SessionManager:
             session_completed_ids=list(self._resume_completed_ids),
             user_model=self.conversation_state.user_model,
             topics_of_interest=self.conversation_state.topics_of_interest,
+            session_index=self._session_number(),
         )
 
     def run(self):
@@ -286,6 +318,7 @@ class SessionManager:
                     session_history,
                     self.conversation_state.topics_of_interest,
                     self.conversation_state.user_model,
+                    self.registry
                 )
             except Exception as e:
                 print(f"[ERROR] Running dialog {dialog.dialog_id} failed: {e}")

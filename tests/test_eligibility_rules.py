@@ -1,15 +1,23 @@
 from types import SimpleNamespace
 
+import pytest
+
+from nardial import eligibility
 from nardial.dialog_registry import DialogRegistry
 from nardial.eligibility import (
     DependencyMetRule,
     EligibilityContext,
     EligibilityPolicy,
+    EligibilityRule,
     EligibilityScope,
     ExcludeIfSeenRule,
     NarrativeOrderingRule,
     VariableDependencyMetRule,
+    build_rule,
+    get_rule,
     is_dialog_eligible,
+    register_rule,
+    rule_names,
 )
 from nardial.mini_dialogs import FunctionalDialog, NarrativeDialog
 
@@ -145,3 +153,88 @@ def test_is_dialog_eligible_enforces_narrative_ordering_via_registry():
 
     assert is_dialog_eligible(step2, EligibilityContext(registry=registry, completed_ids=[])) is False
     assert is_dialog_eligible(step2, EligibilityContext(registry=registry, completed_ids=["step_1"])) is True
+
+
+# --- rule registry / JSON rule specs ---
+
+@pytest.fixture
+def isolated_rules(monkeypatch):
+    # Custom rules registered in a test must not leak into other tests.
+    monkeypatch.setattr(eligibility, "_RULES", dict(eligibility._RULES))
+
+
+def test_builtin_rules_are_registered_by_name():
+    assert get_rule("exclude_if_seen") is ExcludeIfSeenRule
+    assert get_rule("dependency_met") is DependencyMetRule
+    assert get_rule("variable_dependency_met") is VariableDependencyMetRule
+    assert get_rule("narrative_ordering") is NarrativeOrderingRule
+    assert rule_names()[:4] == ["exclude_if_seen", "dependency_met", "variable_dependency_met", "narrative_ordering"]
+
+
+def test_build_rule_from_bare_name():
+    rule = build_rule("dependency_met")
+    assert isinstance(rule, DependencyMetRule)
+
+
+def test_build_rule_converts_exclude_if_seen_scope():
+    rule = build_rule({"rule": "exclude_if_seen", "scope": "session"})
+    assert rule.scope == EligibilityScope.SESSION
+    assert build_rule("exclude_if_seen").scope == EligibilityScope.PARTICIPANT
+
+
+@pytest.mark.parametrize("rule", [
+    ExcludeIfSeenRule(),
+    ExcludeIfSeenRule(scope=EligibilityScope.SESSION),
+    DependencyMetRule(),
+    VariableDependencyMetRule(),
+    NarrativeOrderingRule(),
+])
+def test_builtin_rules_roundtrip_through_dict(rule):
+    rebuilt = build_rule(rule.to_dict())
+    assert type(rebuilt) is type(rule)
+    assert rebuilt.to_dict() == rule.to_dict()
+
+
+@pytest.mark.parametrize("spec, message", [
+    ("nope", "unknown eligibility rule 'nope'"),
+    ({"rule": "exclude_if_seen", "scope": "forever"}, "invalid params for eligibility rule 'exclude_if_seen'"),
+    ({"rule": "dependency_met", "extra": 1}, "invalid params for eligibility rule 'dependency_met'"),
+    ({"scope": "session"}, "rule spec must be"),
+    (42, "rule spec must be"),
+])
+def test_build_rule_rejects_bad_specs(spec, message):
+    with pytest.raises(ValueError, match=message):
+        build_rule(spec)
+
+
+def test_custom_rule_registers_and_builds_with_params(isolated_rules):
+    @register_rule("user_model_contains")
+    class UserModelContains(EligibilityRule):
+        def __init__(self, variable, item):
+            self.variable = variable
+            self.item = item
+
+        def is_eligible(self, dialog, context):
+            return self.item in (context.user_model.get(self.variable) or [])
+
+        def to_dict(self):
+            return {**super().to_dict(), "variable": self.variable, "item": self.item}
+
+    spec = {"rule": "user_model_contains", "variable": "hobbies", "item": "music"}
+    rule = build_rule(spec)
+    dialog = make_dialog("d1")
+
+    assert rule.to_dict() == spec
+    assert rule.is_eligible(dialog, EligibilityContext(user_model={"hobbies": ["music", "chess"]}))
+    assert not rule.is_eligible(dialog, EligibilityContext(user_model={"hobbies": ["chess"]}))
+    assert not rule.is_eligible(dialog, EligibilityContext())
+
+
+def test_registering_taken_rule_name_to_other_class_raises(isolated_rules):
+    with pytest.raises(ValueError, match="already registered"):
+        @register_rule("dependency_met")
+        class Impostor(EligibilityRule):
+            def is_eligible(self, dialog, context):
+                return True
+
+    assert get_rule("dependency_met") is DependencyMetRule

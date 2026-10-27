@@ -26,10 +26,12 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", post_speech_delay=None,
-                 signal_listening_behavior=True):
+                 signal_listening_behavior=True, listen_timeout=10):
         self.language = language
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior
+        # Default seconds to listen for a user answer; moves can override it with their own "timeout".
+        self.listen_timeout = listen_timeout
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False
@@ -180,7 +182,9 @@ class InteractionOrchestrator:
         if post_speech_delay and post_speech_delay > 0:
             await asyncio.sleep(post_speech_delay)
 
-    async def listen(self, context=None, timeout=10) -> NLUResult:
+    async def listen(self, context=None, timeout=None) -> NLUResult:
+        if timeout is None:
+            timeout = self.interaction_conf.listen_timeout
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
         try:

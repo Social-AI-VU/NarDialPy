@@ -642,6 +642,7 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
 | `add_interest_from_answer` | boolean | | If `true`, adds the answer to the user's topics of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence after the user replies |
 | `llm_extract_entity` | boolean | | If `true`, the LLM extracts the key entity from the answer (e.g. `"dog"` from `"my favorite animal is a dog"`) before it is stored; unrelated answers store nothing. Default `false` |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {
@@ -667,6 +668,7 @@ Asks a yes/no question. The detected intent (`"yes"`, `"no"`, `"dontknow"`) driv
 | `default_outcome` | string | | Outcome label used as fallback |
 | `add_interest` | string | | Topic added to interest list when the user answers `"yes"` |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {
@@ -695,6 +697,7 @@ Presents a multiple-choice question. The selected option drives branching and ca
 | `default_outcome` | string | | Outcome label when nothing matches |
 | `add_interest_from_variable` | string | | After storing, adds the named variable's value as a topic of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {

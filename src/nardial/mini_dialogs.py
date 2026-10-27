@@ -466,6 +466,7 @@ class MiniDialog:
             options[i] = self._replace_variables(options[i])
         if self._get(move, 'timeout'):
             timeout = self._get(move, 'timeout')
+            kwargs['timeout'] = timeout
         answer = await self.conversation_agent.ask_options(text, move.options, **kwargs)
         self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)
@@ -534,7 +535,7 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = await agent.orchestrator.listen(timeout=timeout or 10)
+            result = await agent.orchestrator.listen(timeout=timeout)
             user_input = result.transcript or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
@@ -566,7 +567,7 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = await agent.orchestrator.listen(timeout=timeout or 10)
+            result = await agent.orchestrator.listen(timeout=timeout)
             user_input = result.transcript or ""
 
             # Record the exchange using the provided record types

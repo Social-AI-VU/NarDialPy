@@ -112,7 +112,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    async def ask_yesno(self, question, max_attempts=1, timeout=10, **kwargs):
+    async def ask_yesno(self, question, max_attempts=1, timeout=None, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -122,6 +122,8 @@ class ConversationAgent:
             The question to ask the user.
         max_attempts : int, optional
             Number of retries if no valid answer is detected.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
 
         Returns
         -------
@@ -143,7 +145,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_open(self, question, max_attempts=2, timeout=10, **kwargs):
+    async def ask_open(self, question, max_attempts=2, timeout=None, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -153,6 +155,8 @@ class ConversationAgent:
             The question to ask.
         max_attempts : int, optional
             Number of retries if no response is captured.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
 
         Returns
         -------
@@ -168,7 +172,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_options(self, question, options, max_attempts=2, timeout=10, **kwargs):
+    async def ask_options(self, question, options, max_attempts=2, timeout=None, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -180,6 +184,8 @@ class ConversationAgent:
             List of expected keywords/options to match against the response.
         max_attempts : int, optional
             Number of retries.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
 
         Returns
         -------

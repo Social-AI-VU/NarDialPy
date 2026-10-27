@@ -143,7 +143,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_open(self, question, max_attempts=2, **kwargs):
+    async def ask_open(self, question, max_attempts=2, context=None, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -153,6 +153,8 @@ class ConversationAgent:
             The question to ask.
         max_attempts : int, optional
             Number of retries if no response is captured.
+        context : optional
+            NLU context passed to the listening function (e.g. Dialogflow contexts).
 
         Returns
         -------
@@ -162,7 +164,9 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen()
+            result = await self.orchestrator.listen(context={context: 1})
+            if result.intent:
+                print(f'context: {context}, recognized_intent: {result.intent}')
             if result.transcript:
                 return result.transcript
             attempts += 1

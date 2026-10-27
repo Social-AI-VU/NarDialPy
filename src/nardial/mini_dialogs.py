@@ -424,7 +424,7 @@ class MiniDialog:
         move = MoveAskOpen.from_dict(move)
         voice_settings = self._get_voice_settings(move)
         text = self._replace_variables(self._get(move, 'text'))
-        answer = await self.conversation_agent.ask_open(text, voice_settings=voice_settings)
+        answer = await self.conversation_agent.ask_open(text, context=move.context, voice_settings=voice_settings)
         self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")

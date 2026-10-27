@@ -161,7 +161,8 @@ class MoveAskOpen(Move):
                  add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 llm_followup: Optional[str] = None, llm_extract_entity: bool = False):
+                 llm_followup: Optional[str] = None, llm_extract_entity: bool = False,
+                 context: Optional[Dict[str, int]] = None):
         """
         :param text: Question text to ask the user.
         :param set_variable: Variable name to store extracted answer value.
@@ -172,6 +173,7 @@ class MoveAskOpen(Move):
         :param default_outcome: Fallback outcome label.
         :param llm_followup: Optional LLM follow-up system prompt.
         :param llm_extract_entity: Whether to let the LLM extract the key entity from the answer before storing it.
+        :param context: Optional NLU context passed to the listening function (e.g. Dialogflow contexts).
         """
         super().__init__()
         self.type = MOVE_ASK_OPEN
@@ -184,6 +186,7 @@ class MoveAskOpen(Move):
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
         self.llm_extract_entity = llm_extract_entity
+        self.context = context
 
     def get_type(self):
         """Return the move type."""
@@ -207,6 +210,7 @@ class MoveAskOpen(Move):
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
             llm_extract_entity=data.get("llm_extract_entity", False),
+            context=data.get("context"),
         )
 
 

@@ -22,15 +22,32 @@ class DialogflowNLUProvider:
                 GetIntentRequest(self._request_id, context), timeout=timeout
             )
             print("The detected intent:", reply.intent)
-            transcript = reply.response.query_result.query_text or ""
+            query_result = reply.response.query_result
+            transcript = query_result.query_text or ""
             intent = reply.intent if reply.intent else None
-            return NLUResult(transcript=transcript, intent=intent)
+            parameters = self._parameters_to_dict(query_result)
+            if parameters:
+                print("The detected parameters:", parameters)
+            return NLUResult(transcript=transcript, intent=intent, parameters=parameters)
         except TimeoutError as e:
             print("Dialogflow timeout:", e)
             return NLUResult(transcript="", intent=None)
 
     def cancel(self) -> None:
         pass
+
+    @staticmethod
+    def _parameters_to_dict(query_result) -> dict:
+        """Convert the ``parameters`` Struct of a Dialogflow query result to a plain dict."""
+        params = getattr(query_result, "parameters", None)
+        if not params:
+            return {}
+        result = {}
+        for name, value in params.items():
+            if not isinstance(value, (str, int, float, bool, dict)) and hasattr(value, "__iter__"):
+                value = list(value)
+            result[name] = value
+        return result
 
     def _on_dialog(self, message) -> None:
         if message.response:

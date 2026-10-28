@@ -128,3 +128,20 @@ class TestAskOpen:
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
         await agent.ask_open("What do you like?", max_attempts=2)
         assert agent.orchestrator.say.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_keeps_last_nlu_result(self, agent):
+        """ask_open keeps the full NLU result so callers can read the entities."""
+        agent.orchestrator.listen.return_value = NLUResult(
+            transcript="een hamster", intent="animals", parameters={"dier": "hamster"}
+        )
+        assert await agent.ask_open("Welk huisdier?", context="animals") == "een hamster"
+        assert agent.last_nlu_result.entity == "hamster"
+
+
+def test_nlu_result_entity():
+    """NLUResult.entity returns the first non-empty parameter value."""
+    assert NLUResult(transcript="x").entity is None
+    assert NLUResult(transcript="x", parameters={"dier": ""}).entity is None
+    assert NLUResult(transcript="x", parameters={"kleur": "", "dier": "kat"}).entity == "kat"
+    assert NLUResult(transcript="x", parameters={"dier": ["", "hond"]}).entity == "hond"

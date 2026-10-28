@@ -4,7 +4,7 @@ import re
 from nardial.providers.device import DeviceAdapter
 from nardial.providers.tts import TTSProvider
 from nardial.providers.nlu import (
-    NLUProvider,
+    NLUProvider, NLUResult,
     INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
 )
 from nardial.providers.llm import LLMProvider
@@ -64,6 +64,8 @@ class ConversationAgent:
             screen_provider=screen_provider,
             int_config=int_config,
         )
+        # Full NLU result of the last ask_open() call, so callers can read the intent/entities.
+        self.last_nlu_result: NLUResult | None = None
 
     async def say(self, text, **kwargs):
         """
@@ -160,7 +162,9 @@ class ConversationAgent:
         -------
         str or None
             The recognized user response, or None if no input is captured.
+            The full NLU result (intent, entities) is kept in ``last_nlu_result``.
         """
+        self.last_nlu_result = None
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
@@ -168,6 +172,8 @@ class ConversationAgent:
                 result = await self.orchestrator.listen(context={str(context): 1})
             else:
                 result = await self.orchestrator.listen()
+            self.last_nlu_result = result
+            print(result)
             if result.intent:
                 print(f'context: {context}, recognized_intent: {result.intent}')
             if result.transcript:

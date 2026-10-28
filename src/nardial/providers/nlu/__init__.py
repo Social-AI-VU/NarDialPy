@@ -13,6 +13,18 @@ class NLUResult:
     transcript: str
     intent: str | None = None
     confidence: float = 0.0
+    # Entities extracted alongside the intent (e.g. Dialogflow parameters).
+    parameters: dict = field(default_factory=dict)
+
+    @property
+    def entity(self) -> str | None:
+        """The first non-empty entity value, or None when no entity was found."""
+        for value in self.parameters.values():
+            if isinstance(value, (list, tuple)):
+                value = next((v for v in value if v not in (None, "")), None)
+            if value not in (None, "", {}):
+                return str(value)
+        return None
 
 
 @runtime_checkable

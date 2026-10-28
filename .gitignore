@@ -43,9 +43,6 @@ conf/.env
 # Ignore Claude settings
 .claude/
 
-# ignore assets
-examples/assets/
-
 # virtual environments
 .venv/
 venv/

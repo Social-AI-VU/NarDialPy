@@ -164,7 +164,10 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen(context={context: 1})
+            if context:
+                result = await self.orchestrator.listen(context={str(context): 1})
+            else:
+                result = await self.orchestrator.listen()
             if result.intent:
                 print(f'context: {context}, recognized_intent: {result.intent}')
             if result.transcript:

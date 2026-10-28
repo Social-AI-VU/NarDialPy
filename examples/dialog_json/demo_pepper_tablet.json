@@ -30,7 +30,7 @@
         "type": "show_video",
         "src": "assets/videos/dummy_video.mp4"
       },
-      { "type": "timed_wait", "duration_seconds": 60.0 },
+      { "type": "timed_wait", "duration_seconds": 6.0 },
       { "type": "black_screen" },
       { "type": "say", "text": "Thanks for watching. Goodbye!" }
     ]

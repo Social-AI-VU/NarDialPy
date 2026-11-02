@@ -1,7 +1,9 @@
 """Tests for session-wide controls (pause/resume, skip_listen) and the keyboard source."""
 import asyncio
+import importlib
+import sys
 import threading
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -244,6 +246,60 @@ async def test_listen_without_control_is_unchanged():
     result = await orch.listen()
     assert result.transcript == "hoi"
     assert not result.interrupted
+
+
+async def test_listen_uses_the_providers_stop_grace():
+    orch = _make_orchestrator({"skip_listen": ["s"]})
+    orch.nlu_provider.stop_grace = 0.05
+    release = threading.Event()
+    # A provider that does not stop when cancelled: give up after its own stop_grace.
+    orch.nlu_provider.listen.side_effect = lambda **kw: release.wait(5) and NLUResult(transcript="late")
+
+    try:
+        runner = asyncio.create_task(orch.listen(timeout=5))
+        await asyncio.sleep(0.05)
+        orch.control.skip_listen()
+        result = await asyncio.wait_for(runner, 1)
+        assert result.transcript == "" and result.interrupted
+    finally:
+        release.set()
+        await orch.stop_controls()
+
+
+# ---------------------------------------------------------------------------
+# Whisper provider
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def whisper_provider(monkeypatch):
+    """Import LocalWhisperNLUProvider against a stubbed SIC LocalWhisper service."""
+    connector = Mock()
+    module = ModuleType("sic_framework.services.local_whisper_stt.local_whisper")
+    module.LocalWhisper = Mock(return_value=connector)
+    module.LocalWhisperConf = Mock()
+    module.GetTranscript = Mock()
+    messages = ModuleType("sic_framework.core.message_python2")
+    messages.AudioMessage = lambda waveform, sample_rate: SimpleNamespace(waveform=waveform, sample_rate=sample_rate)
+    monkeypatch.setitem(sys.modules, "sic_framework.core.message_python2", messages)
+    monkeypatch.setitem(sys.modules, "sic_framework.services.local_whisper_stt", ModuleType("x"))
+    monkeypatch.setitem(sys.modules, "sic_framework.services.local_whisper_stt.local_whisper", module)
+    monkeypatch.delitem(sys.modules, "nardial.providers.nlu.whisper", raising=False)
+
+    provider_module = importlib.import_module("nardial.providers.nlu.whisper")
+    return provider_module.LocalWhisperNLUProvider(conf=Mock()), connector
+
+
+def test_whisper_cancel_sends_end_of_audio(whisper_provider):
+    provider, connector = whisper_provider
+    provider.cancel()
+    sent = [call.args[0] for call in connector.send_message.call_args_list]
+    assert len(sent) == 2
+    assert all(msg.waveform == b"" for msg in sent)
+
+
+def test_whisper_waits_longer_for_the_transcript(whisper_provider):
+    provider, _ = whisper_provider
+    assert provider.stop_grace > 3.0
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 from typing import Any
 
+from sic_framework.core.message_python2 import AudioMessage
 from sic_framework.services.local_whisper_stt.local_whisper import (
     LocalWhisper,
     LocalWhisperConf,
@@ -33,6 +34,9 @@ class LocalWhisperNLUProvider:
         Obtain via ``device.get_mic()``.
     """
 
+    # Seconds a pause/skip waits for the transcript after cancel(); transcription runs after recording stops.
+    stop_grace = 30.0
+
     def __init__(self, conf: LocalWhisperConf = None, mic: Any = None):
         self._whisper = LocalWhisper(ip="localhost", conf=conf or LocalWhisperConf(), input_source=mic)
 
@@ -51,4 +55,12 @@ class LocalWhisperNLUProvider:
             return NLUResult(transcript="", intent=None)
 
     def cancel(self) -> None:
-        pass
+        # The service has no stop message, but an empty audio chunk ends speech_recognition's
+        # listen loop ("end of stream"), so what was heard so far is still transcribed. Sent twice:
+        # once to end "waiting for speech", once to end the phrase. Leftovers are cleared by the
+        # service at the start of the next listen.
+        for _ in range(2):
+            try:
+                self._whisper.send_message(AudioMessage(b"", sample_rate=16000))
+            except Exception as e:
+                print("LocalWhisper stop listening failed:", e)

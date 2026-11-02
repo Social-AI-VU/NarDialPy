@@ -216,7 +216,12 @@ class InteractionOrchestrator:
             stopped = True
             self.nlu_provider.cancel()
 
-        result = await control.run(hear, on_stop=stop)
+        # How long to wait for the result after stopping; providers that transcribe after
+        # recording (Whisper) need longer than the default.
+        stop_grace = getattr(self.nlu_provider, "stop_grace", None)
+        if not isinstance(stop_grace, (int, float)):
+            stop_grace = 3.0
+        result = await control.run(hear, on_stop=stop, stop_grace=stop_grace)
         if result is None:
             result = NLUResult(transcript="")
         result.interrupted = stopped

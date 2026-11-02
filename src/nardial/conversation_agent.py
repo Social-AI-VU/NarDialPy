@@ -140,6 +140,8 @@ class ConversationAgent:
                     return "no"
                 elif result.intent == INTENT_YESNO_DONTKNOW:
                     return "dontknow"
+            if result.interrupted:
+                break  # stopped by pause/skip: continue the dialog instead of asking again
             attempts += 1
         return None
 
@@ -165,6 +167,8 @@ class ConversationAgent:
             result = await self.orchestrator.listen()
             if result.transcript:
                 return result.transcript
+            if result.interrupted:
+                break  # stopped by pause/skip: continue the dialog instead of asking again
             attempts += 1
         return None
 

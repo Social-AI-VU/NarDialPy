@@ -128,3 +128,23 @@ class TestAskOpen:
         agent.orchestrator.listen.return_value = NLUResult(transcript="")
         await agent.ask_open("What do you like?", max_attempts=2)
         assert agent.orchestrator.say.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_interrupted_listen_is_not_asked_again(self, agent):
+        """A listen stopped by pause/skip_listen continues instead of asking again."""
+        agent.orchestrator.listen.return_value = NLUResult(transcript="", interrupted=True)
+        assert await agent.ask_open("What do you like?", max_attempts=2) is None
+        assert agent.orchestrator.say.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_interrupted_listen_keeps_partial_answer(self, agent):
+        agent.orchestrator.listen.return_value = NLUResult(transcript="I like", interrupted=True)
+        assert await agent.ask_open("What do you like?", max_attempts=2) == "I like"
+
+
+class TestInterruptedYesNo:
+    @pytest.mark.asyncio
+    async def test_interrupted_yesno_is_not_asked_again(self, agent):
+        agent.orchestrator.listen.return_value = NLUResult(transcript="", interrupted=True)
+        assert await agent.ask_yesno("Are you ready?", max_attempts=2) is None
+        assert agent.orchestrator.say.call_count == 1

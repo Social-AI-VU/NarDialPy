@@ -23,6 +23,7 @@ maintainers = [
 
 dependencies = [
   "social-interaction-cloud",
+  "pynput>=1.7",
 ]
 
 [project.optional-dependencies]

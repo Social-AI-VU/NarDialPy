@@ -1,6 +1,8 @@
 import json
+from unittest.mock import AsyncMock
 
 from nardial.agenda.session_plan import SessionPlan, SessionTemplate
+from nardial.controls import SessionControl
 from nardial.conversation_state import ConversationState
 from nardial.session_manager import SessionManager
 
@@ -63,6 +65,27 @@ def test_plain_string_agenda_runs_dialogs_in_order(tmp_path, monkeypatch, make_m
 
     assert say_texts(agent) == ["Hello!", "Bye!"]
     assert set(manager.conversation_state.completed_dialogs) == {"greeting_1", "farewell_1"}
+
+
+def test_session_starts_and_stops_orchestrator_controls(tmp_path, monkeypatch, make_mock_agent):
+    monkeypatch.chdir(tmp_path)
+    dialog_path = write_dialog_json(tmp_path, [GREETING_DOC])
+    agent = make_mock_agent()
+    agent.orchestrator.control = SessionControl({"toggle_pause": ["space"]})
+    agent.orchestrator.start_controls = AsyncMock()
+    agent.orchestrator.stop_controls = AsyncMock()
+
+    manager = SessionManager(
+        session_agenda=["greeting_1"],
+        agent=agent,
+        dialog_json_path=dialog_path,
+        participant_id="p_controls",
+    )
+    manager.run()
+
+    assert say_texts(agent) == ["Hello!"]
+    agent.orchestrator.start_controls.assert_awaited_once_with(manager._bus)
+    agent.orchestrator.stop_controls.assert_awaited_once()
 
 
 def test_empty_agenda_runs_all_loaded_dialogs_in_loaded_order(tmp_path, monkeypatch, make_mock_agent):

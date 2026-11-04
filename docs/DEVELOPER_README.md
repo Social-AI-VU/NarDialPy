@@ -243,7 +243,7 @@ It owns:
 
 `say()` sends text to `tts_provider.speak()` in a worker thread, optionally triggers device speaking animation, logs the utterance, and pushes the robot transcript to the screen provider.
 
-`listen()` signals listening state on the device, calls `nlu_provider.listen()` in a worker thread, logs any transcript, and pushes user transcript to the screen provider. When no `timeout` is passed (i.e. the move has no `"timeout"` field) it uses `InteractionConfig.listen_timeout`. Providers must enforce that timeout on the service side too: `DialogflowNLUProvider` sends a `StopListeningMessage` when it expires, so keep `DialogflowConf.timeout` at `None` or above the longest per-move timeout.
+`listen()` signals listening state on the device, calls `nlu_provider.listen()` in a worker thread, logs any transcript, and pushes user transcript to the screen provider. When no `timeout` is passed (i.e. the move has no `"timeout"` field) it uses `InteractionConfig.listen_timeout`. Providers must enforce that timeout on the service side too: `DialogflowNLUProvider` sends a `StopListeningMessage` when it expires and then waits up to `stop_grace_seconds` for Dialogflow's final result (Dialogflow keeps streaming until the stream is closed), so keep `DialogflowConf.timeout` at `None` or above the longest per-move timeout.
 
 `request_from_llm()` builds provider-agnostic `Message` objects, optionally adds retrieved snippets from the vector store when RAG is enabled, calls `llm_provider.complete()`, and optionally parses JSON output.
 

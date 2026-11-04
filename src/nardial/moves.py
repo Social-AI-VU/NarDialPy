@@ -111,7 +111,8 @@ class MoveAskYesNo(Move):
 
     def __init__(self, text: str, set_variable: Optional[str] = None,
                  add_interest: Optional[str] = None, llm_followup: Optional[str] = None,
-                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
+                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
+                 timeout : Optional[int] = None):
         """
         :param text: Question text to ask the user.
         :param set_variable: Optional user model variable to store the answer.
@@ -128,6 +129,7 @@ class MoveAskYesNo(Move):
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
+        self.timeout = timeout
 
     def get_type(self):
         """Return the move type."""
@@ -148,6 +150,7 @@ class MoveAskYesNo(Move):
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
+            timeout=data.get("timeout"),
         )
 
 
@@ -161,7 +164,7 @@ class MoveAskOpen(Move):
                  add_interest_from_variable: Optional[str] = None,
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 llm_followup: Optional[str] = None, llm_extract_entity: bool = False):
+                 llm_followup: Optional[str] = None, timeout: Optional[int] = None,  llm_extract_entity: bool = False):
         """
         :param text: Question text to ask the user.
         :param set_variable: Variable name to store extracted answer value.
@@ -183,6 +186,7 @@ class MoveAskOpen(Move):
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
+        self.timeout = timeout
         self.llm_extract_entity = llm_extract_entity
 
     def get_type(self):
@@ -206,6 +210,7 @@ class MoveAskOpen(Move):
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
+            timeout=data.get("timeout"),
             llm_extract_entity=data.get("llm_extract_entity", False),
         )
 
@@ -217,7 +222,8 @@ class MoveAskOptions(Move):
 
     def __init__(self, text: str, options: List[str], set_variable: Optional[str] = None,
                  add_interest_from_variable: Optional[str] = None, llm_followup: Optional[str] = None,
-                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
+                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
+                 timeout: Optional[int] = None):
         """
         :param text: Question text to present to the user.
         :param options: List of selectable options.
@@ -236,6 +242,7 @@ class MoveAskOptions(Move):
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
+        self.timeout = timeout
 
     def get_type(self):
         """Return the move type."""
@@ -257,6 +264,7 @@ class MoveAskOptions(Move):
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
+            timeout=data.get("timeout"),
         )
 
 

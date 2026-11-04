@@ -28,7 +28,7 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", post_speech_delay=None,
-                 signal_listening_behavior=True, controls=None):
+                 signal_listening_behavior=True, listen_timeout=10, controls=None):    
         """
         :param controls: Optional pause/skip controls, e.g.
             `{"start_paused": True, "toggle_pause": ["space"], "skip_listen": ["s"]}`.
@@ -37,6 +37,8 @@ class InteractionConfig:
         self.language = language
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior
+         # Default seconds to listen for a user answer; moves can override it with their own "timeout".
+        self.listen_timeout = listen_timeout
         self.controls = controls
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
@@ -206,6 +208,9 @@ class InteractionOrchestrator:
             await asyncio.sleep(post_speech_delay)
 
     async def listen(self, context=None, timeout=10) -> NLUResult:
+        if timeout is None:
+            timeout = self.interaction_conf.listen_timeout
+        
         hear = functools.partial(self._listen, context=context, timeout=timeout)
         control = await self._active_control()
         if control is None:

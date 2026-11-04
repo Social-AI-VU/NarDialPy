@@ -5,8 +5,8 @@ Screen Provider Demo
 Demonstrates the NarDialPy screen provider: transcript display, images, iframes,
 HTML snippets, and interactive buttons — all driven from a dialog JSON file.
 
-No cloud services are required: spoken text is printed to the terminal
-(NullTTSProvider) and NLU input is read from the keyboard (WrittenKeywordNLUProvider).
+No cloud services are required: Pepper speaks the lines with its built-in voice
+(NaoqiTTSProvider) and NLU input is read from the keyboard (WrittenKeywordNLUProvider).
 
 Setup
 -----
@@ -45,7 +45,7 @@ from sic_framework.devices.pepper import Pepper
 from sic_framework.services.webserver.webserver_service import Webserver, WebserverConf
 
 from nardial.providers.device.pepper import PepperAdapter
-from nardial.providers.tts.null import NullTTSProvider
+from nardial.providers.tts.naoqi import NaoqiTTSProvider
 from nardial.providers.nlu.written_keyword import WrittenKeywordNLUProvider
 from nardial.providers.screen.pepper_tablet import PepperTabletScreenAdapter
 from nardial.conversation_agent import ConversationAgent
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # ── Agent ──────────────────────────────────────────────────────────────────
     agent = ConversationAgent(
         device=device,
-        tts_provider=NullTTSProvider(),
+        tts_provider=NaoqiTTSProvider(device=device, language="English"),
         nlu_provider=WrittenKeywordNLUProvider(),
         screen_provider=screen,
     )

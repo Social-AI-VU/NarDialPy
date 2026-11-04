@@ -26,6 +26,7 @@ class DialogflowNLUProvider:
         self._request_id = np.random.randint(10000)
         self._dialogflow.register_callback(self._on_dialog)
 
+
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         try:
             reply = self._dialogflow.request(

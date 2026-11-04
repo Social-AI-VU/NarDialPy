@@ -7,6 +7,7 @@ import asyncio
 from nardial.agenda.items import AgendaContext
 from nardial.agenda.resolver import resolve_agenda
 from nardial.agenda.session_plan import load_session_plan
+from nardial.controls import SessionControl
 from nardial.conversation_agent import ConversationAgent
 from nardial.conversation_state import ConversationState
 from nardial.dialog_registry import DialogRegistry
@@ -277,6 +278,12 @@ class SessionManager:
         sp = self.agent.orchestrator.screen_provider
         if sp is not None and hasattr(sp, "set_event_bus"):
             sp.set_event_bus(self._bus)
+        # Pause/skip controls (InteractionConfig.controls) listen on the session bus.
+        control = getattr(self.agent.orchestrator, "control", None)
+        if not isinstance(control, SessionControl):
+            control = None
+        if control is not None:
+            await self.agent.orchestrator.start_controls(self._bus)
 
         # An empty agenda runs every loaded dialog, in loaded order (same
         # fallback build_session_block() used to provide).
@@ -287,6 +294,9 @@ class SessionManager:
         session_history = []
         context = self._build_agenda_context()
         for dialog in resolve_agenda(agenda, context):
+            if control is not None:
+                await control.wait_until_running()
+
             # Final safety-net gate: resolve_agenda() already checks eligibility
             # for slot-based agenda items, but a plain dialog id (DialogRef)
             # resolves regardless of eligibility, so this still guards every
@@ -331,6 +341,9 @@ class SessionManager:
 
             self.conversation_state.completed_dialogs.append(dialog.dialog_id)
             context.mark_completed(dialog.dialog_id)
+
+        if control is not None:
+            await self.agent.orchestrator.stop_controls()
 
         print(json.dumps(session_history, indent=2))
         print("Topics of interest:", self.conversation_state.topics_of_interest)

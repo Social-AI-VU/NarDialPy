@@ -210,6 +210,16 @@ socket.on("sic/webinfo", function (data) {
 
 socket.on("sic/state", function (data) {
   // Sent by the SIC Webserver on every new connection with the last known
-  // transcript and webinfo snapshot. Log for now; future: restore display state.
+  // webinfo snapshot (one entry per label: "screen", "input", "transcript").
+  // Without this, a browser that connects *after* the dialog has already
+  // sent its first show_html/buttons/show_text_input call sees nothing --
+  // those broadcasts only reach clients connected at the moment they were
+  // sent, so a late-joining tablet is stuck on a blank/black screen forever.
   console.log("[NarDialPy] sic/state received:", data);
+  var webinfo = data.webinfo || {};
+  if (webinfo.screen) handleScreen(webinfo.screen);
+  if (webinfo.input) handleInput(webinfo.input);
+  // Note: data.transcript is the raw latest transcript string from the
+  // legacy TranscriptMessage path, not a {role, text} entry -- not replayed
+  // here to avoid rendering it in the wrong shape.
 });

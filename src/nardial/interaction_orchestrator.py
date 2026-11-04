@@ -11,6 +11,8 @@ from time import strftime
 from sic_framework.core import sic_logging
 from sic_framework.core.sic_application import SICApplication
 
+from nardial.controls import SessionControl
+from nardial.events import EventBus
 from nardial.providers.device import DeviceAdapter, AnimationStyle
 from nardial.providers.tts import TTSProvider, _amplify_audio
 from nardial.providers.nlu import NLUProvider, NLUResult
@@ -26,12 +28,18 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", post_speech_delay=None,
-                 signal_listening_behavior=True, listen_timeout=10):
+                 signal_listening_behavior=True, listen_timeout=10, controls=None):    
+        """
+        :param controls: Optional pause/skip controls, e.g.
+            `{"start_paused": True, "toggle_pause": ["space"], "skip_listen": ["s"]}`.
+            See `nardial.controls.SessionControl`.
+        """
         self.language = language
         self.post_speech_delay = post_speech_delay
         self.signal_listening_behavior = signal_listening_behavior
-        # Default seconds to listen for a user answer; moves can override it with their own "timeout".
+         # Default seconds to listen for a user answer; moves can override it with their own "timeout".
         self.listen_timeout = listen_timeout
+        self.controls = controls
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False
@@ -56,6 +64,9 @@ class InteractionConfig:
 
 
 class InteractionOrchestrator:
+    # Seconds a stopped listen may take to return its result, used when the NLU provider sets no stop_grace_seconds.
+    DEFAULT_STOP_GRACE_SECONDS = 3.0
+
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
@@ -104,6 +115,9 @@ class InteractionOrchestrator:
         self.logger.info("SETTING UP NLU")
         self.nlu_provider = nlu_provider
         self.logger.info("Complete and ready for interaction!")
+
+        # Pause/skip controls from InteractionConfig.controls; started by start_controls().
+        self.control = SessionControl(int_config.controls) if int_config.controls else None
 
     def start_logging(self, log_id, init_data: dict):
         folder = Path("logs")
@@ -164,6 +178,17 @@ class InteractionOrchestrator:
     @InteractionConfig.apply_config_defaults('interaction_conf', ['post_speech_delay', 'animated', 'always_regenerate', 'chunk_audio'])
     async def say(self, text, post_speech_delay=None, animated=False, amplified=False, always_regenerate=False, chunk_audio=False,
             voice_settings=None):
+        speak = functools.partial(self._say, text, post_speech_delay=post_speech_delay, animated=animated,
+                                  amplified=amplified, always_regenerate=always_regenerate,
+                                  chunk_audio=chunk_audio, voice_settings=voice_settings)
+        control = await self._active_control()
+        if control is None:
+            return await speak()
+        # A pause stops the sentence; it is spoken again from the start after resume.
+        return await control.run(speak)
+
+    async def _say(self, text, post_speech_delay, animated, amplified, always_regenerate, chunk_audio,
+                   voice_settings):
         if animated:
             self.device.play_speaking_animation(self.interaction_conf.animation_style)
         try:
@@ -182,9 +207,33 @@ class InteractionOrchestrator:
         if post_speech_delay and post_speech_delay > 0:
             await asyncio.sleep(post_speech_delay)
 
-    async def listen(self, context=None, timeout=None) -> NLUResult:
+    async def listen(self, context=None, timeout=10) -> NLUResult:
         if timeout is None:
             timeout = self.interaction_conf.listen_timeout
+        
+        hear = functools.partial(self._listen, context=context, timeout=timeout)
+        control = await self._active_control()
+        if control is None:
+            return await hear()
+        # A pause or skip_listen stops listening (Dialogflow sends StopListeningMessage), so the
+        # audio heard so far is still recognised. After a pause the dialog continues after the listen.
+        stopped = False
+
+        def stop():
+            nonlocal stopped
+            stopped = True
+            self.nlu_provider.cancel()
+
+        # How long to wait for the result after stopping; providers that transcribe after
+        # recording (Whisper) need longer than the default.
+        stop_grace_seconds = getattr(self.nlu_provider, "stop_grace_seconds", self.DEFAULT_STOP_GRACE_SECONDS)
+        result = await control.run(hear, on_stop=stop, stop_grace_seconds=stop_grace_seconds)
+        if result is None:
+            result = NLUResult(transcript="")
+        result.interrupted = stopped
+        return result
+
+    async def _listen(self, context, timeout) -> NLUResult:
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
         try:
@@ -194,8 +243,9 @@ class InteractionOrchestrator:
         except asyncio.CancelledError:
             self.nlu_provider.cancel()
             raise
-        if self.interaction_conf.signal_listening_behavior:
-            self.device.signal_listening(start=False)
+        finally:
+            if self.interaction_conf.signal_listening_behavior:
+                self.device.signal_listening(start=False)
         if result.transcript:
             self.log_utterance(speaker='user', text=result.transcript)
             await self._push_user_transcript(result.transcript)
@@ -263,7 +313,35 @@ class InteractionOrchestrator:
     def play_motion(self, motion_name):
         self.device.play_motion_sequence(motion_name)
 
+    async def start_controls(self, bus: EventBus | None = None) -> None:
+        """Start the pause/skip controls on ``bus`` (the session's), or on a bus of their own.
+
+        SessionManager calls this with its session bus. Without a SessionManager the
+        controls are started on their own bus at the first ``say``/``listen``.
+        """
+        if self.control is None:
+            return
+        await self.control.stop()  # restart cleanly if they were already running on another bus
+        if bus is None:
+            bus = EventBus()
+            bus.set_loop(asyncio.get_running_loop())
+        await self.control.start(bus)
+
+    async def stop_controls(self) -> None:
+        if self.control is not None:
+            await self.control.stop()
+
+    async def _active_control(self):
+        """The started controls, or None when no controls are configured."""
+        control = getattr(self, "control", None)
+        if control is not None and not control.started:
+            await self.start_controls()
+        return control
+
     def disconnect(self):
+        if getattr(self, "control", None) is not None:
+            for source in self.control.sources:
+                source.stop()
         self.tts_provider.close()
         self.device.disconnect()
         if self.vector_store is not None:
@@ -277,3 +355,4 @@ class InteractionOrchestrator:
 
     def set_interaction_conf(self, interaction_conf: InteractionConfig):
         self.interaction_conf = interaction_conf
+        self.control = SessionControl(interaction_conf.controls) if interaction_conf.controls else None

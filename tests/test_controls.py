@@ -157,7 +157,7 @@ async def test_skip_gives_up_after_grace_when_work_does_not_stop():
     async def work():
         await asyncio.sleep(10)  # a provider whose cancel() does nothing
 
-    runner = asyncio.create_task(control.run(work, on_stop=on_stop, stop_grace=0.05))
+    runner = asyncio.create_task(control.run(work, on_stop=on_stop, stop_grace_seconds=0.05))
     await asyncio.sleep(0.01)
     control.skip_listen()
     assert await asyncio.wait_for(runner, 1) is None
@@ -186,7 +186,7 @@ def _make_orchestrator(controls=None):
     orch.set_interaction_conf(InteractionConfig(signal_listening_behavior=False, controls=controls))
     if orch.control is not None:
         orch.control.sources = []  # don't start a real keyboard listener
-    orch.nlu_provider = Mock()
+    orch.nlu_provider = Mock(spec=["listen", "cancel"])  # no stop_grace_seconds: the default applies
     orch.screen_provider = None
     orch._log_queue = None
     return orch
@@ -248,11 +248,11 @@ async def test_listen_without_control_is_unchanged():
     assert not result.interrupted
 
 
-async def test_listen_uses_the_providers_stop_grace():
+async def test_listen_uses_the_providers_stop_grace_seconds():
     orch = _make_orchestrator({"skip_listen": ["s"]})
-    orch.nlu_provider.stop_grace = 0.05
+    orch.nlu_provider.stop_grace_seconds = 0.05
     release = threading.Event()
-    # A provider that does not stop when cancelled: give up after its own stop_grace.
+    # A provider that does not stop when cancelled: give up after its own stop_grace_seconds.
     orch.nlu_provider.listen.side_effect = lambda **kw: release.wait(5) and NLUResult(transcript="late")
 
     try:
@@ -299,7 +299,14 @@ def test_whisper_cancel_sends_end_of_audio(whisper_provider):
 
 def test_whisper_waits_longer_for_the_transcript(whisper_provider):
     provider, _ = whisper_provider
-    assert provider.stop_grace > 3.0
+    assert provider.stop_grace_seconds == 30.0
+    assert provider.stop_grace_seconds > InteractionOrchestrator.DEFAULT_STOP_GRACE_SECONDS
+
+
+def test_whisper_stop_grace_can_be_set(whisper_provider):
+    provider, _ = whisper_provider
+    custom = type(provider)(conf=Mock(), stop_grace_seconds=5)
+    assert custom.stop_grace_seconds == 5
 
 
 # ---------------------------------------------------------------------------

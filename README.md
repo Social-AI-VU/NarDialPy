@@ -263,7 +263,7 @@ agent = ConversationAgent(
 | Setting | Effect |
 |---|---|
 | `toggle_pause` | Pauses the interaction. Speech in progress is stopped and spoken again from the beginning after resume. Listening in progress is stopped, what was heard so far is kept, and the dialog continues after the listen once resumed. Works in every dialog type, including LLM dialogs. |
-| `skip_listen` | Stops the current listen early. What was said so far is still recognised and used as the answer: Dialogflow gets a `StopListeningMessage`, and local Whisper gets an end-of-audio signal and then transcribes what it recorded (this can take a few seconds). The written keyword provider cannot stop early and gives up after 3 seconds with an empty answer. |
+| `skip_listen` | Stops the current listen early. What was said so far is still recognised and used as the answer: Dialogflow gets a `StopListeningMessage`, and local Whisper gets an end-of-audio signal and then transcribes what it recorded (this can take a few seconds; Whisper waits up to 30 s for it, which a faster model can lower with `LocalWhisperNLUProvider(..., stop_grace_seconds=5)`). The written keyword provider cannot stop early and gives up after 3 seconds with an empty answer. |
 | `start_paused` | `true` makes the interaction wait for `toggle_pause` before it starts. |
 
 A question whose listen was stopped by a pause or skip is not asked again, even when the answer is empty: the dialog continues with whatever was heard, and an empty answer follows the move's `default_outcome`.

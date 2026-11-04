@@ -32,13 +32,16 @@ class LocalWhisperNLUProvider:
     mic : SIC microphone component, optional
         The robot/desktop microphone to stream audio from.
         Obtain via ``device.get_mic()``.
+    stop_grace_seconds : float, optional
+        Seconds a pause or skip waits for the transcript after listening is stopped.
+        Defaults to 30.0 because Whisper transcribes after recording stops (~10 s with
+        large-v3-turbo on CPU); a smaller model can use less.
     """
 
-    # Seconds a pause/skip waits for the transcript after cancel(); transcription runs after recording stops.
-    stop_grace = 30.0
-
-    def __init__(self, conf: LocalWhisperConf = None, mic: Any = None):
+    def __init__(self, conf: LocalWhisperConf = None, mic: Any = None,
+                 stop_grace_seconds: float = 30.0):
         self._whisper = LocalWhisper(ip="localhost", conf=conf or LocalWhisperConf(), input_source=mic)
+        self.stop_grace_seconds = stop_grace_seconds
 
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         try:

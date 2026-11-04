@@ -62,6 +62,9 @@ class InteractionConfig:
 
 
 class InteractionOrchestrator:
+    # Seconds a stopped listen may take to return its result, used when the NLU provider sets no stop_grace_seconds.
+    DEFAULT_STOP_GRACE_SECONDS = 3.0
+
     def __init__(self, device: DeviceAdapter, tts_provider: TTSProvider,
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
@@ -218,10 +221,8 @@ class InteractionOrchestrator:
 
         # How long to wait for the result after stopping; providers that transcribe after
         # recording (Whisper) need longer than the default.
-        stop_grace = getattr(self.nlu_provider, "stop_grace", None)
-        if not isinstance(stop_grace, (int, float)):
-            stop_grace = 3.0
-        result = await control.run(hear, on_stop=stop, stop_grace=stop_grace)
+        stop_grace_seconds = getattr(self.nlu_provider, "stop_grace_seconds", self.DEFAULT_STOP_GRACE_SECONDS)
+        result = await control.run(hear, on_stop=stop, stop_grace_seconds=stop_grace_seconds)
         if result is None:
             result = NLUResult(transcript="")
         result.interrupted = stopped

@@ -141,7 +141,7 @@ class SessionControl:
     async def wait_until_running(self) -> None:
         await self._running.wait()
 
-    async def run(self, make_coro, on_stop=None, stop_grace: float = 3.0):
+    async def run(self, make_coro, on_stop=None, stop_grace_seconds: float = 3.0):
         """Run ``make_coro()`` and return its result, honouring pause and skip.
 
         Without ``on_stop`` (speech), a pause cancels the coroutine and starts it
@@ -152,7 +152,7 @@ class SessionControl:
         make the coroutine finish early (e.g. stop listening, keeping the audio
         so far) and return the coroutine's result. After a pause, that result is
         held until resume, so the dialog continues after the listen. If the
-        coroutine has not finished within ``stop_grace`` seconds it is cancelled
+        coroutine has not finished within ``stop_grace_seconds`` it is cancelled
         and ``None`` is returned.
         """
         while True:
@@ -170,7 +170,7 @@ class SessionControl:
                 if on_stop is not None:
                     # Paused or skipped: ask the work to finish early and keep its result.
                     on_stop()
-                    await asyncio.wait({task}, timeout=stop_grace)
+                    await asyncio.wait({task}, timeout=stop_grace_seconds)
                     stopped = True
             finally:
                 for waiter in waiters:

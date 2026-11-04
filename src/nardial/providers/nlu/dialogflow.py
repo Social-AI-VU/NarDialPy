@@ -9,7 +9,6 @@ from sic_framework.services.dialogflow.dialogflow import (
 )
 
 from nardial.providers.nlu import NLUResult
-from sic_framework.core.sic_application import SICApplication
 
 
 class DialogflowNLUProvider:
@@ -26,8 +25,7 @@ class DialogflowNLUProvider:
         self._dialogflow = Dialogflow(ip="localhost", conf=conf, input_source=mic)
         self._request_id = np.random.randint(10000)
         self._dialogflow.register_callback(self._on_dialog)
-        self.app = SICApplication()
-        self.logger = self.app.get_app_logger()
+
 
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         try:
@@ -35,11 +33,11 @@ class DialogflowNLUProvider:
                 GetIntentRequest(self._request_id, context), timeout=timeout
             )
         except TimeoutError as e:
-            self.logger.warning("Dialogflow timeout: %s", e)
+            print("Dialogflow timeout:", e)
             self._stop_listening()
             return NLUResult(transcript="", intent=None)
 
-        self.logger.info("The detected intent: %s", reply.intent)
+        print("The detected intent:", reply.intent)
         # The service returns QueryResult(dict()) when the stream ends without a query result.
         query_result = getattr(reply.response, "query_result", None)
         transcript = (query_result.query_text if query_result else "") or ""
@@ -53,9 +51,9 @@ class DialogflowNLUProvider:
         try:
             self._dialogflow.send_message(StopListeningMessage(self._request_id))
         except Exception as e:
-            self.logger.warning("Dialogflow stop listening failed: %s", e)
+            print("Dialogflow stop listening failed:", e)
 
     def _on_dialog(self, message) -> None:
         if message.response:
             transcript = message.response.recognition_result.transcript
-            self.logger.debug("Transcript: %s", transcript)
+            print("Transcript:", transcript)

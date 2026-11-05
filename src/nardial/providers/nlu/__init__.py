@@ -13,6 +13,8 @@ class NLUResult:
     transcript: str
     intent: str | None = None
     confidence: float = 0.0
+    # True when listening was stopped early by a pause or skip_listen; the question is then not asked again.
+    interrupted: bool = False
     # Entities extracted alongside the intent (e.g. Dialogflow parameters).
     parameters: dict = field(default_factory=dict)
 

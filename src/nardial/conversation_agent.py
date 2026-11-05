@@ -114,7 +114,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    async def ask_yesno(self, question, max_attempts=1, **kwargs):
+    async def ask_yesno(self, question, max_attempts=1, timeout=None, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -124,6 +124,8 @@ class ConversationAgent:
             The question to ask the user.
         max_attempts : int, optional
             Number of retries if no valid answer is detected.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
 
         Returns
         -------
@@ -133,7 +135,7 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen(context={'answer_yesno': 1})
+            result = await self.orchestrator.listen(timeout=timeout, context={'answer_yesno': 1})
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -142,10 +144,12 @@ class ConversationAgent:
                     return "no"
                 elif result.intent == INTENT_YESNO_DONTKNOW:
                     return "dontknow"
+            if result.interrupted:
+                break  # stopped by pause/skip: continue the dialog instead of asking again
             attempts += 1
         return None
 
-    async def ask_open(self, question, max_attempts=2, context=None, **kwargs):
+    async def ask_open(self, question, max_attempts=2, timeout=None, context=None, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -155,6 +159,8 @@ class ConversationAgent:
             The question to ask.
         max_attempts : int, optional
             Number of retries if no response is captured.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
         context : optional
             NLU context passed to the listening function (e.g. Dialogflow contexts).
 
@@ -169,18 +175,20 @@ class ConversationAgent:
         while attempts < max_attempts:
             await self.say(question, **kwargs)
             if context:
-                result = await self.orchestrator.listen(context={str(context): 1})
+                result = await self.orchestrator.listen(context={str(context): 1}, timeout=timeout)
             else:
-                result = await self.orchestrator.listen()
+                result = await self.orchestrator.listen(timeout=timeout)
             self.last_nlu_result = result
             if result.intent:
                 print(f'context: {context}, recognized_intent: {result.intent}')
             if result.transcript:
                 return result.transcript
+            if result.interrupted:
+                break  # stopped by pause/skip: continue the dialog instead of asking again
             attempts += 1
         return None
 
-    async def ask_options(self, question, options, max_attempts=2, **kwargs):
+    async def ask_options(self, question, options, max_attempts=2, timeout=None, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -192,6 +200,8 @@ class ConversationAgent:
             List of expected keywords/options to match against the response.
         max_attempts : int, optional
             Number of retries.
+        timeout : float, optional
+            Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
 
         Returns
         -------
@@ -202,7 +212,7 @@ class ConversationAgent:
         -----
         Matching is case-insensitive and based on substring presence.
         """
-        answer = await self.ask_open(question, max_attempts=max_attempts, **kwargs)
+        answer = await self.ask_open(question, max_attempts=max_attempts, timeout=timeout, **kwargs)
         if answer:
             answer_lower = answer.lower()
             for opt in options:

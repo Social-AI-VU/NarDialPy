@@ -241,6 +241,37 @@ Then pass `device` and `tts` to `ConversationAgent` as above.
 
 ---
 
+### Pause and skip controls
+
+Bind keys to pause the interaction or to skip a listen that takes too long by passing `controls` in an `InteractionConfig`. Keys work globally (the terminal does not need focus), with or without `SessionManager`:
+
+```python
+from nardial.interaction_orchestrator import InteractionConfig
+
+agent = ConversationAgent(
+    ...,  # device and providers as in the setups above
+    int_config=InteractionConfig(
+        controls={
+            "start_paused": True,          # wait for the pause key before starting
+            "toggle_pause": ["space"],     # pause / resume
+            "skip_listen": ["s"],          # stop a listen that takes too long
+        },
+    ),
+)
+```
+
+| Setting | Effect |
+|---|---|
+| `toggle_pause` | Pauses the interaction. Speech in progress is stopped and spoken again from the beginning after resume. Listening in progress is stopped, what was heard so far is kept, and the dialog continues after the listen once resumed. Works in every dialog type, including LLM dialogs. |
+| `skip_listen` | Stops the current listen early. What was said so far is still recognised and used as the answer: Dialogflow gets a `StopListeningMessage`, and local Whisper gets an end-of-audio signal and then transcribes what it recorded (this can take a few seconds; Whisper waits up to 30 s for it, which a faster model can lower with `LocalWhisperNLUProvider(..., stop_grace_seconds=5)`). The written keyword provider cannot stop early and gives up after 3 seconds with an empty answer. |
+| `start_paused` | `true` makes the interaction wait for `toggle_pause` before it starts. |
+
+A question whose listen was stopped by a pause or skip is not asked again, even when the answer is empty: the dialog continues with whatever was heard, and an empty answer follows the move's `default_outcome`.
+
+Key names are single characters (`"p"`) or [pynput key names](https://pynput.readthedocs.io/en/latest/keyboard.html#pynput.keyboard.Key) (`"space"`, `"enter"`, `"f5"`). Moves that are not speech or listening (e.g. `timed_wait`, `wait_for_button`) are not paused; the pause takes effect at the next speech or listen.
+
+---
+
 ### Using SessionManager
 
 `SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state:
@@ -643,6 +674,7 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
 | `add_interest_from_answer` | boolean | | If `true`, adds the answer to the user's topics of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence after the user replies |
 | `llm_extract_entity` | boolean | | If `true`, the LLM extracts the key entity from the answer (e.g. `"dog"` from `"my favorite animal is a dog"`) before it is stored; unrelated answers store nothing. Default `false` |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {
@@ -674,6 +706,7 @@ Asks a yes/no question. The detected intent (`"yes"`, `"no"`, `"dontknow"`) driv
 | `default_outcome` | string | | Outcome label used as fallback |
 | `add_interest` | string | | Topic added to interest list when the user answers `"yes"` |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {
@@ -702,6 +735,7 @@ Presents a multiple-choice question. The selected option drives branching and ca
 | `default_outcome` | string | | Outcome label when nothing matches |
 | `add_interest_from_variable` | string | | After storing, adds the named variable's value as a topic of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
+| `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
 
 ```json
 {

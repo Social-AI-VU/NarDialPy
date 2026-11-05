@@ -230,6 +230,9 @@ class DialogFactory:
         characters = dict(getattr(d, "characters", {}) or {})
         if characters:
             base["characters"] = characters
+        prerequisites = list(getattr(d, "prerequisites", None) or [])
+        if prerequisites:
+            base["prerequisites"] = prerequisites
         base["type"] = getattr(d, "TYPE_NAME", None) or "unknown"
         base.update(d.to_doc())
         return base

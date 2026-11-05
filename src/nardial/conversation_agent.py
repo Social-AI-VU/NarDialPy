@@ -173,7 +173,6 @@ class ConversationAgent:
             else:
                 result = await self.orchestrator.listen()
             self.last_nlu_result = result
-            print(result)
             if result.intent:
                 print(f'context: {context}, recognized_intent: {result.intent}')
             if result.transcript:

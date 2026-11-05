@@ -28,7 +28,6 @@ class DialogflowNLUProvider:
         self.stop_grace_seconds = stop_grace_seconds
         self._dialogflow.register_callback(self._on_dialog)
 
-
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         stopper = threading.Timer(timeout, self._stop_listening)
         stopper.daemon = True
@@ -48,7 +47,10 @@ class DialogflowNLUProvider:
         query_result = getattr(reply.response, "query_result", None)
         transcript = (query_result.query_text if query_result else "") or ""
         intent = reply.intent if reply.intent else None
-        return NLUResult(transcript=transcript, intent=intent)
+        parameters = self._parameters_to_dict(query_result) if query_result else {}
+        if parameters:
+            print("The detected parameters:", parameters)
+        return NLUResult(transcript=transcript, intent=intent, parameters=parameters)
 
     def cancel(self) -> None:
         self._stop_listening()
@@ -58,6 +60,19 @@ class DialogflowNLUProvider:
             self._dialogflow.send_message(StopListeningMessage(self._request_id))
         except Exception as e:
             print("Dialogflow stop listening failed:", e)
+
+    @staticmethod
+    def _parameters_to_dict(query_result) -> dict:
+        """Convert the ``parameters`` Struct of a Dialogflow query result to a plain dict."""
+        params = getattr(query_result, "parameters", None)
+        if not params:
+            return {}
+        result = {}
+        for name, value in params.items():
+            if not isinstance(value, (str, int, float, bool, dict)) and hasattr(value, "__iter__"):
+                value = list(value)
+            result[name] = value
+        return result
 
     def _on_dialog(self, message) -> None:
         if message.response:

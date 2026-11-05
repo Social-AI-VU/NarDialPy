@@ -135,3 +135,29 @@ async def test_move_animation():
     ]
     dialog = MiniDialog(dialog_id="1", moves=moves)
     await dialog.run(agent=mock_agent())
+
+
+@pytest.mark.asyncio
+async def test_move_ask_open_stores_nlu_entity():
+    from nardial.providers.nlu import NLUResult
+    agent = mock_agent()
+    agent.ask_open = AsyncMock(return_value="een hamster")
+    agent.last_nlu_result = NLUResult(transcript="een hamster", intent="animals",
+                                      parameters={"dier": "hamster"})
+    moves = [{"type": MOVE_ASK_OPEN, "text": "Welk huisdier?", "context": "animals",
+              "set_variable": "huisdier"}]
+    dialog = MiniDialog(dialog_id="1", moves=moves)
+    await dialog.run(agent=agent)
+    assert dialog.user_model["huisdier"] == "hamster"
+
+
+@pytest.mark.asyncio
+async def test_move_ask_open_without_entity_stores_answer():
+    from nardial.providers.nlu import NLUResult
+    agent = mock_agent()
+    agent.ask_open = AsyncMock(return_value="een hamster")
+    agent.last_nlu_result = NLUResult(transcript="een hamster", intent="animals")
+    moves = [{"type": MOVE_ASK_OPEN, "text": "Welk huisdier?", "set_variable": "huisdier"}]
+    dialog = MiniDialog(dialog_id="1", moves=moves)
+    await dialog.run(agent=agent)
+    assert dialog.user_model["huisdier"] == "hamster"

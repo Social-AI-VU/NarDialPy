@@ -37,7 +37,7 @@ An agenda entry is either a plain dialog id (always run *that* dialog, ignoring 
 |---|---|---|
 | ...exactly this dialog, by id | `DialogRef` (or just write the id as a bare string) | `dialog_ref` |
 | ...the next not-yet-done step of a story thread | `NarrativeSlot` | `narrative_slot` |
-| ...whichever small-talk topic best matches the participant's interests | `ChitchatSlot` | `chitchat_slot` |
+| ...whichever small-talk topic best matches the participant's interests (optionally only from, or never from, certain chitchat types via `include_types` / `exclude_types`) | `ChitchatSlot` | `chitchat_slot` |
 | ...a dialog of a given functional role (e.g. "the greeting") without naming a specific id | `FunctionalSlot` | `functional_slot` |
 | ...a specific LLM-driven dialog, optionally with a different turn limit or time limit for just this run | `LLMDialogRef` | `llm_dialog_ref` |
 

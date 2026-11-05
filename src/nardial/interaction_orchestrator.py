@@ -207,7 +207,7 @@ class InteractionOrchestrator:
         if post_speech_delay and post_speech_delay > 0:
             await asyncio.sleep(post_speech_delay)
 
-    async def listen(self, context=None, timeout=10) -> NLUResult:
+    async def listen(self, context=None, timeout=None) -> NLUResult:
         if timeout is None:
             timeout = self.interaction_conf.listen_timeout
         

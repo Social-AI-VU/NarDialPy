@@ -26,7 +26,6 @@ class DialogflowNLUProvider:
         self._request_id = np.random.randint(10000)
         self._dialogflow.register_callback(self._on_dialog)
 
-
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
         try:
             reply = self._dialogflow.request(
@@ -36,7 +35,6 @@ class DialogflowNLUProvider:
             print("Dialogflow timeout:", e)
             self._stop_listening()
             return NLUResult(transcript="", intent=None)
-
         print("The detected intent:", reply.intent)
         # The service returns QueryResult(dict()) when the stream ends without a query result.
         query_result = getattr(reply.response, "query_result", None)

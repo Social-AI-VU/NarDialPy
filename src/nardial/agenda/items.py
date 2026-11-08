@@ -96,19 +96,37 @@ class NarrativeSlot(AgendaItem):
         return random.choice(lowest)
 
 
+def _as_name_list(names: Union[str, List[str], None]) -> Optional[List[str]]:
+    """Normalize a single name or a list of names; a bare string must not be split into characters."""
+    if not names:
+        return None
+    if isinstance(names, str):
+        return [names]
+    return list(names)
+
+
 class ChitchatSlot(AgendaItem):
     """Resolves to the eligible `ChitchatDialog` with the most topic overlap with `context.topics_of_interest`.
 
     Ties are broken randomly (shuffle before the stable sort by overlap
     count). `topics_filter`, when given, restricts candidates to dialogs
     that share at least one topic with it before ranking.
+
+    `include_types` / `exclude_types` filter candidates by their JSON dialog
+    type name (`TYPE_NAME`, e.g. `"chitchat"` or a custom subtype such as
+    `"evening_chitchat"`). Names match exactly, so `"chitchat"` means only
+    plain chitchat dialogs, not its subtypes. When both are given, a type in
+    both lists is excluded.
     """
 
     def __init__(self, bounds: Optional[SlotBounds] = None, topics_filter: Optional[List[str]] = None,
-                 eligibility_policy: Optional[EligibilityPolicy] = None):
+                 eligibility_policy: Optional[EligibilityPolicy] = None,
+                 include_types: Optional[List[str]] = None, exclude_types: Optional[List[str]] = None):
         self.bounds = bounds or SlotBounds()
         self.topics_filter = list(topics_filter) if topics_filter else None
         self.eligibility_policy = eligibility_policy
+        self.include_types = _as_name_list(include_types)
+        self.exclude_types = _as_name_list(exclude_types)
 
     def resolve(self, context: AgendaContext) -> Optional["MiniDialog"]:
         if context.registry is None:
@@ -116,6 +134,10 @@ class ChitchatSlot(AgendaItem):
             return None
 
         candidates = context.registry.get_by_type(DialogType.CHITCHAT)
+        if self.include_types:
+            candidates = [d for d in candidates if getattr(d, "TYPE_NAME", None) in self.include_types]
+        if self.exclude_types:
+            candidates = [d for d in candidates if getattr(d, "TYPE_NAME", None) not in self.exclude_types]
         if self.topics_filter:
             filter_set = {str(t).lower() for t in self.topics_filter}
             candidates = [
@@ -223,6 +245,8 @@ def coerce_agenda_item(item: Union[str, Dict[str, Any], AgendaItem]) -> AgendaIt
             return ChitchatSlot(
                 bounds=SlotBounds.from_dict(item.get("bounds")),
                 topics_filter=item.get("topics_filter"),
+                include_types=item.get("include_types"),
+                exclude_types=item.get("exclude_types"),
             )
         if item_type == "functional_slot":
             return FunctionalSlot(

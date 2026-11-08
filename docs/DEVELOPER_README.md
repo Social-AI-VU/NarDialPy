@@ -151,7 +151,7 @@ During initialization: dialog JSON is loaded into a `DialogRegistry`; `Conversat
 | --- | --- | --- |
 | `dialog_ref` (or a bare string) | `DialogRef` | the dialog with that id, or `None` if missing (ignores eligibility) |
 | `narrative_slot` | `NarrativeSlot` | the lowest-position eligible dialog in `thread` (random tiebreak) |
-| `chitchat_slot` | `ChitchatSlot` | the eligible `ChitchatDialog` with the most topic overlap with `topics_of_interest` |
+| `chitchat_slot` | `ChitchatSlot` | the eligible `ChitchatDialog` with the most topic overlap with `topics_of_interest`; optional `topics_filter`, and `include_types`/`exclude_types` filtering by exact `TYPE_NAME` (exclude wins) |
 | `functional_slot` | `FunctionalSlot` | a random eligible `FunctionalDialog` of `functional_type` |
 | `llm_dialog_ref` | `LLMDialogRef` | a specific `LLMDialog` by id, optionally with `max_turns`/`duration` overrides (shallow-copied) |
 

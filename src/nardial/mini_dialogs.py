@@ -19,6 +19,7 @@ from nardial.moves import MOVE_SAY, MOVE_SAY_OPTIONS, MOVE_ASK_YESNO, MOVE_ASK_O
 from enum import Enum
 
 from nardial.providers import Message
+from nardial.providers.nlu import NLUResult
 
 
 class DialogType(Enum):
@@ -432,13 +433,20 @@ class MiniDialog:
         if self._get(move, 'timeout'):
             timeout = self._get(move, 'timeout')
             kwargs['timeout'] = timeout
-        answer = await self.conversation_agent.ask_open(text, **kwargs)
+        answer = await self.conversation_agent.ask_open(text, context=move.context, **kwargs)
         self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
         print(f"User answered: {answer}")
 
+        # An entity found by the NLU provider (e.g. Dialogflow) is stored instead of the answer
+        nlu_result = getattr(self.conversation_agent, "last_nlu_result", None)
+        entity = nlu_result.entity if isinstance(nlu_result, NLUResult) else None
+        if entity and move.set_variable:
+            print(f"Found entity: {entity}")
+            self.user_model[move.set_variable] = entity
+
         # Optionally clean the answer with the LLM before storing it
-        if move.llm_extract_entity:
+        elif move.llm_extract_entity:
             answer = await self._extract_key_entity_llm(text, answer)
             if answer:
                 self.user_model[move.set_variable] = answer

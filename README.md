@@ -674,7 +674,8 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
 |---|---|---|---|
 | `type` | string | ✅ | `"ask_open"` |
 | `text` | string | ✅ | The question to ask |
-| `set_variable` | string | | Stores the extracted answer in the user model under this name |
+| `set_variable` | string | | Stores the extracted answer in the user model under this name. If the NLU provider returns an entity (e.g. a Dialogflow parameter), the entity is stored instead |
+| `context` | string | | Dialogflow input context to activate while listening (lifespan 1), so intents for this question can match and return their entities. Ignored by providers without intent support (Whisper, keyboard) |
 | `outcomes` | object | | Maps answer values to outcome labels. Use `"*"` as a wildcard for any non-empty answer. |
 | `default_outcome` | string | | Outcome label when no answer or no match is found |
 | `add_interest_from_answer` | boolean | | If `true`, adds the answer to the user's topics of interest |
@@ -689,6 +690,12 @@ Asks a free-text question and listens for any spoken reply. The answer can be st
   "set_variable": "favorite_color",
   "add_interest_from_answer": true
 }
+```
+
+With Dialogflow, give the question a context and annotate the training phrases of the matching intent with an entity type (e.g. `@dier`). "een hamster" then stores `huisdier = "hamster"`. To branch on the entity, use a `branch` move on the variable (`"on": "huisdier"`); `outcomes` still match the spoken answer.
+
+```json
+{ "type": "ask_open", "text": "Wat is je favoriete huisdier?", "context": "animals", "set_variable": "huisdier" }
 ```
 
 ---

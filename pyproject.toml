@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nardial"
-version = "0.4.2"
+version = "0.4.3"
 description = "Nardial Dialog System"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,7 +18,8 @@ maintainers = [
   { name = "Clara Fayyad" },
   { name = "Landon Brown"},
   { name = "Evelyne Prodescu" },
-  { name = "Eva Biesot" }
+  { name = "Eva Biesot" },
+  { name = "Julianna Cisewska"},
 ]
 
 dependencies = [

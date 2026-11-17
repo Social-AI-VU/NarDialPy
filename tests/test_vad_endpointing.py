@@ -135,6 +135,42 @@ async def test_stops_listening_after_silence_following_speech():
     assert vad.on_change is None  # stopped after the listen
 
 
+class StreamingBlockingNLU(BlockingNLU):
+    """Like BlockingNLU, but sends an interim transcript after ``delay`` seconds."""
+
+    supports_interim_results = True
+
+    def __init__(self, transcript, delay):
+        super().__init__()
+        self.transcript, self.delay = transcript, delay
+        self.on_interim_args = []
+
+    def listen(self, context=None, timeout=10.0, on_interim=None):
+        self.on_interim_args.append(on_interim)
+
+        def send():
+            time.sleep(self.delay)
+            if on_interim is not None:
+                on_interim(self.transcript, False)
+
+        threading.Thread(target=send, daemon=True).start()
+        return super().listen(context=context, timeout=timeout)
+
+
+@pytest.mark.parametrize("keywords", [None, {"yes": ["ja"]}])
+async def test_transcript_counts_as_speech_when_vad_reports_no_new_speech(keywords):
+    # The user answers right after the robot: the VAD still reports the robot's speech, so the
+    # only VAD event during the listen is the silence after the user's answer.
+    vad = FakeVAD([(0.3, False)])
+    orch = _make_orchestrator(vad, vad_endpointing=True, vad_silence_delay=0.1)
+    orch.nlu_provider = StreamingBlockingNLU("weet ik niet", delay=0.1)
+
+    start = time.monotonic()
+    await orch.listen(timeout=5, listen_type="ask_yesno", keywords=keywords)
+    assert 0.35 <= orch.nlu_provider.cancelled_at - start < 1.0  # silence at 0.3 s + 0.1 s delay
+    assert orch.nlu_provider.on_interim_args[0] is not None
+
+
 async def test_silence_before_speech_does_not_stop_listening():
     # Silence reported before the user said anything (e.g. the end of the robot's own speech).
     vad = FakeVAD([(0.0, False)])

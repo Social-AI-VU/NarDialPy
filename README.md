@@ -339,7 +339,7 @@ agent = ConversationAgent(
 { "type": "ask_open", "text": "Wat heb je vandaag gedaan?", "vad_silence_delay": 1.2 }
 ```
 
-Listening stops once the user has spoken and then been silent for `vad_silence_delay` seconds; what Dialogflow heard so far is used as the answer. Silence before the user starts speaking never stops listening, so the `timeout` still applies to users who do not answer. The SIC service judges speech over a one-second window, so it reports the end of speech somewhat late; `vad_silence_delay` comes on top of that. Too short a delay cuts off users who pause mid-sentence, so open questions usually need a longer delay than yes/no questions.
+Listening stops once the user has spoken and then been silent for `vad_silence_delay` seconds; what Dialogflow heard so far is used as the answer. Silence before the user starts speaking never stops listening, so the `timeout` still applies to users who do not answer. The SIC service judges speech over a one-second window, so it reports the end of speech about 1 s late; `vad_silence_delay` comes on top of that. With the default 0.5 s, answers on a desktop came in about 1.5–1.8 s after the user stopped speaking, against 6–9 s when Dialogflow decided on its own. Too short a delay cuts off users who pause mid-sentence, so open questions usually need a longer delay than yes/no questions.
 
 | Setting | Default | Effect |
 |---|---|---|

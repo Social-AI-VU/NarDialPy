@@ -291,7 +291,8 @@ class MoveAskLLM(Move):
     def __init__(self, prompt: str, set_variable: Optional[str] = None,
                  max_turns: Optional[int] = None, quit_phrases: Optional[List[str]] = None,
                  quit_signal: Optional[str] = None,
-                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None):
+                 outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
+                 listen_settings: Optional[dict] = None):
         """
         :param prompt: System prompt guiding the LLM interaction.
         :param set_variable: Variable to store extracted user input.
@@ -300,6 +301,7 @@ class MoveAskLLM(Move):
         :param quit_signal: Token the LLM can emit to signal termination.
         :param outcomes: Mapping from answers to outcome labels.
         :param default_outcome: Fallback outcome label.
+        :param listen_settings: The move's listen settings, e.g. ``{"vad_endpointing": True}``.
         """
         super().__init__()
         self.type = MOVE_ASK_LLM
@@ -310,6 +312,7 @@ class MoveAskLLM(Move):
         self.quit_signal = quit_signal if quit_signal is not None else LLM_QUIT_SIGNAL
         self.outcomes = dict(outcomes or {})
         self.default_outcome = default_outcome
+        self.listen_settings = dict(listen_settings or {})
 
     def get_type(self):
         """Return the move type."""
@@ -331,6 +334,7 @@ class MoveAskLLM(Move):
             quit_signal=data.get("quit_signal"),
             outcomes=data.get("outcomes"),
             default_outcome=data.get("default_outcome"),
+            listen_settings=listen_settings_from_dict(data),
         )
 
 

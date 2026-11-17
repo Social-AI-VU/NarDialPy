@@ -79,6 +79,7 @@ class MoveFactory:
         if mt == MOVE_ASK_LLM:
             if not isinstance(move.get("prompt"), str):
                 errs.append(f"moves[{idx}].prompt must be string for ask_llm")
+            errs.extend(validate_listen_settings(move, f"moves[{idx}]"))
         if mt == "ask_options":
             opts = move.get("options")
             if not isinstance(opts, list) or not all(isinstance(o, str) for o in opts):

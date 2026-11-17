@@ -169,3 +169,22 @@ def test_dialogflow_cancel_stops_service_listening(dialogflow_provider):
     provider, connector = dialogflow_provider
     provider.cancel()
     assert isinstance(connector.send_message.call_args.args[0], _StopListeningMessage)
+
+
+def test_dialogflow_passes_interim_transcripts_while_listening(dialogflow_provider):
+    provider, connector = dialogflow_provider
+    interims = []
+
+    def request(_req, timeout):
+        recognition = SimpleNamespace(transcript="ja", is_final=False)
+        provider._on_dialog(SimpleNamespace(response=SimpleNamespace(recognition_result=recognition)))
+        return SimpleNamespace(response={}, intent=None)
+
+    connector.request.side_effect = request
+    provider.listen(timeout=5, on_interim=lambda transcript, is_final: interims.append((transcript, is_final)))
+    assert interims == [("ja", False)]
+
+    # Outside a listen, recognition results are not passed on.
+    recognition = SimpleNamespace(transcript="nee", is_final=True)
+    provider._on_dialog(SimpleNamespace(response=SimpleNamespace(recognition_result=recognition)))
+    assert interims == [("ja", False)]

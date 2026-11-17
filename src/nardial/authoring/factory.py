@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Type
 
 from nardial.dialog_types import dialog_type_names, get_dialog_type, register_dialog_type
 from nardial.eligibility import build_rule
+from nardial.listen_settings import validate_listen_settings
 # Importing mini_dialogs registers the built-in dialog types.
 from nardial.mini_dialogs import MiniDialog
 from nardial.moves import (
@@ -72,6 +73,7 @@ class MoveFactory:
         if mt in {MOVE_ASK_YESNO, MOVE_ASK_OPEN, MOVE_ASK_OPTIONS}:
             if not isinstance(move.get("text"), str):
                 errs.append(f"moves[{idx}].text must be string for {mt}")
+            errs.extend(validate_listen_settings(move, f"moves[{idx}]"))
         if mt == MOVE_ASK_OPEN and "llm_extract_entity" in move and not isinstance(move.get("llm_extract_entity"), bool):
             errs.append(f"moves[{idx}].llm_extract_entity must be boolean if present")
         if mt == MOVE_ASK_LLM:

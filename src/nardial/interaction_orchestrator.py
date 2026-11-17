@@ -13,6 +13,8 @@ from sic_framework.core.sic_application import SICApplication
 
 from nardial.controls import SessionControl
 from nardial.events import EventBus
+from nardial.listen_settings import LISTEN_SETTING_FIELDS, ListenSettings, resolve_listen_settings
+from nardial.providers.nlu.keywords import match_keywords, yesno_keywords
 from nardial.providers.device import DeviceAdapter, AnimationStyle
 from nardial.providers.tts import TTSProvider, _amplify_audio
 from nardial.providers.nlu import NLUProvider, NLUResult
@@ -28,11 +30,21 @@ class InteractionConfig:
     """
 
     def __init__(self, language="en", post_speech_delay=None,
-                 signal_listening_behavior=True, listen_timeout=10, controls=None):    
+                 signal_listening_behavior=True, listen_timeout=10, controls=None,
+                 keyword_shortcut=None, listen_settings=None, yesno_keywords=None):
         """
+        :param language: Language of the interaction ("en", "nl"); selects the default yes/no synonyms.
         :param controls: Optional pause/skip controls, e.g.
             `{"start_paused": True, "toggle_pause": ["space"], "skip_listen": ["s"]}`.
             See `nardial.controls.SessionControl`.
+        :param keyword_shortcut: Agent-wide switch for the keyword shortcut: stop listening as soon as a
+            short expected answer (a yes/no synonym or an ask_options option) is recognised. On by default.
+        :param listen_settings: Per recognition type overrides of the listen settings, e.g.
+            `{"ask_options": {"keyword_shortcut": False}}`. Moves can override them again.
+            See `nardial.listen_settings`.
+        :param yesno_keywords: Replaces the default synonym list of each intent it names, e.g.
+            `{INTENT_YESNO_NO: YESNO_KEYWORDS["nl"][INTENT_YESNO_NO] + ["heb ik niet"]}`.
+            See `nardial.providers.nlu.keywords`.
         """
         self.language = language
         self.post_speech_delay = post_speech_delay
@@ -40,10 +52,22 @@ class InteractionConfig:
          # Default seconds to listen for a user answer; moves can override it with their own "timeout".
         self.listen_timeout = listen_timeout
         self.controls = controls
+        self.keyword_shortcut = keyword_shortcut
+        self.listen_settings = listen_settings or {}
+        self.yesno_keywords = yesno_keywords
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False
         self.chunk_audio = True
+
+    def resolve_listen_settings(self, listen_type=None, move_settings=None) -> ListenSettings:
+        """Listen settings for one listen: the move's settings, then the recognition type's, then the agent's."""
+        agent = {name: getattr(self, name, None) for name in LISTEN_SETTING_FIELDS}
+        return resolve_listen_settings(agent, self.listen_settings, listen_type, move_settings)
+
+    def get_yesno_keywords(self) -> dict[str, list[str]]:
+        """Yes/no/don't know synonyms for ``language``, with ``yesno_keywords`` applied."""
+        return yesno_keywords(self.language, self.yesno_keywords)
 
     @staticmethod
     def apply_config_defaults(config_attr, param_names):
@@ -207,11 +231,26 @@ class InteractionOrchestrator:
         if post_speech_delay and post_speech_delay > 0:
             await asyncio.sleep(post_speech_delay)
 
-    async def listen(self, context=None, timeout=None) -> NLUResult:
+    async def listen(self, context=None, timeout=None, listen_type=None, keywords=None,
+                     listen_settings=None) -> NLUResult:
+        """Listen for one user answer.
+
+        :param listen_type: Recognition type ("ask_yesno", "ask_options", ...) whose
+            ``InteractionConfig.listen_settings`` apply.
+        :param keywords: Expected answers as ``{label: [phrases]}``. With the keyword shortcut on and a
+            provider that streams interim transcripts, listening stops as soon as a short interim
+            transcript matches, and the result's ``intent`` is the matched label.
+        :param listen_settings: The move's own listen settings, which override all others.
+        """
         if timeout is None:
             timeout = self.interaction_conf.listen_timeout
-        
-        hear = functools.partial(self._listen, context=context, timeout=timeout)
+        settings = self.interaction_conf.resolve_listen_settings(listen_type, listen_settings)
+        if not (settings.keyword_shortcut and keywords
+                and getattr(self.nlu_provider, "supports_interim_results", False)):
+            keywords = None
+
+        hear = functools.partial(self._listen, context=context, timeout=timeout,
+                                 keywords=keywords, settings=settings)
         control = await self._active_control()
         if control is None:
             return await hear()
@@ -233,13 +272,17 @@ class InteractionOrchestrator:
         result.interrupted = stopped
         return result
 
-    async def _listen(self, context, timeout) -> NLUResult:
+    async def _listen(self, context, timeout, keywords=None, settings=None) -> NLUResult:
+        await self._finish_previous_listen()
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
         try:
-            result = await asyncio.to_thread(
-                self.nlu_provider.listen, context=context, timeout=timeout
-            )
+            if keywords:
+                result = await self._listen_with_keyword_shortcut(context, timeout, keywords, settings)
+            else:
+                result = await asyncio.to_thread(
+                    self.nlu_provider.listen, context=context, timeout=timeout
+                )
         except asyncio.CancelledError:
             self.nlu_provider.cancel()
             raise
@@ -250,6 +293,80 @@ class InteractionOrchestrator:
             self.log_utterance(speaker='user', text=result.transcript)
             await self._push_user_transcript(result.transcript)
         return result
+
+    async def _listen_with_keyword_shortcut(self, context, timeout, keywords, settings) -> NLUResult:
+        """Listen, but return as soon as an interim transcript matches one of ``keywords``.
+
+        A match must stay unchanged for ``settings.keyword_confirm_delay`` seconds (a final
+        transcript is accepted at once). Listening is then stopped and the matched label is
+        returned as the intent right away; the provider's own late result is discarded by
+        :meth:`_finish_previous_listen` at the start of the next listen.
+        """
+        loop = asyncio.get_running_loop()
+        matched = loop.create_future()
+        confirm = None
+        confirming = None  # transcript whose match is being confirmed
+
+        def accept(result):
+            if not matched.done():
+                matched.set_result(result)
+
+        def on_interim_in_loop(transcript, is_final):
+            nonlocal confirm, confirming
+            if matched.done():
+                return
+            if confirm is not None:
+                if transcript == confirming and not is_final:
+                    return  # Dialogflow repeats unchanged transcripts; keep the running confirmation
+                confirm.cancel()  # the transcript changed, so an earlier match is not confirmed
+                confirm = confirming = None
+            label = match_keywords(transcript, keywords, settings.keyword_max_words)
+            if label is None:
+                return
+            result = NLUResult(transcript=transcript, intent=label)
+            if is_final or settings.keyword_confirm_delay <= 0:
+                accept(result)
+            else:
+                confirm = loop.call_later(settings.keyword_confirm_delay, accept, result)
+                confirming = transcript
+
+        def on_interim(transcript, is_final):
+            # Called from the provider's thread, possibly after the event loop has closed.
+            try:
+                loop.call_soon_threadsafe(on_interim_in_loop, transcript, is_final)
+            except RuntimeError:
+                pass
+
+        listening = asyncio.ensure_future(asyncio.to_thread(
+            self.nlu_provider.listen, context=context, timeout=timeout, on_interim=on_interim
+        ))
+        try:
+            await asyncio.wait({listening, matched}, return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:
+            self._previous_listen = listening
+            raise
+        finally:
+            if confirm is not None:
+                confirm.cancel()
+        if listening.done():
+            return listening.result()
+        print(f"Keyword shortcut: '{matched.result().transcript}' -> {matched.result().intent}")
+        self.nlu_provider.cancel()
+        self._previous_listen = listening
+        return matched.result()
+
+    async def _finish_previous_listen(self):
+        """Wait for a listen stopped by the keyword shortcut, so its late result is not used as the next answer."""
+        previous = getattr(self, "_previous_listen", None)
+        self._previous_listen = None
+        if previous is None:
+            return
+        stop_grace_seconds = getattr(self.nlu_provider, "stop_grace_seconds", self.DEFAULT_STOP_GRACE_SECONDS)
+        await asyncio.wait({previous}, timeout=stop_grace_seconds)
+        if not previous.done():
+            self.logger.warning("Previous listen did not finish in time; listening again anyway")
+        elif not previous.cancelled():
+            previous.exception()  # the result is discarded; retrieve any error so asyncio does not warn
 
     async def request_from_llm(self, user_prompt=None, context_messages=None, system_prompt=None,
                          json_response=False, rag_enabled: bool = False, index_name: str | None = None):

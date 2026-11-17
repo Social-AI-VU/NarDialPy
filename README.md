@@ -272,6 +272,45 @@ Key names are single characters (`"p"`) or [pynput key names](https://pynput.rea
 
 ---
 
+### Keyword shortcut for short answers
+
+Dialogflow waits for a pause after the user stops speaking before it returns an intent, which makes short answers ("ja", "no") feel slow. With the keyword shortcut, listening stops as soon as an interim transcript is a short expected answer, and the dialog continues right away with that answer:
+
+- `ask_yesno` matches yes / no / don't know synonyms for `InteractionConfig(language=...)` (`"en"` or `"nl"`; other languages have no defaults). It returns the same `"yes"` / `"no"` / `"dontknow"` answer as when Dialogflow recognises the intent.
+- `ask_options` matches the move's `options`.
+
+Only answers of at most 3 words take the shortcut, and phrases that contradict each other ("yeah no", "niet goed") go to Dialogflow as usual. The shortcut needs an NLU provider that streams interim transcripts (Dialogflow); other providers ignore it.
+
+It is on by default. Turn it off, or tune it, for the whole agent, per question type, or per move; the most specific setting wins:
+
+```python
+from nardial.interaction_orchestrator import InteractionConfig
+from nardial.providers.nlu import INTENT_YESNO_NO
+from nardial.providers.nlu.keywords import YESNO_KEYWORDS
+
+InteractionConfig(
+    language="nl",
+    keyword_shortcut=True,                                   # whole agent
+    listen_settings={"ask_options": {"keyword_shortcut": False}},  # per question type
+    # Replace the synonym list of an intent, here to add a phrase to the defaults:
+    yesno_keywords={INTENT_YESNO_NO: YESNO_KEYWORDS["nl"][INTENT_YESNO_NO] + ["heb ik niet"]},
+)
+```
+
+```json
+{ "type": "ask_yesno", "text": "Heb je een huisdier?", "keyword_shortcut": false }
+```
+
+| Setting | Default | Effect |
+|---|---|---|
+| `keyword_shortcut` | `true` | Turns the shortcut on or off |
+| `keyword_max_words` | `3` | Longer answers are not matched ("yes, but…") |
+| `keyword_confirm_delay` | `0.3` | Seconds a match must stay unchanged before it is accepted; a final transcript is accepted at once |
+
+All three settings can be used in `InteractionConfig` (`keyword_shortcut` as an argument, the others in `listen_settings`) and in `ask_yesno` / `ask_options` moves.
+
+---
+
 ### Using SessionManager
 
 `SessionManager` wraps `ConversationAgent` and adds dialog loading, eligibility checking, and session state:
@@ -714,6 +753,7 @@ Asks a yes/no question. The detected intent (`"yes"`, `"no"`, `"dontknow"`) driv
 | `add_interest` | string | | Topic added to interest list when the user answers `"yes"` |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
 | `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
+| `keyword_shortcut` | boolean | | Stop listening as soon as a short yes/no/don't know synonym is recognised. Overrides `InteractionConfig`; see [Keyword shortcut](#keyword-shortcut-for-short-answers) |
 
 ```json
 {
@@ -743,6 +783,7 @@ Presents a multiple-choice question. The selected option drives branching and ca
 | `add_interest_from_variable` | string | | After storing, adds the named variable's value as a topic of interest |
 | `llm_followup` | string | | System prompt for an LLM-generated follow-up sentence |
 | `timeout` | number | | Seconds to listen for an answer. Defaults to `InteractionConfig(listen_timeout=...)` (10 s) |
+| `keyword_shortcut` | boolean | | Stop listening as soon as a short answer naming one of the options is recognised. Overrides `InteractionConfig`; see [Keyword shortcut](#keyword-shortcut-for-short-answers) |
 
 ```json
 {

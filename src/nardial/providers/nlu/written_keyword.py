@@ -1,11 +1,11 @@
-from nardial.providers.nlu import (
-    NLUProvider, NLUResult,
-    INTENT_YESNO_YES, INTENT_YESNO_NO, INTENT_YESNO_DONTKNOW,
-)
+from nardial.providers.nlu import NLUProvider, NLUResult
+from nardial.providers.nlu.keywords import YESNO_KEYWORDS, match_keywords
 
-_YES = {"yes", "ja", "yep", "yeah", "yup", "correct", "right"}
-_NO = {"no", "nee", "nope", "nah", "wrong"}
-_DONTKNOW = {"don't know", "dont know", "not sure", "maybe", "idk", "dunno"}
+# The keyboard provider has no language setting, so it accepts the synonyms of every language.
+_KEYWORDS: dict[str, list[str]] = {}
+for _language_keywords in YESNO_KEYWORDS.values():
+    for _intent, _words in _language_keywords.items():
+        _KEYWORDS.setdefault(_intent, []).extend(_words)
 
 
 class WrittenKeywordNLUProvider(NLUProvider):
@@ -30,12 +30,4 @@ class WrittenKeywordNLUProvider(NLUProvider):
 
     @staticmethod
     def _match_intent(text: str) -> str | None:
-        for phrase in _DONTKNOW:
-            if phrase in text:
-                return INTENT_YESNO_DONTKNOW
-        words = set(text.split())
-        if words & _YES:
-            return INTENT_YESNO_YES
-        if words & _NO:
-            return INTENT_YESNO_NO
-        return None
+        return match_keywords(text, _KEYWORDS)

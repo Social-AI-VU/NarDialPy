@@ -2,6 +2,8 @@ from typing import Optional
 from typing import Dict, List
 from abc import abstractmethod
 
+from nardial.listen_settings import listen_settings_from_dict
+
 MOVE_SAY = "say"
 MOVE_SAY_OPTIONS = "say_options"
 MOVE_ASK_YESNO = "ask_yesno"
@@ -112,7 +114,7 @@ class MoveAskYesNo(Move):
     def __init__(self, text: str, set_variable: Optional[str] = None,
                  add_interest: Optional[str] = None, llm_followup: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 timeout : Optional[int] = None):
+                 timeout : Optional[int] = None, listen_settings: Optional[dict] = None):
         """
         :param text: Question text to ask the user.
         :param set_variable: Optional user model variable to store the answer.
@@ -120,6 +122,7 @@ class MoveAskYesNo(Move):
         :param llm_followup: Optional system prompt for generating an LLM follow-up.
         :param outcomes: Mapping from answers to outcome labels.
         :param default_outcome: Fallback outcome label if no match is found.
+        :param listen_settings: The move's listen settings, e.g. ``{"keyword_shortcut": False}``.
         """
         super().__init__()
         self.type = MOVE_ASK_YESNO
@@ -130,6 +133,7 @@ class MoveAskYesNo(Move):
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
         self.timeout = timeout
+        self.listen_settings = dict(listen_settings or {})
 
     def get_type(self):
         """Return the move type."""
@@ -151,6 +155,7 @@ class MoveAskYesNo(Move):
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
             timeout=data.get("timeout"),
+            listen_settings=listen_settings_from_dict(data),
         )
 
 
@@ -165,7 +170,7 @@ class MoveAskOpen(Move):
                  personalize_followup: Optional[bool] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
                  llm_followup: Optional[str] = None, timeout: Optional[int] = None,  llm_extract_entity: bool = False,
-                 context: Optional[Dict[str, int]] = None):
+                 context: Optional[Dict[str, int]] = None, listen_settings: Optional[dict] = None):
         """
         :param text: Question text to ask the user.
         :param set_variable: Variable name to store extracted answer value.
@@ -177,6 +182,7 @@ class MoveAskOpen(Move):
         :param llm_followup: Optional LLM follow-up system prompt.
         :param llm_extract_entity: Whether to let the LLM extract the key entity from the answer before storing it.
         :param context: Optional NLU context passed to the listening function (e.g. Dialogflow contexts).
+        :param listen_settings: The move's listen settings, e.g. ``{"keyword_shortcut": False}``.
         """
         super().__init__()
         self.type = MOVE_ASK_OPEN
@@ -189,6 +195,7 @@ class MoveAskOpen(Move):
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
         self.timeout = timeout
+        self.listen_settings = dict(listen_settings or {})
         self.llm_extract_entity = llm_extract_entity
         self.context = context
 
@@ -216,6 +223,7 @@ class MoveAskOpen(Move):
             timeout=data.get("timeout"),
             llm_extract_entity=data.get("llm_extract_entity", False),
             context=data.get("context"),
+            listen_settings=listen_settings_from_dict(data),
         )
 
 
@@ -227,7 +235,7 @@ class MoveAskOptions(Move):
     def __init__(self, text: str, options: List[str], set_variable: Optional[str] = None,
                  add_interest_from_variable: Optional[str] = None, llm_followup: Optional[str] = None,
                  outcomes: Optional[Dict[str, str]] = None, default_outcome: Optional[str] = None,
-                 timeout: Optional[int] = None):
+                 timeout: Optional[int] = None, listen_settings: Optional[dict] = None):
         """
         :param text: Question text to present to the user.
         :param options: List of selectable options.
@@ -236,6 +244,7 @@ class MoveAskOptions(Move):
         :param llm_followup: Optional LLM follow-up system prompt.
         :param outcomes: Mapping from answers to outcome labels.
         :param default_outcome: Fallback outcome label.
+        :param listen_settings: The move's listen settings, e.g. ``{"keyword_shortcut": False}``.
         """
         super().__init__()
         self.type = MOVE_ASK_OPTIONS
@@ -247,6 +256,7 @@ class MoveAskOptions(Move):
         self.default_outcome = default_outcome
         self.llm_followup = llm_followup
         self.timeout = timeout
+        self.listen_settings = dict(listen_settings or {})
 
     def get_type(self):
         """Return the move type."""
@@ -269,6 +279,7 @@ class MoveAskOptions(Move):
             default_outcome=data.get("default_outcome"),
             llm_followup=data.get("llm_followup"),
             timeout=data.get("timeout"),
+            listen_settings=listen_settings_from_dict(data),
         )
 
 

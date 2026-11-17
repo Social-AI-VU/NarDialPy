@@ -526,12 +526,14 @@ class MiniDialog:
             rag_enabled=move.rag_enabled if hasattr(move, "rag_enabled") else False,
             index_name=move.index_name if hasattr(move, "index_name") else None,
             voice_settings=voice_settings,
+            listen_settings=move.listen_settings,
         )
 
     async def _run_llm_exchange(self, prompt: str, max_turns: int, set_variable: Optional[str] = None,
                           quit_phrases: Optional[List[str]] = None, quit_signal: Optional[str] = None,
                           speak_first: bool = True, duration: Optional[float] = None,
-                          rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None):
+                          rag_enabled: bool = False, index_name: Optional[str] = None, voice_settings=None,
+                          listen_settings: Optional[dict] = None):
         dialog_history = []
         user_input = ""
         start_time = monotonic()
@@ -549,7 +551,8 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = await agent.orchestrator.listen(timeout=timeout)
+            result = await agent.orchestrator.listen(timeout=timeout, listen_type="ask_llm",
+                                                     listen_settings=listen_settings)
             user_input = result.transcript or ""
             self._record_user(MOVE_ANSWER_LLM, user_input)
 
@@ -581,7 +584,8 @@ class MiniDialog:
             timeout = remaining_time()
             if timeout is not None and timeout <= 0:
                 return
-            result = await agent.orchestrator.listen(timeout=timeout)
+            result = await agent.orchestrator.listen(timeout=timeout, listen_type="ask_llm",
+                                                     listen_settings=listen_settings)
             user_input = result.transcript or ""
 
             # Record the exchange using the provided record types

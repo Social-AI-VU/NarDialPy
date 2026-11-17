@@ -148,6 +148,7 @@ NarDialPy is built around a set of provider protocols. Each protocol defines a r
 | **Screen** | `ScreenProvider` / `SICScreenAdapter` / `PepperTabletScreenAdapter` | `nardial.providers.screen`                   | browser display via SIC webserver |
 | **Vector store** | `RedisVectorStoreProvider` | `nardial.providers.vector_store.redis_store` | base + running Redis |
 | | `NullVectorStoreProvider` | `nardial.providers.vector_store.null`        | base |
+| **VAD** (optional) | `SICVoiceDetectionProvider` | `nardial.providers.vad.sic_voice_detection` | `nardial[vad]` + `run-voice-detection` |
 
 ---
 
@@ -308,6 +309,44 @@ InteractionConfig(
 | `keyword_confirm_delay` | `0.3` | Seconds a match must stay unchanged before it is accepted; a final transcript is accepted at once |
 
 All three settings can be used in `InteractionConfig` (`keyword_shortcut` as an argument, the others in `listen_settings`) and in `ask_yesno` / `ask_options` moves.
+
+---
+
+### End-of-speech detection (VAD)
+
+The keyword shortcut only helps for short, expected answers. For any answer, including open questions and LLM conversations, a voice activity detector (VAD) can stop listening shortly after the user stops speaking, instead of waiting for Dialogflow to decide the user is done (which often takes until the listen timeout). It uses SIC's Silero-based voice detection service:
+
+```bash
+pip install "nardial[vad]"     # installs torch
+run-voice-detection            # in a separate terminal, next to run-dialogflow
+```
+
+```python
+from nardial.providers.vad.sic_voice_detection import SICVoiceDetectionProvider
+
+agent = ConversationAgent(
+    ...,  # device and providers as in the setups above
+    vad_provider=SICVoiceDetectionProvider(mic=device.get_mic()),
+    int_config=InteractionConfig(
+        vad_endpointing=True,                                       # whole agent
+        vad_silence_delay=0.5,                                      # seconds of silence after speech
+        listen_settings={"ask_llm": {"vad_silence_delay": 1.0}},    # per question type
+    ),
+)
+```
+
+```json
+{ "type": "ask_open", "text": "Wat heb je vandaag gedaan?", "vad_silence_delay": 1.2 }
+```
+
+Listening stops once the user has spoken and then been silent for `vad_silence_delay` seconds; what Dialogflow heard so far is used as the answer. Silence before the user starts speaking never stops listening, so the `timeout` still applies to users who do not answer. The SIC service judges speech over a one-second window, so it reports the end of speech somewhat late; `vad_silence_delay` comes on top of that. Too short a delay cuts off users who pause mid-sentence, so open questions usually need a longer delay than yes/no questions.
+
+| Setting | Default | Effect |
+|---|---|---|
+| `vad_endpointing` | `false` | Turns VAD end-of-speech detection on or off. Needs a `vad_provider`; without one it has no effect |
+| `vad_silence_delay` | `0.5` | Seconds of silence after speech before listening stops |
+
+Both settings can be used in `InteractionConfig` (as arguments or in `listen_settings`) and in `ask_yesno`, `ask_open`, `ask_options` and `ask_llm` moves. They combine with the keyword shortcut: whichever stops listening first wins.
 
 ---
 
@@ -1104,7 +1143,7 @@ Ready-to-run demos are included in the `examples/` directory:
 * Demo 4 — Pepper Tablet (`demo_pepper_tablet.py`): Uses the same screen UI on Pepper's tablet through the SIC webserver
 * Demo 5 — Agenda System (`demo_agenda_system.py`): Uses every agenda-item type (`narrative_slot`, `chitchat_slot`, `functional_slot`, `llm_dialog_ref`, plain dialog ids) so `SessionManager` picks the next dialog dynamically instead of following a fixed list — see the [Agenda System Guide](docs/AGENDA_SYSTEM_GUIDE.md) for a plain-language walkthrough
 * Demo 6 — Custom Dialog Type (`demo_custom_dialog_type.py`): Writes a custom eligibility rule in Python and defines two new dialog types in JSON (see [Custom dialog types](#custom-dialog-types)): a chitchat that comes back every session, and one that only runs for participants who said they have a pet
-* Demo 7 — Keyword Shortcut (`demo_keyword_shortcut.py`): Asks Dutch (or `--english`) yes/no and option questions and prints how fast each answer is accepted; run it with and without `--no-shortcut` to compare (see [Keyword shortcut for short answers](#keyword-shortcut-for-short-answers))
+* Demo 7 — Keyword Shortcut (`demo_keyword_shortcut.py`): Asks Dutch (or `--english`) yes/no and option questions and prints how fast each answer is accepted; run it with and without `--no-shortcut` to compare (see [Keyword shortcut for short answers](#keyword-shortcut-for-short-answers)); add `--vad` to also try [VAD end-of-speech detection](#end-of-speech-detection-vad), including on an open question
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 

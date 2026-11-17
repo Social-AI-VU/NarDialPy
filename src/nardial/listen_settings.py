@@ -22,6 +22,11 @@ class ListenSettings:
     keyword_max_words: int = 3
     # Seconds a match must stay unchanged before it is accepted; a final transcript is accepted at once.
     keyword_confirm_delay: float = 0.3
+    # Stop listening once a voice activity detector (InteractionOrchestrator.vad_provider) has heard
+    # the user speak and then vad_silence_delay seconds of silence, instead of waiting for the NLU
+    # provider's own end-of-speech detection.
+    vad_endpointing: bool = False
+    vad_silence_delay: float = 0.5
 
 
 LISTEN_SETTING_FIELDS = tuple(f.name for f in fields(ListenSettings))
@@ -31,6 +36,8 @@ _SETTING_TYPES = {
     "keyword_shortcut": (bool,),
     "keyword_max_words": (int,),
     "keyword_confirm_delay": (int, float),
+    "vad_endpointing": (bool,),
+    "vad_silence_delay": (int, float),
 }
 
 
@@ -49,7 +56,7 @@ def validate_listen_settings(data: dict, where: str) -> list[str]:
             errs.append(f"{where}.{name} must be {' or '.join(t.__name__ for t in types)}")
         elif name == "keyword_max_words" and value < 1:
             errs.append(f"{where}.{name} must be at least 1")
-        elif name == "keyword_confirm_delay" and value < 0:
+        elif name in ("keyword_confirm_delay", "vad_silence_delay") and value < 0:
             errs.append(f"{where}.{name} must not be negative")
     return errs
 

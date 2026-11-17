@@ -14,11 +14,12 @@ YESNO_KEYWORDS: dict[str, dict[str, list[str]]] = {
     "en": {
         INTENT_YESNO_YES: [
             "yes", "yeah", "yep", "yup", "yes please", "sure", "of course", "ok", "okay", "correct",
-            "right", "absolutely", "definitely", "certainly", "i do",
+            "right", "absolutely", "definitely", "certainly", "i do", "i think so",
         ],
         INTENT_YESNO_NO: [
             "no", "nope", "nah", "not really", "never", "no way", "not at all", "i don't", "wrong",
             "no thanks", "of course not", "absolutely not", "definitely not", "certainly not",
+            "i don't think so",
         ],
         INTENT_YESNO_DONTKNOW: [
             "i don't know", "don't know", "dont know", "not sure", "i'm not sure", "maybe", "perhaps",
@@ -29,13 +30,16 @@ YESNO_KEYWORDS: dict[str, dict[str, list[str]]] = {
         INTENT_YESNO_YES: [
             "ja", "jazeker", "jawel", "ja hoor", "oké", "oke", "ok", "okay", "prima", "goed", "natuurlijk",
             "tuurlijk", "absoluut", "zeker", "zeker weten", "klopt", "graag", "inderdaad",
+            "denk het wel", "ik denk het wel", "denk van wel", "volgens mij wel",
         ],
         INTENT_YESNO_NO: [
             "nee", "neen", "nah", "nope", "nee hoor", "niet", "nooit", "liever niet", "zeker niet",
             "helemaal niet", "natuurlijk niet", "absoluut niet", "niet echt", "echt niet",
+            "denk het niet", "ik denk het niet", "denk van niet", "volgens mij niet",
         ],
         INTENT_YESNO_DONTKNOW: [
-            "weet ik niet", "weet niet", "geen idee", "geen flauw idee", "twijfel", "ik twijfel", "misschien",
+            "weet ik niet", "weet niet", "ik weet het niet", "weet het niet", "geen idee", "geen flauw idee",
+            "twijfel", "ik twijfel", "misschien",
         ],
     },
 }
@@ -65,10 +69,11 @@ def match_keywords(text: str, keywords: Mapping[str, Iterable[str]], max_words: 
 
     Phrases match whole words, longest phrase first; words used by a match cannot match again.
     Returns None when nothing matches, when phrases of different labels match ("yeah no"),
-    or when ``text`` has more than ``max_words`` words.
+    or when ``text`` has more than ``max_words`` words that are not all part of matched
+    phrases ("ik denk het niet" matches, "ja maar eigenlijk niet" does not).
     """
     tokens = _tokens(text)
-    if not tokens or (max_words is not None and len(tokens) > max_words):
+    if not tokens:
         return None
     phrases = sorted(((tuple(_tokens(p)), label) for label, ps in keywords.items() for p in ps),
                      key=lambda item: len(item[0]), reverse=True)
@@ -82,4 +87,6 @@ def match_keywords(text: str, keywords: Mapping[str, Iterable[str]], max_words: 
             if tuple(tokens[i:i + n]) == phrase and not any(used[i:i + n]):
                 used[i:i + n] = [True] * n
                 labels.add(label)
+    if max_words is not None and len(tokens) > max_words and not all(used):
+        return None
     return labels.pop() if len(labels) == 1 else None

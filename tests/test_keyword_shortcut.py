@@ -33,7 +33,14 @@ EN = YESNO_KEYWORDS["en"]
     ("zeker niet", INTENT_YESNO_NO),
     ("helemaal niet", INTENT_YESNO_NO),
     ("weet ik niet", INTENT_YESNO_DONTKNOW),
+    ("ik weet het niet", INTENT_YESNO_DONTKNOW),  # 4 words, but all one known phrase
     ("geen idee", INTENT_YESNO_DONTKNOW),
+    ("niet", INTENT_YESNO_NO),
+    ("denk het niet", INTENT_YESNO_NO),
+    ("ik denk het niet", INTENT_YESNO_NO),
+    ("ik denk het wel", INTENT_YESNO_YES),
+    ("volgens mij wel", INTENT_YESNO_YES),
+    ("ja maar eigenlijk niet", None),  # longer than 3 words and not one known phrase
     ("misschien", INTENT_YESNO_DONTKNOW),
     ("niet goed", None),  # yes and no both match: let the NLU provider decide
     ("een draak", None),
@@ -50,6 +57,8 @@ def test_match_dutch(text, expected):
     ("of course not", INTENT_YESNO_NO),
     ("no", INTENT_YESNO_NO),
     ("not really", INTENT_YESNO_NO),
+    ("I don't think so", INTENT_YESNO_NO),
+    ("I think so", INTENT_YESNO_YES),
     ("I don't know", INTENT_YESNO_DONTKNOW),
     ("I don’t know", INTENT_YESNO_DONTKNOW),  # typographic apostrophe
     ("no idea", INTENT_YESNO_DONTKNOW),

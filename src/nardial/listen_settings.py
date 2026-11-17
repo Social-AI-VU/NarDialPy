@@ -18,7 +18,8 @@ class ListenSettings:
     # Stop listening as soon as an interim transcript matches an expected answer
     # (yes/no/don't know synonyms, or the options of ask_options).
     keyword_shortcut: bool = True
-    # Only short answers take the shortcut; longer ones go to the NLU provider ("yes, but...").
+    # Only short answers take the shortcut; longer ones go to the NLU provider ("yes, but..."),
+    # unless they consist entirely of expected phrases ("ik denk het niet").
     keyword_max_words: int = 3
     # Seconds a match must stay unchanged before it is accepted; a final transcript is accepted at once.
     keyword_confirm_delay: float = 0.3

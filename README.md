@@ -280,7 +280,7 @@ Dialogflow waits for a pause after the user stops speaking before it returns an 
 - `ask_yesno` matches yes / no / don't know synonyms for `InteractionConfig(language=...)` (`"en"` or `"nl"`; other languages have no defaults). It returns the same `"yes"` / `"no"` / `"dontknow"` answer as when Dialogflow recognises the intent.
 - `ask_options` matches the move's `options`.
 
-Only answers of at most 3 words take the shortcut, and phrases that contradict each other ("yeah no", "niet goed") go to Dialogflow as usual. The shortcut needs an NLU provider that streams interim transcripts (Dialogflow); other providers ignore it.
+Only answers of at most 3 words take the shortcut (longer ones only when they consist entirely of expected phrases, like "ik denk het niet"), and phrases that contradict each other ("yeah no", "niet goed") go to Dialogflow as usual. The shortcut needs an NLU provider that streams interim transcripts (Dialogflow); other providers ignore it.
 
 It is on by default. Turn it off, or tune it, for the whole agent, per question type, or per move; the most specific setting wins:
 
@@ -305,7 +305,7 @@ InteractionConfig(
 | Setting | Default | Effect |
 |---|---|---|
 | `keyword_shortcut` | `true` | Turns the shortcut on or off |
-| `keyword_max_words` | `3` | Longer answers are not matched ("yes, but…") |
+| `keyword_max_words` | `3` | Longer answers are not matched ("yes, but…"), unless they consist entirely of expected phrases |
 | `keyword_confirm_delay` | `0.3` | Seconds a match must stay unchanged before it is accepted; a final transcript is accepted at once |
 
 All three settings can be used in `InteractionConfig` (`keyword_shortcut` as an argument, the others in `listen_settings`) and in `ask_yesno` / `ask_options` moves.

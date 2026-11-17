@@ -1104,6 +1104,7 @@ Ready-to-run demos are included in the `examples/` directory:
 * Demo 4 — Pepper Tablet (`demo_pepper_tablet.py`): Uses the same screen UI on Pepper's tablet through the SIC webserver
 * Demo 5 — Agenda System (`demo_agenda_system.py`): Uses every agenda-item type (`narrative_slot`, `chitchat_slot`, `functional_slot`, `llm_dialog_ref`, plain dialog ids) so `SessionManager` picks the next dialog dynamically instead of following a fixed list — see the [Agenda System Guide](docs/AGENDA_SYSTEM_GUIDE.md) for a plain-language walkthrough
 * Demo 6 — Custom Dialog Type (`demo_custom_dialog_type.py`): Writes a custom eligibility rule in Python and defines two new dialog types in JSON (see [Custom dialog types](#custom-dialog-types)): a chitchat that comes back every session, and one that only runs for participants who said they have a pet
+* Demo 7 — Keyword Shortcut (`demo_keyword_shortcut.py`): Asks Dutch (or `--english`) yes/no and option questions and prints how fast each answer is accepted; run it with and without `--no-shortcut` to compare (see [Keyword shortcut for short answers](#keyword-shortcut-for-short-answers))
 
 You can find additional demos in the [SIC Applications repository](https://github.com/Social-AI-VU/sic_applications/tree/main/demos/nardial)
 

@@ -33,6 +33,8 @@ elevenlabs = ["social-interaction-cloud[elevenlabs-tts]"]
 dialogflow = ["social-interaction-cloud[dialogflow]"]
 openai = ["social-interaction-cloud[openai-gpt]"]
 webserver  = ["social-interaction-cloud[webserver]"]
+# Voice activity detection for vad_endpointing; pulls in torch, so not part of "all".
+vad = ["social-interaction-cloud[voice-detection]"]
 all = ["nardial[google-tts,elevenlabs,dialogflow,openai,webserver]"]
 dev = ["pytest", "pytest-asyncio"]
 

@@ -408,6 +408,8 @@ class MiniDialog:
         if self._get(move, 'timeout'):
             timeout = self._get(move, 'timeout')
             kwargs['timeout'] = timeout
+        if move.listen_settings:
+            kwargs['listen_settings'] = move.listen_settings
         answer = await self.conversation_agent.ask_yesno(text, **kwargs)
         self._record_robot(MOVE_ASK_YESNO, text)
         self._record_user(MOVE_ANSWER_YESNO, answer)
@@ -433,6 +435,8 @@ class MiniDialog:
         if self._get(move, 'timeout'):
             timeout = self._get(move, 'timeout')
             kwargs['timeout'] = timeout
+        if move.listen_settings:
+            kwargs['listen_settings'] = move.listen_settings
         answer = await self.conversation_agent.ask_open(text, context=move.context, **kwargs)
         self._record_robot(MOVE_ASK_OPEN, text)
         self._record_user(MOVE_ANSWER_OPEN, answer)
@@ -475,6 +479,8 @@ class MiniDialog:
         if self._get(move, 'timeout'):
             timeout = self._get(move, 'timeout')
             kwargs['timeout'] = timeout
+        if move.listen_settings:
+            kwargs['listen_settings'] = move.listen_settings
         answer = await self.conversation_agent.ask_options(text, move.options, **kwargs)
         self._record_robot(MOVE_ASK_OPTIONS, text, options=move.options)
         self._record_user(MOVE_ANSWER_OPTIONS, answer)

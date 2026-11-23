@@ -1,5 +1,5 @@
 import threading
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 from sic_framework.services.dialogflow.dialogflow import (
@@ -20,15 +20,23 @@ class DialogflowNLUProvider:
     closes the stream, and the final result for the audio so far follows within
     ``stop_grace_seconds``. Leave ``DialogflowConf.timeout`` at ``None`` (or above the
     longest per-move timeout), since it caps every request on the service side.
+
+    Interim transcripts are passed to ``on_interim`` while listening, so the orchestrator can
+    stop listening early when a short expected answer is recognised (keyword shortcut).
     """
+
+    supports_interim_results = True
 
     def __init__(self, conf: DialogflowConf, mic: Any | None = None, stop_grace_seconds: float = 5.0):
         self._dialogflow = Dialogflow(ip="localhost", conf=conf, input_source=mic)
         self._request_id = np.random.randint(10000)
         self.stop_grace_seconds = stop_grace_seconds
+        self._on_interim: Callable[[str, bool], None] | None = None
         self._dialogflow.register_callback(self._on_dialog)
 
-    def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult:
+    def listen(self, context: str | None = None, timeout: float = 10.0,
+               on_interim: Callable[[str, bool], None] | None = None) -> NLUResult:
+        self._on_interim = on_interim
         stopper = threading.Timer(timeout, self._stop_listening)
         stopper.daemon = True
         stopper.start()
@@ -41,6 +49,7 @@ class DialogflowNLUProvider:
             return NLUResult(transcript="", intent=None)
         finally:
             stopper.cancel()
+            self._on_interim = None
 
         print("The detected intent:", reply.intent)
         # The service returns QueryResult(dict()) when the stream ends without a query result.
@@ -76,5 +85,9 @@ class DialogflowNLUProvider:
 
     def _on_dialog(self, message) -> None:
         if message.response:
-            transcript = message.response.recognition_result.transcript
+            recognition_result = message.response.recognition_result
+            transcript = recognition_result.transcript
             print("Transcript:", transcript)
+            on_interim = self._on_interim
+            if on_interim is not None and transcript:
+                on_interim(transcript, bool(getattr(recognition_result, "is_final", False)))

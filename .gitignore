@@ -6,6 +6,7 @@
 *.egg-info
 *.DS_Store
 *.pt
+*.stackdump
 
 # Keep some folders
 !.keepme
@@ -28,8 +29,8 @@ conf/openai/.openai_env
 participants/*
 examples/participants/*
 
-# Ignore cache
-examples/tts_cache/
+# Ignore cache (TTS audio is cached wherever a script is run from)
+tts_cache/
 
 # environment files
 conf/.env

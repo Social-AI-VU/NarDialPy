@@ -114,7 +114,7 @@ class ConversationAgent:
         """
         self.orchestrator.play_animation(animation_name, run_async=run_async)
 
-    async def ask_yesno(self, question, max_attempts=1, timeout=None, **kwargs):
+    async def ask_yesno(self, question, max_attempts=1, timeout=None, listen_settings=None, **kwargs):
         """
         Ask a yes/no question and interpret the response via the NLU provider.
 
@@ -126,16 +126,21 @@ class ConversationAgent:
             Number of retries if no valid answer is detected.
         timeout : float, optional
             Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
+        listen_settings : dict, optional
+            The move's listen settings (e.g. ``{"keyword_shortcut": False}``); see ``nardial.listen_settings``.
 
         Returns
         -------
         str or None
             One of: "yes", "no", "dontknow", or None if no valid response.
         """
+        keywords = self.orchestrator.interaction_conf.get_yesno_keywords()
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            result = await self.orchestrator.listen(timeout=timeout, context={'answer_yesno': 1})
+            result = await self.orchestrator.listen(timeout=timeout, context={'answer_yesno': 1},
+                                                    listen_type="ask_yesno", keywords=keywords,
+                                                    listen_settings=listen_settings)
             if result.intent:
                 print(f'context: answer_yesno, recognized_intent: {result.intent}')
                 if result.intent == INTENT_YESNO_YES:
@@ -149,7 +154,8 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_open(self, question, max_attempts=2, timeout=None, context=None, **kwargs):
+    async def ask_open(self, question, max_attempts=2, timeout=None, context=None, listen_settings=None,
+                       listen_type="ask_open", keywords=None, **kwargs):
         """
         Ask an open-ended question and return the user's spoken response.
 
@@ -163,6 +169,12 @@ class ConversationAgent:
             Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
         context : optional
             NLU context passed to the listening function (e.g. Dialogflow contexts).
+        listen_settings : dict, optional
+            The move's listen settings; see ``nardial.listen_settings``.
+        listen_type : str, optional
+            Recognition type whose ``InteractionConfig.listen_settings`` apply (used by ``ask_options``).
+        keywords : dict, optional
+            Expected answers for the keyword shortcut, as ``{label: [phrases]}``.
 
         Returns
         -------
@@ -174,10 +186,10 @@ class ConversationAgent:
         attempts = 0
         while attempts < max_attempts:
             await self.say(question, **kwargs)
-            if context:
-                result = await self.orchestrator.listen(context={str(context): 1}, timeout=timeout)
-            else:
-                result = await self.orchestrator.listen(timeout=timeout)
+            result = await self.orchestrator.listen(
+                context={str(context): 1} if context else None, timeout=timeout,
+                listen_type=listen_type, keywords=keywords, listen_settings=listen_settings,
+            )
             self.last_nlu_result = result
             if result.intent:
                 print(f'context: {context}, recognized_intent: {result.intent}')
@@ -188,7 +200,7 @@ class ConversationAgent:
             attempts += 1
         return None
 
-    async def ask_options(self, question, options, max_attempts=2, timeout=None, **kwargs):
+    async def ask_options(self, question, options, max_attempts=2, timeout=None, listen_settings=None, **kwargs):
         """
         Ask a question and match the response against a set of predefined options.
 
@@ -202,6 +214,8 @@ class ConversationAgent:
             Number of retries.
         timeout : float, optional
             Seconds to listen for an answer. Defaults to ``InteractionConfig.listen_timeout``.
+        listen_settings : dict, optional
+            The move's listen settings; see ``nardial.listen_settings``.
 
         Returns
         -------
@@ -210,9 +224,14 @@ class ConversationAgent:
 
         Notes
         -----
-        Matching is case-insensitive and based on substring presence.
+        An option matched by the keyword shortcut is returned as is. Otherwise matching is
+        case-insensitive and based on substring presence.
         """
-        answer = await self.ask_open(question, max_attempts=max_attempts, timeout=timeout, **kwargs)
+        answer = await self.ask_open(question, max_attempts=max_attempts, timeout=timeout,
+                                     listen_settings=listen_settings, listen_type="ask_options",
+                                     keywords={opt: [opt] for opt in options}, **kwargs)
+        if self.last_nlu_result is not None and self.last_nlu_result.intent in options:
+            return self.last_nlu_result.intent
         if answer:
             answer_lower = answer.lower()
             for opt in options:

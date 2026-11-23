@@ -31,6 +31,14 @@ class NLUResult:
 
 @runtime_checkable
 class NLUProvider(Protocol):
+    """Listens for one user answer.
+
+    Providers that stream interim transcripts (Dialogflow) can opt in to the keyword shortcut:
+    they set ``supports_interim_results = True`` and accept an ``on_interim(transcript, is_final)``
+    keyword argument in :meth:`listen`, which they call from any thread for every recognition
+    result. The orchestrator then calls :meth:`cancel` once an interim transcript matches.
+    """
+
     def listen(self, context: str | None = None, timeout: float = 10.0) -> NLUResult: ...
 
     def cancel(self) -> None:

@@ -21,6 +21,7 @@ from nardial.providers.nlu import NLUProvider, NLUResult
 from nardial.providers.llm import LLMProvider, Message
 from nardial.providers.vector_store import VectorStoreProvider
 from nardial.providers.screen import ScreenProvider
+from nardial.providers.vad import VADProvider
 
 
 class InteractionConfig:
@@ -31,7 +32,8 @@ class InteractionConfig:
 
     def __init__(self, language="en", post_speech_delay=None,
                  signal_listening_behavior=True, listen_timeout=10, controls=None,
-                 keyword_shortcut=None, listen_settings=None, yesno_keywords=None):
+                 keyword_shortcut=None, listen_settings=None, yesno_keywords=None,
+                 vad_endpointing=None, vad_silence_delay=None):
         """
         :param language: Language of the interaction ("en", "nl"); selects the default yes/no synonyms.
         :param controls: Optional pause/skip controls, e.g.
@@ -45,6 +47,9 @@ class InteractionConfig:
         :param yesno_keywords: Replaces the default synonym list of each intent it names, e.g.
             `{INTENT_YESNO_NO: YESNO_KEYWORDS["nl"][INTENT_YESNO_NO] + ["heb ik niet"]}`.
             See `nardial.providers.nlu.keywords`.
+        :param vad_endpointing: Agent-wide switch: stop listening after the user has spoken and then been
+            silent for `vad_silence_delay` seconds, as detected by the agent's `vad_provider`. Off by default.
+        :param vad_silence_delay: Seconds of silence after speech before listening stops (default 0.5).
         """
         self.language = language
         self.post_speech_delay = post_speech_delay
@@ -55,6 +60,8 @@ class InteractionConfig:
         self.keyword_shortcut = keyword_shortcut
         self.listen_settings = listen_settings or {}
         self.yesno_keywords = yesno_keywords
+        self.vad_endpointing = vad_endpointing
+        self.vad_silence_delay = vad_silence_delay
         self.animated = True
         self.animation_style = AnimationStyle.EXPLANATORY
         self.always_regenerate = False
@@ -95,7 +102,8 @@ class InteractionOrchestrator:
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
                  screen_provider: ScreenProvider | None = None,
-                 int_config: InteractionConfig = None):
+                 int_config: InteractionConfig = None,
+                 vad_provider: VADProvider | None = None):
 
         if int_config is None:
             int_config = InteractionConfig()
@@ -138,6 +146,8 @@ class InteractionOrchestrator:
 
         self.logger.info("SETTING UP NLU")
         self.nlu_provider = nlu_provider
+        # Optional voice activity detection for vad_endpointing.
+        self.vad_provider = vad_provider
         self.logger.info("Complete and ready for interaction!")
 
         # Pause/skip controls from InteractionConfig.controls; started by start_controls().
@@ -276,9 +286,17 @@ class InteractionOrchestrator:
         await self._finish_previous_listen()
         if self.interaction_conf.signal_listening_behavior:
             self.device.signal_listening(start=True)
+        stop_vad, vad_on_interim = self._start_vad_endpointing(settings)
+        if not getattr(self.nlu_provider, "supports_interim_results", False):
+            vad_on_interim = None
         try:
             if keywords:
-                result = await self._listen_with_keyword_shortcut(context, timeout, keywords, settings)
+                result = await self._listen_with_keyword_shortcut(context, timeout, keywords, settings,
+                                                                  vad_on_interim)
+            elif vad_on_interim is not None:
+                result = await asyncio.to_thread(
+                    self.nlu_provider.listen, context=context, timeout=timeout, on_interim=vad_on_interim
+                )
             else:
                 result = await asyncio.to_thread(
                     self.nlu_provider.listen, context=context, timeout=timeout
@@ -287,6 +305,8 @@ class InteractionOrchestrator:
             self.nlu_provider.cancel()
             raise
         finally:
+            if stop_vad is not None:
+                stop_vad()
             if self.interaction_conf.signal_listening_behavior:
                 self.device.signal_listening(start=False)
         if result.transcript:
@@ -294,13 +314,15 @@ class InteractionOrchestrator:
             await self._push_user_transcript(result.transcript)
         return result
 
-    async def _listen_with_keyword_shortcut(self, context, timeout, keywords, settings) -> NLUResult:
+    async def _listen_with_keyword_shortcut(self, context, timeout, keywords, settings,
+                                            also_on_interim=None) -> NLUResult:
         """Listen, but return as soon as an interim transcript matches one of ``keywords``.
 
         A match must stay unchanged for ``settings.keyword_confirm_delay`` seconds (a final
         transcript is accepted at once). Listening is then stopped and the matched label is
         returned as the intent right away; the provider's own late result is discarded by
-        :meth:`_finish_previous_listen` at the start of the next listen.
+        :meth:`_finish_previous_listen` at the start of the next listen. ``also_on_interim`` is
+        passed every interim transcript as well (used by VAD endpointing).
         """
         loop = asyncio.get_running_loop()
         matched = loop.create_future()
@@ -332,6 +354,8 @@ class InteractionOrchestrator:
 
         def on_interim(transcript, is_final):
             # Called from the provider's thread, possibly after the event loop has closed.
+            if also_on_interim is not None:
+                also_on_interim(transcript, is_final)
             try:
                 loop.call_soon_threadsafe(on_interim_in_loop, transcript, is_final)
             except RuntimeError:
@@ -354,6 +378,69 @@ class InteractionOrchestrator:
         self.nlu_provider.cancel()
         self._previous_listen = listening
         return matched.result()
+
+    def _start_vad_endpointing(self, settings):
+        """Stop listening once the user has spoken and then been silent for ``settings.vad_silence_delay``.
+
+        Returns ``(stop, on_interim)``: a function that ends the watch, and a callback for the NLU
+        provider's interim transcripts; both are None when ``vad_endpointing`` is off or there is no
+        ``vad_provider``. The user counts as having spoken once the VAD reports speech during this
+        listen or a non-empty transcript arrives. The transcript matters when the user answers
+        right after the robot: the VAD then still reports the robot's speech and never reports a
+        new start of speech. Silence before the user has spoken never stops listening.
+        """
+        vad = getattr(self, "vad_provider", None)
+        if vad is None or settings is None or not settings.vad_endpointing:
+            return None, None
+        loop = asyncio.get_running_loop()
+        active = True
+        heard_speech = False
+        silence = None
+
+        def stop_listening():
+            print(f"VAD: {settings.vad_silence_delay} s of silence after speech, stop listening")
+            self.nlu_provider.cancel()
+
+        def on_change_in_loop(is_speaking):
+            nonlocal heard_speech, silence
+            if not active:
+                return  # queued before the listen ended
+            if silence is not None:
+                silence.cancel()
+                silence = None
+            if is_speaking:
+                heard_speech = True
+            elif heard_speech:
+                silence = loop.call_later(settings.vad_silence_delay, stop_listening)
+
+        def on_change(is_speaking):
+            # Called from the provider's thread, possibly after the event loop has closed.
+            try:
+                loop.call_soon_threadsafe(on_change_in_loop, is_speaking)
+            except RuntimeError:
+                pass
+
+        def on_transcript_in_loop(transcript):
+            nonlocal heard_speech
+            if active and transcript.strip():
+                heard_speech = True
+
+        def on_interim(transcript, is_final):
+            # Called from the NLU provider's thread.
+            try:
+                loop.call_soon_threadsafe(on_transcript_in_loop, transcript)
+            except RuntimeError:
+                pass
+
+        def stop():
+            nonlocal active
+            active = False
+            vad.stop()
+            if silence is not None:
+                silence.cancel()
+
+        vad.start(on_change)
+        return stop, on_interim
 
     async def _finish_previous_listen(self):
         """Wait for a listen stopped by the keyword shortcut, so its late result is not used as the next answer."""
@@ -460,6 +547,8 @@ class InteractionOrchestrator:
             for source in self.control.sources:
                 source.stop()
         self.tts_provider.close()
+        if getattr(self, "vad_provider", None) is not None:
+            self.vad_provider.close()
         self.device.disconnect()
         if self.vector_store is not None:
             self.vector_store.close()

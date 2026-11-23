@@ -10,6 +10,7 @@ from nardial.providers.nlu import (
 from nardial.providers.llm import LLMProvider
 from nardial.providers.vector_store import VectorStoreProvider
 from nardial.providers.screen import ScreenProvider
+from nardial.providers.vad import VADProvider
 from nardial.interaction_orchestrator import InteractionOrchestrator, InteractionConfig
 
 
@@ -44,6 +45,9 @@ class ConversationAgent:
         (``wait_for_web_input``) in JSON dialogs.
     int_config : InteractionConfig, optional
         Configuration for behavioral parameters. If not provided, defaults are used.
+    vad_provider : VADProvider, optional
+        Voice activity detection used to stop listening shortly after the user stops
+        speaking, for listens with ``vad_endpointing`` on (see ``InteractionConfig``).
 
     Notes
     -----
@@ -54,7 +58,8 @@ class ConversationAgent:
                  nlu_provider: NLUProvider, llm_provider: LLMProvider | None = None,
                  vector_store: VectorStoreProvider | None = None,
                  screen_provider: ScreenProvider | None = None,
-                 int_config: InteractionConfig = None):
+                 int_config: InteractionConfig = None,
+                 vad_provider: VADProvider | None = None):
         self.orchestrator = InteractionOrchestrator(
             device=device,
             tts_provider=tts_provider,
@@ -63,6 +68,7 @@ class ConversationAgent:
             vector_store=vector_store,
             screen_provider=screen_provider,
             int_config=int_config,
+            vad_provider=vad_provider,
         )
         # Full NLU result of the last ask_open() call, so callers can read the intent/entities.
         self.last_nlu_result: NLUResult | None = None

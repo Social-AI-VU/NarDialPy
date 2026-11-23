@@ -247,6 +247,8 @@ It owns:
 
 `listen()` also takes a `listen_type` (`"ask_yesno"`, `"ask_options"`, ...), the expected answers as `keywords={label: [phrases]}`, and the move's `listen_settings`. Settings resolve in `InteractionConfig.resolve_listen_settings()` (`src/nardial/listen_settings.py`): move, then `InteractionConfig.listen_settings[listen_type]`, then the agent-wide attribute, then `ListenSettings` defaults. With `keyword_shortcut` on, keywords given, and a provider with `supports_interim_results = True`, the provider's `listen()` gets an `on_interim(transcript, is_final)` callback. When a short interim transcript matches (`match_keywords()` in `providers/nlu/keywords.py`) and stays unchanged for `keyword_confirm_delay` seconds (or is final), the orchestrator calls `nlu_provider.cancel()` and returns `NLUResult(transcript, intent=<matched label>)` immediately. The provider call keeps running in the background; the next `listen()` first waits for it (up to `stop_grace_seconds`) and discards its result. `ask_yesno()` passes the yes/no synonyms for `InteractionConfig.language`, so the matched label is one of the `INTENT_YESNO_*` constants; `ask_options()` passes the options and returns a matched option directly.
 
+With `vad_endpointing` on and a `vad_provider` set, `_listen()` also calls `vad_provider.start(on_change)` for the duration of the listen (`_start_vad_endpointing()`). Once the user has spoken during this listen (the provider reported `True`, or the NLU provider sent a non-empty interim transcript), a `False` (silence) starts a `vad_silence_delay` timer that a new `True` cancels. The transcript matters when the user answers right after the robot: the microphone also hears the robot, so the VAD can still be in its "speaking" state and never report a new start of speech; when it fires, the orchestrator calls `nlu_provider.cancel()`, which for Dialogflow returns the result for the audio so far. `ask_llm` listens use `listen_type="ask_llm"` and the move's listen settings.
+
 `request_from_llm()` builds provider-agnostic `Message` objects, optionally adds retrieved snippets from the vector store when RAG is enabled, calls `llm_provider.complete()`, and optionally parses JSON output.
 
 `disconnect()` closes TTS, device, vector store, and screen resources.
@@ -263,6 +265,7 @@ Providers are protocol-based adapters. Each provider role has a small required i
 | LLM | Complete a list of chat-like `Message` objects under a system prompt | `OpenAIGPTProvider`, `EchoLLMProvider`                                                  |
 | Vector store | Ingest/query retrieval snippets for RAG | `RedisVectorStoreProvider`, `NullVectorStoreProvider`                                   |
 | Screen | Display transcripts/media/HTML and collect browser input | `SICScreenAdapter`, `PepperTabletScreenAdapter`, `NullScreenProvider`                   |
+| VAD (optional) | Report when the user starts and stops speaking, for `vad_endpointing` | `SICVoiceDetectionProvider` |
 
 Providers should hide service-specific details. The rest of the runtime should only rely on the protocol methods.
 
